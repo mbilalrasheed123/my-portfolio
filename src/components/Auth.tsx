@@ -48,7 +48,11 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
       }
     } catch (err: any) {
       console.error("Auth error:", err);
-      setError(err.message || "Authentication failed. Please try again.");
+      let msg = err.message || "Authentication failed. Please try again.";
+      if (msg.includes("requests-from-referer") || err.code?.includes("referer")) {
+        msg = "Domain Blocked: Please add this domain to 'Authorized domains' in Firebase Console (Authentication > Settings) and check API Key restrictions in Google Cloud Console.";
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -65,7 +69,11 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
       }, 1500);
     } catch (err: any) {
       console.error("Google Auth error:", err);
-      setError(err.message || "Google authentication failed.");
+      let msg = err.message || "Google authentication failed.";
+      if (msg.includes("requests-from-referer") || err.code?.includes("referer")) {
+        msg = "Domain Blocked: Please add this domain to 'Authorized domains' in Firebase Console (Authentication > Settings) and check API Key restrictions in Google Cloud Console.";
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
