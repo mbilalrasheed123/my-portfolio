@@ -52,6 +52,21 @@ service cloud.firestore {
         incoming().uid == existing().uid; // UID is immutable
     }
 
+    // Chat Sessions
+    match /chatSessions/{sessionId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if true; // Allow guests to save (indexed by unique guest ID if needed, or just public-write-private-read)
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // Leads
+    match /leads/{leadId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // Contact Messages (Queries)
     match /contactMessages/{messageId} {
       // Allow creation by anyone (signed in or anonymous)

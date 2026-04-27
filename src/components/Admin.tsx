@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
@@ -63,12 +63,14 @@ const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUplo
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory">("projects");
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
@@ -89,12 +91,14 @@ export default function Admin() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [p, s, q, c, u] = await Promise.all([
+      const [p, s, q, c, u, l, cs] = await Promise.all([
         api.get("projects"),
         api.getSettings(),
-        api.get("contactMessages"), // Use the new collection name
+        api.get("contactMessages"),
         api.get("certificates"),
-        api.fetchUsers()
+        api.fetchUsers(),
+        api.get("leads"),
+        api.fetchChatSessions("all") // Fetch all for admin
       ]);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
@@ -117,6 +121,24 @@ export default function Admin() {
           return 0;
         };
         return getTime(b.lastLogin || b.createdAt) - getTime(a.lastLogin || a.createdAt);
+      }));
+      if (Array.isArray(l)) setLeads(l.sort((a: any, b: any) => {
+        const getTime = (ts: any) => {
+          if (ts?.seconds) return ts.seconds * 1000;
+          if (ts?.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'string') return new Date(ts).getTime();
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      }));
+      if (Array.isArray(cs)) setChatSessions(cs.sort((a: any, b: any) => {
+        const getTime = (ts: any) => {
+          if (ts?.seconds) return ts.seconds * 1000;
+          if (ts?.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'string') return new Date(ts).getTime();
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
       }));
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -338,6 +360,19 @@ export default function Admin() {
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
               <Users size={14} className="inline mr-2" /> Users
+            </button>
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'leads' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+            >
+              <CheckCircle size={14} className="inline mr-2" /> Leads
+              {leads.length > 0 && <span className="ml-2 bg-accent text-white px-2 py-0.5 rounded-full text-[8px]">{leads.length}</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("chatHistory")}
+              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'chatHistory' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+            >
+              <Bot size={14} className="inline mr-2" /> Chat History
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -952,6 +987,85 @@ export default function Admin() {
                 </p>
               </form>
             </div>
+          </div>
+        )}
+        {activeTab === "leads" && (
+          <div className="space-y-8">
+            <h2 className="text-3xl font-display uppercase">Generated Leads</h2>
+            <div className="glass rounded-2xl border border-line overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-line bg-white/5">
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Contact</th>
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Email/Phone</th>
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Project Description</th>
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((l) => (
+                    <tr key={l.id} className="border-b border-line hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-medium">{l.name}</span>
+                        <div className="text-[10px] font-mono text-accent uppercase">{l.source}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm">{l.email}</div>
+                        <div className="text-xs text-secondary">{l.phone}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs text-secondary line-clamp-2 max-w-xs">{l.description}</p>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-mono text-secondary">
+                        {new Date(l.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {leads.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-secondary font-mono text-xs uppercase">No leads found</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "chatHistory" && (
+          <div className="space-y-8">
+            <h2 className="text-3xl font-display uppercase">Chat History</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {chatSessions.map((s) => (
+                <div key={s.id} className="glass p-6 rounded-2xl border-line flex flex-col h-[400px]">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="text-sm font-display uppercase">{s.userName}</h4>
+                      <span className="text-[10px] font-mono text-secondary uppercase">
+                        {s.isGuest ? "Guest" : "Registered User"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-accent uppercase">
+                      {new Date(s.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                    {s.messages.map((m: any, idx: number) => (
+                      <div key={idx} className={`p-2 rounded-lg text-[10px] ${m.role === 'user' ? 'bg-accent/10 border border-accent/20 ml-4' : 'bg-white/5 border border-line mr-4'}`}>
+                        <div className="font-mono uppercase opacity-50 mb-1">{m.role}</div>
+                        <div className="text-secondary leading-relaxed">{m.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {chatSessions.length === 0 && (
+              <div className="text-center py-20 glass rounded-3xl border border-line">
+                <p className="text-secondary font-mono text-xs uppercase">No chat sessions found</p>
+              </div>
+            )}
           </div>
         )}
       </div>

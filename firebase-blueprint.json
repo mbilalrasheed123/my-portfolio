@@ -85,6 +85,45 @@
         "phone": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "ChatSession": {
+      "title": "Chat Session",
+      "description": "History of AI chatbot conversations",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID or 'guest'" },
+        "userName": { "type": "string" },
+        "isGuest": { "type": "boolean" },
+        "messages": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": { "type": "string", "enum": ["user", "model"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Potential client interested in services",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "projectDescription": { "type": "string" },
+        "source": { "type": "string", "description": "chatbot, contact_form, etc." },
+        "status": { "type": "string", "enum": ["new", "contacted", "qualified", "closed"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email"]
     }
   },
   "firestore": {
@@ -107,6 +146,14 @@
     "/settings/global": {
       "schema": "Setting",
       "description": "Global configuration document"
+    },
+    "/chatSessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Stored chatbot transcripts"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Collected potential client info"
     }
   }
 }

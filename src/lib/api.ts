@@ -10,6 +10,7 @@ import {
   deleteDoc, 
   query, 
   orderBy, 
+  where,
   serverTimestamp,
   handleFirestoreError,
   OperationType
@@ -22,12 +23,12 @@ export const api = {
     try {
       const q = query(collection(db, collectionName), orderBy("order", "asc"));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
     } catch (error) {
       console.warn(`Failed to fetch ${collectionName} with order, trying without:`, error);
       try {
         const snapshot = await getDocs(collection(db, collectionName));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
       } catch (innerError) {
         console.error(`Gracefully handled fetch failure for ${collectionName}:`, innerError);
         return []; // Return empty list instead of crashing
@@ -144,10 +145,56 @@ export const api = {
   async fetchUsers() {
     try {
       const snapshot = await getDocs(collection(db, "users"));
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
     } catch (error) {
       console.error("Failed to fetch users:", error);
       return [];
+    }
+  },
+  
+  async saveChatSession(session: any) {
+    try {
+      const sessionId = session.id || `${session.userId || 'guest'}_${Date.now()}`;
+      const docRef = doc(db, "chatSessions", sessionId);
+      await setDoc(docRef, {
+        ...session,
+        id: sessionId,
+        lastUpdated: serverTimestamp(),
+        createdAt: session.createdAt || serverTimestamp()
+      }, { merge: true });
+      return sessionId;
+    } catch (error) {
+      console.error("Failed to save chat session:", error);
+    }
+  },
+
+  async fetchChatSessions(userId?: string) {
+    try {
+      let q;
+      if (userId && userId !== "all") {
+        q = query(collection(db, "chatSessions"), where("userId", "==", userId));
+      } else {
+        q = collection(db, "chatSessions");
+      }
+      const snapshot = await getDocs(q as any);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+    } catch (error) {
+      console.error("Failed to fetch chat sessions:", error);
+      return [];
+    }
+  },
+
+  async saveLead(lead: any) {
+    try {
+      const docRef = doc(collection(db, "leads"));
+      await setDoc(docRef, {
+        ...lead,
+        status: "new",
+        createdAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error("Failed to save lead:", error);
     }
   },
 
