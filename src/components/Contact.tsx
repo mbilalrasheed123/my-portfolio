@@ -35,10 +35,9 @@ export default function Contact() {
     setStatus("idle");
 
     try {
-      await api.post("queries", {
+      await api.post("contactMessages", {
         ...formData,
-        status: "pending",
-        createdAt: new Date().toISOString()
+        read: false
       });
       setStatus("success");
       setFormData({ name: "", email: "", message: "" });

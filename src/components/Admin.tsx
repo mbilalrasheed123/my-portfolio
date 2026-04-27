@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
-import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from "../firebase";
+import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
 
@@ -73,30 +73,29 @@ export default function Admin() {
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("portfolio_user");
-    if (storedUser) {
-      const u = JSON.parse(storedUser);
-      if (u.email === ADMIN_EMAIL) {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u && u.email === ADMIN_EMAIL) {
         setUser(u);
+      } else {
+        setUser(null);
       }
-    }
+    });
+    return () => unsubscribe();
   }, []);
 
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [p, s, q, u, c] = await Promise.all([
+      const [p, s, q, c] = await Promise.all([
         api.get("projects"),
         api.getSettings(),
-        api.get("queries"),
-        api.get("users"),
+        api.get("contactMessages"), // Use the new collection name
         api.get("certificates")
       ]);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
       if (s) setSettings(s);
-      if (Array.isArray(q)) setQueries(q.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      if (Array.isArray(u)) setUsers(u.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      if (Array.isArray(q)) setQueries(q.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
       if (Array.isArray(c)) setCertificates(c.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -107,9 +106,8 @@ export default function Admin() {
     fetchData();
   }, [user]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("portfolio_user");
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut(auth);
   };
 
   const handleSaveProject = async (e: React.FormEvent) => {

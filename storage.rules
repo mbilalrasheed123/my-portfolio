@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper to identify the admin
+    function isAdmin() {
+      return request.auth != null && 
+        request.auth.token.email == "muhammadbilalrasheed78@gmail.com" &&
+        request.auth.token.email_verified == true;
+    }
+
+    // Public read access for all files
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+
+    // Admin-only write access for specific folders
+    match /projects/{allPaths=**} { allow write: if isAdmin(); }
+    match /certificates/{allPaths=**} { allow write: if isAdmin(); }
+    match /resume/{allPaths=**} { allow write: if isAdmin(); }
+    match /profile/{allPaths=**} { allow write: if isAdmin(); }
+  }
+}

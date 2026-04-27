@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { LogIn, UserPlus, Mail, Lock, User, CheckCircle } from "lucide-react";
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "../firebase";
 
 interface AuthProps {
   onSuccess?: (user: any) => void;
@@ -10,75 +11,40 @@ interface AuthProps {
 export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [verificationStep, setVerificationStep] = useState(false);
-  const [otp, setOtp] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const requestOtp = async () => {
-    try {
-      const response = await fetch("/api/auth/request-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
-      });
-      
-      const result = await response.json();
-      if (response.ok) {
-        if (result.status === "skipped" && result.otp) {
-          console.warn("Email service not configured. OTP is:", result.otp);
-          // In a real app, we wouldn't return the OTP to the client, but for demo purposes:
-          alert(`DEMO MODE: OTP is ${result.otp}`);
-        }
-        setVerificationStep(true);
-      } else {
-        setError(result.error || "Failed to send verification code.");
-      }
-    } catch (err) {
-      console.error("Failed to request OTP:", err);
-      setError("An error occurred. Please try again.");
-    }
-  };
-
-  const verifyOtp = async () => {
-    try {
-      const response = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp, name })
-      });
-      
-      const result = await response.json();
-      if (response.ok) {
-        setSuccess(true);
-        // Store user in local storage for persistence
-        localStorage.setItem("portfolio_user", JSON.stringify(result.user));
-        setTimeout(() => {
-          onSuccess?.(result.user);
-        }, 1500);
-      } else {
-        setError(result.error || "Invalid verification code.");
-      }
-    } catch (err) {
-      console.error("Failed to verify OTP:", err);
-      setError("An error occurred. Please try again.");
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    if (verificationStep) {
-      await verifyOtp();
-    } else {
-      await requestOtp();
+    try {
+      if (isLogin) {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        setSuccess(true);
+        setTimeout(() => {
+          onSuccess?.(userCredential.user);
+        }, 1500);
+      } else {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (name) {
+          await updateProfile(userCredential.user, { displayName: name });
+        }
+        setSuccess(true);
+        setTimeout(() => {
+          onSuccess?.(userCredential.user);
+        }, 1500);
+      }
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      setError(err.message || "Authentication failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
@@ -97,57 +63,52 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         <>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-display uppercase mb-2">
-              {verificationStep ? "Verify Email" : isLogin ? "Welcome Back" : "Create Account"}
+              {isLogin ? "Welcome Back" : "Create Account"}
             </h2>
             <p className="text-secondary text-sm font-mono uppercase tracking-widest">
-              {verificationStep 
-                ? `Enter the code sent to ${email}` 
-                : isLogin ? "Sign in to manage your queries" : "Join us to start a conversation"}
+              {isLogin ? "Sign in to manage your portfolio" : "Join us to start a conversation"}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {verificationStep ? (
+          <form onSubmit={handleAuth} className="space-y-4">
+            {!isLogin && (
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
                 <input
                   type="text"
-                  placeholder="6-Digit Code"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
                   required
                 />
               </div>
-            ) : (
-              <>
-                {!isLogin && (
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
-                    <input
-                      type="text"
-                      placeholder="Full Name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
-                      required
-                    />
-                  </div>
-                )}
-
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
-                  <input
-                    type="email"
-                    placeholder="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
-                    required
-                  />
-                </div>
-              </>
             )}
+
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
+                required
+                minLength={6}
+              />
+            </div>
 
             {error && (
               <p className="text-red-500 text-xs font-mono">{error}</p>
@@ -158,11 +119,11 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               disabled={loading}
               className="w-full py-4 bg-white text-black font-display uppercase tracking-widest text-sm rounded-xl hover:bg-accent hover:text-white transition-all disabled:opacity-50"
             >
-              {loading ? "Processing..." : verificationStep ? "Verify" : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Sign Up"}
             </button>
           </form>
 
-          {!verificationStep && !loginOnly && (
+          {!loginOnly && (
             <p className="mt-8 text-center text-xs text-secondary font-mono uppercase">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button
@@ -178,3 +139,4 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
     </div>
   );
 }
+

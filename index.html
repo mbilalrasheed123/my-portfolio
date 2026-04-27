@@ -3,7 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>Bilal Rasheed Portfolio</title>
+    <script>
+      // Suppress "Cannot set property fetch of #<Window> which has only a getter"
+      // This happens in some sandbox environments when libraries attempt to overwrite native fetch.
+      window.addEventListener('error', (event) => {
+        if (event.message?.includes('Cannot set property fetch') || 
+            (event.error && event.error.message?.includes('Cannot set property fetch'))) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

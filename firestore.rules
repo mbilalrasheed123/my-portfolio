@@ -1,56 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
+    // Helper to identify the admin
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.email == "muhammadbilalrasheed78@gmail.com" && request.auth.token.email_verified == true);
+      return request.auth != null && 
+        request.auth.token.email == "muhammadbilalrasheed78@gmail.com" &&
+        request.auth.token.email_verified == true;
     }
 
-    // Projects collection
-    match /projects/{projectId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    // Publicly readable content
+    match /projects/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /skills/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /experience/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /certificates/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+
+    // Contact Messages: Public can create, only admin can manage
+    match /contactMessages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
     }
 
-    // Settings collection
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Queries collection
-    match /queries/{queryId} {
-      // Users can read their own queries, Admin can read all
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
-      
-      // Users can create queries, Admin can't create for users but can update
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      
-      // Admin can update queries (to add replies)
-      allow update: if isAdmin();
-      
-      // Admin can delete queries
-      allow delete: if isAdmin();
-    }
-
-    // Users collection
-    match /users/{userId} {
-      // Users can read/write their own profile, Admin can read all
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Certificates collection
-    match /certificates/{certificateId} {
-      // Everyone can read certificates
-      allow read: if true;
-      // Only admin can write (create, update, delete)
-      allow write: if isAdmin();
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
+
+
+

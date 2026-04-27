@@ -2,16 +2,18 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../lib/api";
 import { MessageSquare, Send, Clock, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { auth, onAuthStateChanged } from "../firebase";
 import Auth from "./Auth";
 
 interface Query {
   id: string;
   subject: string;
   message: string;
-  status: "pending" | "replied";
+  read: boolean;
   reply?: string;
-  createdAt: string;
+  timestamp: string;
   repliedAt?: string;
+  userEmail: string;
 }
 
 export default function UserQueries() {
@@ -23,23 +25,33 @@ export default function UserQueries() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("portfolio_user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-
-    api.get("queries").then((data) => {
+  const fetchQueries = async (email: string) => {
+    try {
+      const data = await api.get("contactMessages");
       if (data) {
-        const userQueries = data.filter((q: any) => q.userEmail === user.email);
-        setQueries(userQueries.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        const userQueries = data.filter((q: any) => q.userEmail === email);
+        setQueries(userQueries.sort((a: any, b: any) => {
+          const tsA = a.timestamp as any;
+          const tsB = b.timestamp as any;
+          const timeA = tsA?.seconds ? tsA.seconds * 1000 : new Date(a.timestamp || 0).getTime();
+          const timeB = tsB?.seconds ? tsB.seconds * 1000 : new Date(b.timestamp || 0).getTime();
+          return timeB - timeA;
+        }));
       }
-    }).catch((error) => {
+    } catch (error) {
       console.error("Failed to fetch queries:", error);
-    });
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.email) return;
+    fetchQueries(user.email);
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,30 +60,26 @@ export default function UserQueries() {
     setLoading(true);
 
     try {
-      await api.post("queries", {
-        userId: user.id || user.uid,
+      await api.post("contactMessages", {
+        userId: user.uid,
         userName: user.displayName || user.email.split("@")[0],
         userEmail: user.email,
         subject,
         message,
-        status: "pending",
-        createdAt: new Date().toISOString()
+        read: false,
+        timestamp: new Date().toISOString()
       });
       setSubject("");
       setMessage("");
       
-      // Refresh queries
-      const data = await api.get("queries");
-      if (data) {
-        const userQueries = data.filter((q: any) => q.userEmail === user.email);
-        setQueries(userQueries.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      }
+      if (user.email) await fetchQueries(user.email);
     } catch (error) {
       console.error("Failed to submit query:", error);
     } finally {
       setLoading(false);
     }
   };
+
 
   if (!user) {
     return (
@@ -156,13 +164,17 @@ export default function UserQueries() {
                   onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${q.status === 'replied' ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                      {q.status === 'replied' ? <CheckCircle size={20} /> : <Clock size={20} />}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${q.reply ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                      {q.reply ? <CheckCircle size={20} /> : <Clock size={20} />}
                     </div>
                     <div>
                       <h4 className="font-display uppercase text-sm">{q.subject}</h4>
                       <p className="text-[10px] font-mono text-secondary uppercase tracking-widest">
-                        {new Date(q.createdAt).toLocaleDateString()}
+                        {(() => {
+                          const ts = q.timestamp as any;
+                          if (ts?.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
+                          return new Date(q.timestamp || 0).toLocaleDateString();
+                        })()}
                       </p>
                     </div>
                   </div>

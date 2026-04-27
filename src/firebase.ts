@@ -1,3 +1,4 @@
+// Firebase Initialization with WebSocket Fix for Portfolios
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -11,7 +12,7 @@ import {
   updateProfile
 } from "firebase/auth";
 import { 
-  getFirestore, 
+  initializeFirestore, 
   collection, 
   doc, 
   getDoc, 
@@ -24,7 +25,9 @@ import {
   orderBy,
   where,
   addDoc,
-  serverTimestamp
+  serverTimestamp,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from "firebase/firestore";
 import { 
   getStorage, 
@@ -35,9 +38,23 @@ import {
 } from "firebase/storage";
 import firebaseConfig from "../firebase-applet-config.json";
 
+// 1. Initialize Firebase App
 const app = initializeApp(firebaseConfig);
+
+// 2. Initialize Auth
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// 3. Initialize Firestore with WebSocket Fix (Option A: Reliability)
+// experimentalForceLongPolling resolves "WebSocket closed without opened" errors
+// which commonly occur in restricted iframe/sandbox environments.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  }),
+  experimentalForceLongPolling: true 
+});
+
+// 4. Initialize Storage
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 

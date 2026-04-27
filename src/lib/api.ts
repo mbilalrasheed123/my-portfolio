@@ -1,56 +1,125 @@
-// API utility for custom backend
+import { 
+  db, 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  addDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  handleFirestoreError,
+  OperationType
+} from "../firebase";
+
+// API utility with explicit fetch functions and graceful error handling
 export const api = {
-  async handleResponse(res: Response) {
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || `HTTP error! status: ${res.status}`);
+  // Generic list fetcher with graceful fallback to empty array on error
+  async fetchList(collectionName: string) {
+    try {
+      const q = query(collection(db, collectionName), orderBy("order", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+    } catch (error) {
+      console.warn(`Failed to fetch ${collectionName} with order, trying without:`, error);
+      try {
+        const snapshot = await getDocs(collection(db, collectionName));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      } catch (innerError) {
+        console.error(`Gracefully handled fetch failure for ${collectionName}:`, innerError);
+        return []; // Return empty list instead of crashing
+      }
     }
-    return data;
   },
-  async get(collection: string) {
-    const res = await fetch(`/api/data/${collection}`);
-    return this.handleResponse(res);
+
+  async fetchProjects() {
+    return this.fetchList("projects");
   },
-  async post(collection: string, data: any) {
-    const res = await fetch(`/api/data/${collection}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(res);
+
+  async fetchCertificates() {
+    return this.fetchList("certificates");
   },
-  async put(collection: string, id: string, data: any) {
-    const res = await fetch(`/api/data/${collection}/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(res);
+
+  async fetchSkills() {
+    return this.fetchList("skills");
   },
-  async delete(collection: string, id: string) {
-    const res = await fetch(`/api/data/${collection}/${id}`, {
-      method: "DELETE",
-    });
-    return this.handleResponse(res);
+
+  async fetchExperience() {
+    return this.fetchList("experience");
   },
-  async getSettings() {
-    const res = await fetch("/api/settings");
-    return this.handleResponse(res);
+
+  async fetchSettings() {
+    const DEFAULT_SETTINGS = {
+      name: "Bilal Rasheed",
+      title: "Full Stack Developer",
+      aboutText: "Welcome to my professional portfolio.",
+      email: "muhammadbilalrasheed78@gmail.com"
+    };
+
+    try {
+      const docRef = doc(db, "settings", "global");
+      const snapshot = await getDoc(docRef);
+      return snapshot.exists() ? snapshot.data() : DEFAULT_SETTINGS;
+    } catch (error) {
+      console.error("Failed to fetch settings from Firebase, using default fallback:", error);
+      return DEFAULT_SETTINGS;
+    }
   },
+
+  // Legacy compatibility and Mutations
+  async get(collectionName: string) { return this.fetchList(collectionName); },
+  async getSettings() { return this.fetchSettings(); },
+
+  async post(collectionName: string, data: any) {
+    try {
+      const payload = {
+        ...data,
+        updatedAt: serverTimestamp(),
+        createdAt: collectionName === "contactMessages" ? undefined : serverTimestamp(),
+        timestamp: collectionName === "contactMessages" ? serverTimestamp() : undefined
+      };
+      const docRef = await addDoc(collection(db, collectionName), payload);
+      return { id: docRef.id };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, collectionName);
+    }
+  },
+
+  async put(collectionName: string, id: string, data: any) {
+    try {
+      const docRef = doc(db, collectionName, id);
+      await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+      return { id };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${id}`);
+    }
+  },
+
+  async delete(collectionName: string, id: string) {
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+      return { status: "deleted" };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${id}`);
+    }
+  },
+
   async saveSettings(data: any) {
-    const res = await fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(res);
+    try {
+      const docRef = doc(db, "settings", "global");
+      await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+      return { status: "saved" };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "settings/global");
+    }
   },
+
   async notify(data: any) {
-    const res = await fetch("/api/notify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(res);
+    console.log("Notification requested (Simulated):", data);
+    return { status: "simulated" };
   }
 };
+

@@ -20,11 +20,11 @@ if (typeof window !== 'undefined') {
 
   // Guard against "Cannot set property fetch of #<Window> which has only a getter"
   // This often happens in iframe environments when libraries try to polyfill fetch.
+  // The primary suppression is now in index.html, this is a secondary guard.
   window.addEventListener('error', (event) => {
-    if (event.message?.includes('Cannot set property fetch of #<Window>') || 
-        event.error?.message?.includes('Cannot set property fetch of #<Window>')) {
+    if (event.message?.includes('Cannot set property fetch') || 
+        event.error?.message?.includes('Cannot set property fetch')) {
       event.preventDefault();
-      console.warn('Suppressed fetch polyfill error:', event.message);
     }
   });
 

@@ -8,7 +8,7 @@ import {
   motion,
   animate,
 } from "framer-motion";
-import { db, doc, onSnapshot, handleFirestoreError, OperationType } from "../firebase";
+import { api } from "../lib/api";
 
 const COLORS_TOP = ["#13FFAA", "#1E67C6", "#CE84CF", "#DD335C"];
 
@@ -20,15 +20,14 @@ export default function Hero() {
   });
 
   useEffect(() => {
-    const settingsPath = "settings/global";
-    const unsub = onSnapshot(doc(db, "settings", "global"), (doc) => {
-      if (doc.exists()) {
-        setSettings(doc.data());
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, settingsPath);
-    });
-    return () => unsub();
+    // Option A: One-time fetch on load
+    api.fetchSettings()
+      .then(data => {
+        if (data) setSettings(data);
+      })
+      .catch(error => {
+        console.error("Failed to fetch hero settings:", error);
+      });
   }, []);
 
   const color = useMotionValue(COLORS_TOP[0]);
