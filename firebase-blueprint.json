@@ -1,118 +1,112 @@
 {
   "entities": {
-    "project": {
+    "Project": {
       "title": "Project",
-      "description": "A portfolio project",
+      "description": "Portfolio project entry",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "title": { "type": "string" },
+        "category": { "type": "string" },
         "description": { "type": "string" },
-        "technologies": { "type": "array", "items": { "type": "string" } },
-        "imageUrl": { "type": "string" },
-        "projectUrl": { "type": "string" },
-        "githubUrl": { "type": "string" },
-        "featured": { "type": "boolean" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "github": { "type": "string" },
+        "demo": { "type": "string" },
         "order": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "description", "technologies", "order"]
+      "required": ["title", "category", "description"]
     },
-    "skill": {
-      "title": "Skill",
-      "description": "Technical skill",
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Professional certificate",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "proficiency": { "type": "number" },
-        "icon": { "type": "string" }
-      },
-      "required": ["name", "category", "proficiency"]
-    },
-    "experience": {
-      "title": "Experience",
-      "description": "Work experience",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "company": { "type": "string" },
-        "role": { "type": "string" },
-        "duration": { "type": "string" },
+        "title": { "type": "string" },
+        "issuer": { "type": "string" },
+        "date": { "type": "string" },
+        "image": { "type": "string" },
+        "verify": { "type": "string" },
+        "link": { "type": "string" },
         "description": { "type": "string" },
-        "order": { "type": "number" }
+        "order": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["company", "role", "duration", "description", "order"]
+      "required": ["title", "issuer", "date"]
     },
-    "message": {
-      "title": "Contact Message",
-      "description": "Contact form submission",
+    "User": {
+      "title": "User",
+      "description": "Registered user profile",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
+        "uid": { "type": "string" },
         "email": { "type": "string" },
-        "message": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "read": { "type": "boolean" }
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "emailVerified": { "type": "boolean" }
       },
-      "required": ["name", "email", "message", "timestamp", "read"]
+      "required": ["uid", "email"]
     },
-    "about": {
-      "title": "About Info",
-      "description": "Personal bio and social links",
+    "ContactMessage": {
+      "title": "Contact Message",
+      "description": "User inquiry or question",
       "type": "object",
       "properties": {
-        "bio": { "type": "string" },
-        "resumeUrl": { "type": "string" },
-        "socialLinks": {
-          "type": "object",
-          "properties": {
-            "github": { "type": "string" },
-            "linkedin": { "type": "string" },
-            "twitter": { "type": "string" }
-          }
-        },
-        "profilePic": { "type": "string" }
-      }
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "replied"] },
+        "userUid": { "type": "string" },
+        "reply": { "type": "string" },
+        "repliedAt": { "type": "string", "format": "date-time" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userName", "userEmail", "message", "subject", "status"]
     },
-    "siteConfig": {
-      "title": "Site Configuration",
-      "description": "General site settings",
+    "Setting": {
+      "title": "Site Setting",
+      "description": "Global application configuration",
       "type": "object",
       "properties": {
-        "siteName": { "type": "string" },
-        "tagline": { "type": "string" },
-        "metadata": { "type": "object" }
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "aboutText": { "type": "string" },
+        "experienceYears": { "type": "string" },
+        "education": { "type": "string" },
+        "location": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     }
   },
   "firestore": {
     "/projects/{projectId}": {
-      "schema": "project",
-      "description": "Portfolio projects"
+      "schema": "Project",
+      "description": "Portfolio projects collection"
     },
-    "/skills/{skillId}": {
-      "schema": "skill",
-      "description": "Technical skills"
+    "/certificates/{certId}": {
+      "schema": "Certificate",
+      "description": "Achievements and certifications"
     },
-    "/experience/{experienceId}": {
-      "schema": "experience",
-      "description": "Work history"
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Public and private user profiles"
     },
     "/contactMessages/{messageId}": {
-      "schema": "message",
-      "description": "Contact form messages"
+      "schema": "ContactMessage",
+      "description": "User inquiries"
     },
-    "/settings/about": {
-      "schema": "about",
-      "description": "About section info"
-    },
-    "/settings/config": {
-      "schema": "siteConfig",
-      "description": "Site configuration"
+    "/settings/global": {
+      "schema": "Setting",
+      "description": "Global configuration document"
     }
   }
 }
-

@@ -66,7 +66,7 @@ export default function UserQueries() {
         userEmail: user.email,
         subject,
         message,
-        read: false,
+        status: "pending",
         timestamp: new Date().toISOString()
       });
       setSubject("");
@@ -172,6 +172,7 @@ export default function UserQueries() {
                       <p className="text-[10px] font-mono text-secondary uppercase tracking-widest">
                         {(() => {
                           const ts = q.timestamp as any;
+                          if (ts?.toDate) return ts.toDate().toLocaleDateString();
                           if (ts?.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
                           return new Date(q.timestamp || 0).toLocaleDateString();
                         })()}

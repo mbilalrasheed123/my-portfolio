@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { LogIn, UserPlus, Mail, Lock, User, CheckCircle } from "lucide-react";
+import { api } from "../lib/api";
 import { 
   auth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile, 
   signInWithPopup, 
-  googleProvider 
+  googleProvider,
+  sendEmailVerification,
+  signOut
 } from "../firebase";
 
 interface AuthProps {
@@ -23,28 +26,49 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setVerificationSent(false);
 
     try {
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        if (!user.emailVerified) {
+          setError("Your email is not verified yet. Please check your inbox for a verification link.");
+          setVerificationSent(true);
+          await signOut(auth);
+          setLoading(false);
+          return;
+        }
+
+        await api.saveUser(user);
+
         setSuccess(true);
         setTimeout(() => {
-          onSuccess?.(userCredential.user);
+          onSuccess?.(user);
         }, 1500);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
         if (name) {
-          await updateProfile(userCredential.user, { displayName: name });
+          await updateProfile(user, { displayName: name });
         }
-        setSuccess(true);
-        setTimeout(() => {
-          onSuccess?.(userCredential.user);
-        }, 1500);
+
+        // Send verification email
+        await sendEmailVerification(user);
+        setVerificationSent(true);
+        
+        // Sign out to force login after verification
+        await signOut(auth);
+        
+        setError("Account created successfully! A verification email has been sent to your address. Please verify your email before logging in.");
       }
     } catch (err: any) {
       console.error("Auth error:", err);
@@ -58,11 +82,26 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
     }
   };
 
+  const handleResendVerification = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // We can't resend if logged out unless we sign in again, 
+      // but usually we can tell them to try signing in which triggers the message again.
+      setError("Please try signing in with your credentials to receive a new verification prompt if needed.");
+    } catch (err: any) {
+      setError(err.message || "Failed to resend verification email.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setError("");
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      await api.saveUser(result.user);
       setSuccess(true);
       setTimeout(() => {
         onSuccess?.(result.user);
@@ -143,7 +182,18 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
             </div>
 
             {error && (
-              <p className="text-red-500 text-xs font-mono">{error}</p>
+              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mb-4">
+                <p className="text-red-500 text-xs font-mono">{error}</p>
+                {verificationSent && isLogin && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="mt-2 text-white hover:text-accent font-mono text-[10px] uppercase underline"
+                  >
+                    Resend verification email?
+                  </button>
+                )}
+              </div>
             )}
 
             <button
@@ -151,7 +201,7 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               disabled={loading}
               className="w-full py-4 bg-white text-black font-display uppercase tracking-widest text-sm rounded-xl hover:bg-accent hover:text-white transition-all disabled:opacity-50"
             >
-              {loading ? "Processing..." : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
             </button>
 
             <div className="relative my-6">

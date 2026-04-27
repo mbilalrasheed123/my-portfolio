@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Menu, X, User, LogOut, MessageSquare, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { auth, onAuthStateChanged, signOut } from "../firebase";
+import { api } from "../lib/api";
 
 const navLinks = [
   { name: "Home", href: "/#home" },
@@ -17,6 +18,7 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [settings, setSettings] = useState<any>({});
   const location = useLocation();
 
   useEffect(() => {
@@ -28,6 +30,8 @@ export default function Navbar() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
     });
+
+    api.getSettings().then(setSettings);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -41,6 +45,8 @@ export default function Navbar() {
 
   const isHomePage = location.pathname === "/";
 
+  const brandName = settings.name?.split(' ')[0] || "Bilal";
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
@@ -50,7 +56,7 @@ export default function Navbar() {
       <div className="container mx-auto px-6 flex items-center justify-between">
         <Link to="/" className="group flex items-center gap-2">
           <span className="text-2xl font-display uppercase tracking-tighter">
-            Bilal<span className="text-accent">.</span>
+            {brandName}<span className="text-accent">.</span>
           </span>
         </Link>
 

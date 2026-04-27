@@ -47,7 +47,14 @@ export default function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Portfolio />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin" element={
+            <div className="min-h-screen bg-black text-white">
+              <Navbar />
+              <div className="pt-24 pb-12">
+                <Admin />
+              </div>
+            </div>
+          } />
           <Route path="/queries" element={
             <div className="min-h-screen bg-black text-white pt-24">
               <Navbar />

@@ -75,12 +75,17 @@ export const api = {
 
   async post(collectionName: string, data: any) {
     try {
-      const payload = {
+      const payload: any = {
         ...data,
         updatedAt: serverTimestamp(),
-        createdAt: collectionName === "contactMessages" ? undefined : serverTimestamp(),
-        timestamp: collectionName === "contactMessages" ? serverTimestamp() : undefined
       };
+      
+      if (collectionName === "contactMessages") {
+        payload.timestamp = serverTimestamp();
+      } else {
+        payload.createdAt = serverTimestamp();
+      }
+      
       const docRef = await addDoc(collection(db, collectionName), payload);
       return { id: docRef.id };
     } catch (error) {
@@ -114,6 +119,35 @@ export const api = {
       return { status: "saved" };
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, "settings/global");
+    }
+  },
+
+  async saveUser(user: any) {
+    if (!user) return;
+    try {
+      const docRef = doc(db, "users", user.uid);
+      await setDoc(docRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        lastLogin: serverTimestamp(),
+        createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : serverTimestamp(),
+        emailVerified: user.emailVerified
+      }, { merge: true });
+      return { status: "saved" };
+    } catch (error) {
+      console.error("Failed to save user data:", error);
+    }
+  },
+
+  async fetchUsers() {
+    try {
+      const snapshot = await getDocs(collection(db, "users"));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      return [];
     }
   },
 

@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { auth } from "../firebase";
 
 export default function Contact() {
   const [settings, setSettings] = useState<any>({
@@ -35,9 +36,14 @@ export default function Contact() {
     setStatus("idle");
 
     try {
+      const user = auth.currentUser;
       await api.post("contactMessages", {
-        ...formData,
-        read: false
+        userName: formData.name,
+        userEmail: formData.email,
+        subject: `Inquiry from ${formData.name}`,
+        message: formData.message,
+        status: "pending",
+        userUid: user?.uid || null
       });
       setStatus("success");
       setFormData({ name: "", email: "", message: "" });

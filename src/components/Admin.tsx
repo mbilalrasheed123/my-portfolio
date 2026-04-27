@@ -89,17 +89,35 @@ export default function Admin() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [p, s, q, c] = await Promise.all([
+      const [p, s, q, c, u] = await Promise.all([
         api.get("projects"),
         api.getSettings(),
         api.get("contactMessages"), // Use the new collection name
-        api.get("certificates")
+        api.get("certificates"),
+        api.fetchUsers()
       ]);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
       if (s) setSettings(s);
-      if (Array.isArray(q)) setQueries(q.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
+      if (Array.isArray(q)) setQueries(q.sort((a: any, b: any) => {
+        const getTime = (ts: any) => {
+          if (ts?.seconds) return ts.seconds * 1000;
+          if (ts?.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'string') return new Date(ts).getTime();
+          return 0;
+        };
+        return getTime(b.timestamp || b.createdAt) - getTime(a.timestamp || a.createdAt);
+      }));
       if (Array.isArray(c)) setCertificates(c.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
+      if (Array.isArray(u)) setUsers(u.sort((a: any, b: any) => {
+        const getTime = (ts: any) => {
+          if (ts?.seconds) return ts.seconds * 1000;
+          if (ts?.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'string') return new Date(ts).getTime();
+          return 0;
+        };
+        return getTime(b.lastLogin || b.createdAt) - getTime(a.lastLogin || a.createdAt);
+      }));
     } catch (error) {
       console.error("Failed to fetch data:", error);
     }
@@ -218,7 +236,7 @@ export default function Admin() {
     if (!text) return;
 
     try {
-      await api.put("queries", queryId, {
+      await api.put("contactMessages", queryId, {
         reply: text,
         status: "replied",
         repliedAt: new Date().toISOString()
@@ -238,18 +256,50 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteQuery = async (id: string) => {
+    if (window.confirm("Delete this query?")) {
+      try {
+        await api.delete("contactMessages", id);
+        fetchData();
+      } catch (error) {
+        console.error("Failed to delete query:", error);
+      }
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (id === user.uid) {
+      alert("You cannot delete yourself (the active admin).");
+      return;
+    }
+    if (window.confirm("Delete this user profile from database? Note: This will NOT delete their Firebase Auth account.")) {
+      try {
+        await api.delete("users", id);
+        fetchData();
+      } catch (error) {
+        console.error("Failed to delete user:", error);
+      }
+    }
+  };
+
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-6">
-        <Auth loginOnly={true} onSuccess={(u) => u.email === ADMIN_EMAIL && setUser(u)} />
+      <div className="flex items-center justify-center py-12">
+        <Auth loginOnly={true} onSuccess={(u) => {
+          if (u.email === ADMIN_EMAIL) {
+            setUser(u);
+          } else {
+            alert("This account is not authorized as an administrator.");
+            signOut(auth);
+          }
+        }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pt-24 pb-12">
-      <div className="container mx-auto px-6">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+    <div className="container mx-auto px-6">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full overflow-hidden border border-line bg-white/10 flex items-center justify-center">
               {user.photoURL ? <img src={user.photoURL} alt="Admin" /> : <LogIn size={20} />}
@@ -477,9 +527,21 @@ export default function Admin() {
                           <h3 className="text-xl font-display uppercase">{q.subject}</h3>
                         </div>
                         <p className="text-xs font-mono text-secondary uppercase tracking-widest">
-                          From: {q.userName} ({q.userEmail}) • {q.createdAt?.toDate().toLocaleString()}
+                          From: {q.userName} ({q.userEmail}) • {(() => {
+                            const ts = q.timestamp || q.createdAt;
+                            if (ts?.toDate) return ts.toDate().toLocaleString();
+                            if (typeof ts === 'string') return new Date(ts).toLocaleString();
+                            return 'Unknown Date';
+                          })()}
                         </p>
                       </div>
+                      <button
+                        onClick={() => handleDeleteQuery(q.id)}
+                        className="p-2 text-secondary hover:text-red-500 transition-colors"
+                        title="Delete Query"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                     
                     <div className="bg-white/5 p-6 rounded-xl border border-line mb-6">
@@ -495,7 +557,7 @@ export default function Admin() {
                         <p className="text-white text-sm leading-relaxed">{q.reply}</p>
                         {q.repliedAt && (
                           <p className="text-[10px] font-mono text-secondary uppercase mt-4">
-                            Sent on {q.repliedAt?.toDate().toLocaleString()}
+                            Sent on {typeof q.repliedAt === 'string' ? new Date(q.repliedAt).toLocaleString() : q.repliedAt?.toDate?.()?.toLocaleString() || 'N/A'}
                           </p>
                         )}
                       </div>
@@ -537,6 +599,7 @@ export default function Admin() {
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Last Login</th>
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Registered</th>
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Password</th>
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -556,15 +619,34 @@ export default function Admin() {
                       </td>
                       <td className="px-6 py-4 text-sm text-secondary">{u.email}</td>
                       <td className="px-6 py-4 text-xs font-mono text-secondary">
-                        {u.lastLogin?.toDate().toLocaleString() || "N/A"}
+                        {(() => {
+                          const ts = u.lastLogin;
+                          if (ts?.toDate) return ts.toDate().toLocaleString();
+                          if (typeof ts === 'string') return new Date(ts).toLocaleString();
+                          return "N/A";
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-xs font-mono text-secondary">
-                        {u.createdAt?.toDate().toLocaleDateString() || "N/A"}
+                        {(() => {
+                          const ts = u.createdAt;
+                          if (ts?.toDate) return ts.toDate().toLocaleDateString();
+                          if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
+                          return "N/A";
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-[10px] font-mono text-secondary uppercase bg-white/5 px-2 py-1 rounded">
                           Encrypted
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="p-2 text-secondary hover:text-red-500 transition-colors"
+                          title="Delete User Data"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -873,6 +955,5 @@ export default function Admin() {
           </div>
         )}
       </div>
-    </div>
   );
 }

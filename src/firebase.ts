@@ -12,6 +12,7 @@ import {
   updateEmail,
   updatePassword,
   reauthenticateWithCredential,
+  sendEmailVerification,
   EmailAuthProvider
 } from "firebase/auth";
 import { 
@@ -80,6 +81,7 @@ export {
   updateEmail,
   updatePassword,
   reauthenticateWithCredential,
+  sendEmailVerification,
   EmailAuthProvider,
   collection, 
   doc, 

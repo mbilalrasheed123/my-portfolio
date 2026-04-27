@@ -36,7 +36,13 @@ export default async function handler(
 
     return res.status(200).json({ text });
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    return res.status(500).json({ error: error.message || "Failed to generate response" });
+    console.error("Gemini API Error details:", JSON.stringify(error, null, 2));
+    
+    let message = error.message || "Failed to generate response";
+    if (error.status === 403 || message.includes("403") || message.includes("blocked")) {
+      message = "Gemini API Access Blocked: The Generative Language API might not be enabled for your API key, or your key has IP/Referer restrictions. Please enable the 'Generative Language API' in your Google Cloud Console and ensure your API key allows access to it.";
+    }
+    
+    return res.status(500).json({ error: message });
   }
 }
