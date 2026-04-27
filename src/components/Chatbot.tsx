@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2 } from "lucide-react";
-import { GoogleGenAI } from "@google/genai";
 import Markdown from "react-markdown";
 
 const SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
@@ -52,22 +51,32 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          message: userMessage,
+          messages: messages.slice(1), // Exclude the initial welcome message from history
+          systemInstruction: SYSTEM_INSTRUCTION
+        }),
       });
 
-      const response = await chat.sendMessage({
-        message: userMessage,
-      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get AI response");
+      }
 
-      setMessages(prev => [...prev, { role: "model", text: response.text || "I'm sorry, I couldn't process that." }]);
-    } catch (error) {
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: "model", text: data.text || "I'm sorry, I couldn't process that." }]);
+    } catch (error: any) {
       console.error("Chatbot error:", error);
-      setMessages(prev => [...prev, { role: "model", text: "Sorry, I'm having some trouble connecting right now. Please try again later." }]);
+      let errorMessage = "Sorry, I'm having some trouble connecting right now. Please try again later.";
+      if (error.message?.includes("API key")) {
+        errorMessage = "The Chatbot API key is not configured correctly on the server. Please add GEMINI_API_KEY to your environment variables.";
+      }
+      setMessages(prev => [...prev, { role: "model", text: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
