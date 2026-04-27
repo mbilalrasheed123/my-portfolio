@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, User, LogOut, MessageSquare } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { auth, onAuthStateChanged, signOut } from "../firebase";
 
 const navLinks = [
   { name: "Home", href: "/#home" },
@@ -24,19 +25,18 @@ export default function Navbar() {
     };
     window.addEventListener("scroll", handleScroll);
     
-    const storedUser = localStorage.getItem("portfolio_user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      unsubscribe();
     };
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("portfolio_user");
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut(auth);
   };
 
   const isHomePage = location.pathname === "/";
@@ -67,14 +67,24 @@ export default function Navbar() {
             </a>
           ))}
           {user && (
-            <Link
-              to="/queries"
-              className="text-[10px] font-mono uppercase tracking-[0.2em] text-secondary hover:text-white transition-colors relative group flex items-center gap-2"
-            >
-              <MessageSquare size={14} />
-              Queries
-              <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-accent transition-all group-hover:w-full" />
-            </Link>
+            <div className="flex items-center gap-8 border-l border-line pl-8">
+              <Link
+                to="/queries"
+                className="text-[10px] font-mono uppercase tracking-[0.2em] text-secondary hover:text-white transition-colors relative group flex items-center gap-2"
+              >
+                <MessageSquare size={14} />
+                Queries
+                <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-accent transition-all group-hover:w-full" />
+              </Link>
+              <Link
+                to="/settings"
+                className="text-[10px] font-mono uppercase tracking-[0.2em] text-secondary hover:text-white transition-colors relative group flex items-center gap-2"
+              >
+                <Settings size={14} />
+                Settings
+                <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-accent transition-all group-hover:w-full" />
+              </Link>
+            </div>
           )}
         </div>
 
@@ -82,8 +92,19 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-6">
           {user ? (
             <div className="flex items-center gap-4">
+              <Link
+                to="/settings"
+                className="w-8 h-8 rounded-full overflow-hidden border border-line bg-white/10 flex items-center justify-center hover:border-accent transition-all"
+                title="Account Settings"
+              >
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={16} className="text-accent" />
+                )}
+              </Link>
               <span className="text-[10px] font-mono text-secondary uppercase tracking-widest hidden lg:block">
-                {user.displayName || user.email}
+                {user.displayName || user.email?.split('@')[0]}
               </span>
               <button
                 onClick={handleLogout}
@@ -142,25 +163,40 @@ export default function Navbar() {
                 </motion.a>
               ))}
               {user && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: navLinks.length * 0.1 }}
-                >
-                  <Link
-                    to="/queries"
-                    className="text-5xl font-display uppercase hover:text-accent transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
+                <>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: navLinks.length * 0.1 }}
                   >
-                    Queries
-                  </Link>
-                </motion.div>
+                    <Link
+                      to="/queries"
+                      className="text-5xl font-display uppercase hover:text-accent transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Queries
+                    </Link>
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: (navLinks.length + 1) * 0.1 }}
+                  >
+                    <Link
+                      to="/settings"
+                      className="text-5xl font-display uppercase hover:text-accent transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                  </motion.div>
+                </>
               )}
               {user ? (
                 <motion.button
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (navLinks.length + 1) * 0.1 }}
+                  transition={{ delay: (navLinks.length + 2) * 0.1 }}
                   onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
                   className="text-2xl font-mono uppercase tracking-widest text-red-500"
                 >

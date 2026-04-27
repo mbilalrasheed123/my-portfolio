@@ -9,7 +9,11 @@ import {
   createUserWithEmailAndPassword,
   signOut, 
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  updateEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from "firebase/auth";
 import { 
   initializeFirestore, 
@@ -74,6 +78,10 @@ export {
   signOut, 
   onAuthStateChanged,
   updateProfile,
+  updateEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   collection, 
   doc, 
   getDoc, 

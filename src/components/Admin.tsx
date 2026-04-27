@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
-import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut } from "../firebase";
+import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
+const DEFAULT_ADMIN_PASSWORD = "mypass";
 
 const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUpload: (urls: string[]) => void, folder?: string, multiple?: boolean }) => {
   const [uploading, setUploading] = useState(false);
@@ -71,6 +72,8 @@ export default function Admin() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
+  const [adminPassData, setAdminPassData] = useState({ current: "", new: "" });
+  const [adminPassStatus, setAdminPassStatus] = useState({ error: "", success: "" });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -144,6 +147,25 @@ export default function Admin() {
       fetchData();
     } catch (error) {
       console.error("Failed to save settings:", error);
+    }
+  };
+
+  const handleUpdateAdminPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminPassStatus({ error: "", success: "" });
+    
+    if (!auth.currentUser) return;
+
+    try {
+      const credential = EmailAuthProvider.credential(user.email, adminPassData.current);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, adminPassData.new);
+      
+      setAdminPassStatus({ error: "", success: "Admin password updated successfully!" });
+      setAdminPassData({ current: "", new: "" });
+    } catch (err: any) {
+      console.error("Password update error:", err);
+      setAdminPassStatus({ error: err.message || "Failed to update password.", success: "" });
     }
   };
 
@@ -806,6 +828,48 @@ export default function Admin() {
                 </button>
               </div>
             </form>
+
+            <div className="mt-12 pt-12 border-t border-line">
+              <h2 className="text-3xl font-display uppercase mb-8">Admin Security</h2>
+              <form onSubmit={handleUpdateAdminPassword} className="glass p-8 rounded-2xl space-y-6">
+                {adminPassStatus.error && <p className="text-red-500 text-xs font-mono uppercase">{adminPassStatus.error}</p>}
+                {adminPassStatus.success && <p className="text-green-500 text-xs font-mono uppercase">{adminPassStatus.success}</p>}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Current Password</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                      value={adminPassData.current}
+                      onChange={e => setAdminPassData({ ...adminPassData, current: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">New Password</label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                      value={adminPassData.new}
+                      onChange={e => setAdminPassData({ ...adminPassData, new: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-8 py-2 bg-red-500/20 text-red-500 border border-red-500/30 rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                  >
+                    Change Admin Password
+                  </button>
+                </div>
+                <p className="text-[8px] font-mono text-secondary uppercase tracking-widest">
+                  Initial password is: <span className="text-white">{DEFAULT_ADMIN_PASSWORD}</span>. Please change it immediately for safety.
+                </p>
+              </form>
+            </div>
           </div>
         )}
       </div>

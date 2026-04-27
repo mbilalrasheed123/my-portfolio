@@ -15,10 +15,18 @@ service cloud.firestore {
     match /certificates/{id} { allow read: if true; allow write: if isAdmin(); }
     match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
 
-    // Contact Messages: Public can create, only admin can manage
+    // Users collection: users can read/write their own data
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == resource.data.email || isAdmin());
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Contact Messages: Public/Users can create, admin can manage, users can read their own
     match /contactMessages/{messageId} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdmin() || (request.auth != null && request.auth.token.email == resource.data.userEmail);
+      allow update, delete: if isAdmin();
     }
 
     // Default deny for everything else

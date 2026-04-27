@@ -13,6 +13,7 @@ import Projects from "./components/Projects";
 import Contact from "./components/Contact";
 import Admin from "./components/Admin";
 import UserQueries from "./components/UserQueries";
+import Settings from "./components/Settings";
 import Certificates from "./components/Certificates";
 import Chatbot from "./components/Chatbot";
 
@@ -51,6 +52,12 @@ export default function App() {
             <div className="min-h-screen bg-black text-white pt-24">
               <Navbar />
               <UserQueries />
+            </div>
+          } />
+          <Route path="/settings" element={
+            <div className="min-h-screen bg-black text-white pt-24">
+              <Navbar />
+              <Settings />
             </div>
           } />
         </Routes>
