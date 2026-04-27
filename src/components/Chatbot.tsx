@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2 } from "lucide-react";
 import Markdown from "react-markdown";
+import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
 
@@ -25,6 +26,9 @@ interface Message {
   role: "user" | "model";
   text: string;
 }
+
+// Initialize Gemini
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,30 +55,31 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: userMessage,
-          messages: messages.slice(1), // Exclude the initial welcome message from history
+      // Use the modern SDK directly in frontend
+      // Skip the first message (welcome message) to ensure history starts with 'user' role
+      const history = messages.slice(1).map(m => ({ 
+        role: m.role as "user" | "model", 
+        parts: [{ text: m.text }] 
+      }));
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...history,
+          { role: "user", parts: [{ text: userMessage }] }
+        ],
+        config: {
           systemInstruction: SYSTEM_INSTRUCTION
-        }),
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get AI response");
-      }
-
-      const data = await response.json();
-      setMessages(prev => [...prev, { role: "model", text: data.text || "I'm sorry, I couldn't process that." }]);
+      const text = response.text;
+      setMessages(prev => [...prev, { role: "model", text: text || "I'm sorry, I couldn't process that." }]);
     } catch (error: any) {
       console.error("Chatbot error:", error);
       let errorMessage = "Sorry, I'm having some trouble connecting right now. Please try again later.";
       if (error.message?.includes("API key")) {
-        errorMessage = "The Chatbot API key is not configured correctly on the server. Please add GEMINI_API_KEY to your environment variables.";
+        errorMessage = "The Gemini API key is not configured correctly. Please ensure GEMINI_API_KEY is set.";
       }
       setMessages(prev => [...prev, { role: "model", text: errorMessage }]);
     } finally {
