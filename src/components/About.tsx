@@ -33,18 +33,18 @@ export default function About() {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="relative order-2 lg:order-1"
           >
-            <div className="aspect-[3/4] rounded-2xl overflow-hidden border border-line animate-float">
+            <div className="aspect-[3/4] rounded-2xl overflow-hidden border border-line animate-float bg-white/5">
               <img
-                src="https://picsum.photos/seed/bilal/1200/1600"
-                alt="Muhammad Bilal Rasheed"
+                src={settings.aboutImage || "https://picsum.photos/seed/bilal/1200/1600"}
+                alt="Profile"
                 className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
                 referrerPolicy="no-referrer"
               />
             </div>
             <div className="absolute -bottom-10 -right-10 hidden md:block">
               <div className="glass p-8 rounded-2xl border border-line">
-                <span className="font-display text-6xl block mb-2">{settings.experienceYears || "03+"}</span>
-                <span className="font-mono text-[10px] uppercase tracking-widest text-secondary">Years of Engineering</span>
+                <span className="font-display text-4xl block mb-2">{settings.experienceYears || "03+"}</span>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-secondary">Experience Level</span>
               </div>
             </div>
           </motion.div>
@@ -60,20 +60,15 @@ export default function About() {
                 <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block">The Story</span>
               </Reveal>
               <Reveal width="100%">
-                <h2 className="text-5xl md:text-7xl font-display uppercase leading-none mb-8">
-                  Driven by<br />Innovation
+                <h2 className="text-5xl md:text-6xl font-display uppercase leading-tight mb-8">
+                  {settings.aboutTitle || "Driven by Innovation"}
                 </h2>
               </Reveal>
               
               <div className="space-y-6 text-secondary text-lg font-light leading-relaxed">
                 <Reveal width="100%">
-                  <p>
+                  <p className="whitespace-pre-line">
                     {settings.aboutText}
-                  </p>
-                </Reveal>
-                <Reveal width="100%">
-                  <p>
-                    With a solid foundation in computer science, I specialize in architecting full-stack applications and custom **WordPress** solutions that are not only functional but also performant and scalable. I believe that great software is built at the intersection of robust engineering and thoughtful aesthetics.
                   </p>
                 </Reveal>
               </div>

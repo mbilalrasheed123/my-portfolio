@@ -67,7 +67,7 @@ const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUplo
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "knowledgeBase">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase">("projects");
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
@@ -396,6 +396,12 @@ export default function Admin() {
               <FolderKanban size={14} className="inline mr-2" /> Projects
             </button>
             <button
+              onClick={() => setActiveTab("about")}
+              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'about' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+            >
+              <Users size={14} className="inline mr-2" /> About Me
+            </button>
+            <button
               onClick={() => setActiveTab("certificates")}
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'certificates' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
@@ -454,6 +460,84 @@ export default function Admin() {
 
         {activeTab === "projects" && (
           <AdminProjectManager />
+        )}
+
+        {activeTab === "about" && (
+          <div className="max-w-4xl mx-auto space-y-8">
+            <h2 className="text-3xl font-display uppercase">About Me Section</h2>
+            <form onSubmit={handleSaveSettings} className="glass p-8 rounded-2xl space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Profile Image</label>
+                  <div className="flex items-center gap-6">
+                    <div className="w-32 h-32 rounded-2xl overflow-hidden border border-line bg-white/5">
+                      {settings.aboutImage ? (
+                        <img src={settings.aboutImage} alt="About" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="text-secondary opacity-20" size={32} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <FileUpload 
+                        folder="profile" 
+                        onUpload={(urls) => setSettings({ ...settings, aboutImage: urls[0] })} 
+                      />
+                      <p className="text-[8px] font-mono text-secondary uppercase">Recommended: Square image, max 500KB</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">About Title</label>
+                  <input
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                    value={settings.aboutTitle || "Full Stack Developer & UI Designer"}
+                    onChange={e => setSettings({ ...settings, aboutTitle: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">About Description (Full Text)</label>
+                  <textarea
+                    rows={8}
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-3 outline-none focus:border-accent text-sm leading-relaxed"
+                    value={settings.aboutText || ""}
+                    onChange={e => setSettings({ ...settings, aboutText: e.target.value })}
+                    placeholder="Tell your story..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Experience Level</label>
+                  <input
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                    value={settings.experienceYears || "3+ Years"}
+                    onChange={e => setSettings({ ...settings, experienceYears: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Location</label>
+                  <input
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                    value={settings.location || "Remote / Global"}
+                    onChange={e => setSettings({ ...settings, location: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  className="px-12 py-3 bg-white text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
+                >
+                  <Save size={14} /> Update Profile Info
+                </button>
+              </div>
+            </form>
+          </div>
         )}
 
         {activeTab === "queries" && (
