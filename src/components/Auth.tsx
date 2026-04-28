@@ -39,12 +39,9 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        if (!user.emailVerified) {
-          setError("Your email is not verified yet. Please check your inbox for a verification link.");
-          setVerificationSent(true);
-          await signOut(auth);
-          setLoading(false);
-          return;
+        // Save profile if name provided
+        if (name) {
+          await updateProfile(user, { displayName: name });
         }
 
         await api.saveUser(user);
@@ -61,14 +58,15 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
           await updateProfile(user, { displayName: name });
         }
 
-        // Send verification email
-        await sendEmailVerification(user);
-        setVerificationSent(true);
+        // Send verification email in background
+        sendEmailVerification(user).catch(err => console.error("Verification email failed:", err));
         
-        // Sign out to force login after verification
-        await signOut(auth);
+        await api.saveUser(user);
         
-        setError("Account created successfully! A verification email has been sent to your address. Please verify your email before logging in.");
+        setSuccess(true);
+        setTimeout(() => {
+          onSuccess?.(user);
+        }, 1500);
       }
     } catch (err: any) {
       console.error("Auth error:", err);

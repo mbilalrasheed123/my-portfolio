@@ -17,6 +17,22 @@ export default function Contact() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const validate = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (!formData.name.trim()) newErrors.name = "Name is required";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Email is invalid";
+    }
+    if (!formData.message.trim()) newErrors.message = "Message is required";
+    else if (formData.message.length < 10) newErrors.message = "Message must be at least 10 characters";
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   useEffect(() => {
     api.getSettings().then((data) => {
@@ -30,7 +46,7 @@ export default function Contact() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) return;
+    if (!validate()) return;
 
     setIsSubmitting(true);
     setStatus("idle");
@@ -87,40 +103,40 @@ export default function Contact() {
           <div className="flex flex-col justify-end">
             <form className="space-y-8" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="border-b border-line pb-4 group focus-within:border-white transition-colors">
+                <div className="border-b border-line pb-4 group focus-within:border-white transition-colors relative">
                   <label className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Name</label>
                   <input 
                     type="text" 
-                    required
                     placeholder="Your Name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-transparent outline-none text-xl font-light placeholder:text-white/10"
                   />
+                  {errors.name && <span className="absolute bottom-0 left-0 text-[8px] text-red-500 font-mono uppercase translate-y-full">{errors.name}</span>}
                 </div>
-                <div className="border-b border-line pb-4 group focus-within:border-white transition-colors">
+                <div className="border-b border-line pb-4 group focus-within:border-white transition-colors relative">
                   <label className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Email</label>
                   <input 
                     type="email" 
-                    required
                     placeholder="your@email.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-transparent outline-none text-xl font-light placeholder:text-white/10"
                   />
+                  {errors.email && <span className="absolute bottom-0 left-0 text-[8px] text-red-500 font-mono uppercase translate-y-full">{errors.email}</span>}
                 </div>
               </div>
               
-              <div className="border-b border-line pb-4 group focus-within:border-white transition-colors">
+              <div className="border-b border-line pb-4 group focus-within:border-white transition-colors relative">
                 <label className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Message</label>
                 <textarea 
                   rows={4}
-                  required
                   placeholder="Tell me about your project"
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   className="w-full bg-transparent outline-none text-xl font-light placeholder:text-white/10 resize-none"
                 />
+                {errors.message && <span className="absolute bottom-0 left-0 text-[8px] text-red-500 font-mono uppercase translate-y-full">{errors.message}</span>}
               </div>
 
               {status === "success" && (

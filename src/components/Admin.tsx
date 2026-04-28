@@ -76,6 +76,7 @@ export default function Admin() {
   const [leads, setLeads] = useState<any[]>([]);
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
+  const [kbFilter, setKbFilter] = useState({ category: "all", status: "all" });
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -388,6 +389,16 @@ export default function Admin() {
       </div>
     );
   }
+
+  const kbCategories = ["all", ...new Set(knowledgeBase.map(kb => kb.category).filter(Boolean))];
+
+  const filteredKb = knowledgeBase.filter(kb => {
+    const matchesCategory = kbFilter.category === "all" || kb.category === kbFilter.category;
+    const matchesStatus = kbFilter.status === "all" || 
+                         (kbFilter.status === "enabled" && kb.isEnabled !== false) || 
+                         (kbFilter.status === "disabled" && kb.isEnabled === false);
+    return matchesCategory && matchesStatus;
+  });
 
   return (
     <div className="container mx-auto px-6">
@@ -1184,14 +1195,46 @@ export default function Admin() {
 
         {activeTab === "knowledgeBase" && (
           <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-display uppercase">AI Knowledge Base</h2>
-              <button
-                onClick={() => { setIsEditing("new_kb"); setFormData({ isEnabled: true, tags: "" }); }}
-                className="px-6 py-2 bg-[#00ffa3] text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
-              >
-                <Plus size={14} /> Add Info
-              </button>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <h2 className="text-3xl font-display uppercase">AI Knowledge Base</h2>
+                <p className="text-xs font-mono text-secondary uppercase tracking-widest mt-1">
+                  Manage info for the Smart Assistant
+                </p>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                <div className="flex items-center gap-2 bg-white/5 border border-line rounded-full px-4 py-1.5">
+                  <span className="text-[9px] font-mono text-secondary uppercase">Category</span>
+                  <select 
+                    className="bg-transparent text-[10px] font-mono uppercase outline-none focus:text-accent"
+                    value={kbFilter.category}
+                    onChange={(e) => setKbFilter({ ...kbFilter, category: e.target.value })}
+                  >
+                    {kbCategories.map(cat => <option key={cat} value={cat} className="bg-black">{cat}</option>)}
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2 bg-white/5 border border-line rounded-full px-4 py-1.5">
+                  <span className="text-[9px] font-mono text-secondary uppercase">Status</span>
+                  <select 
+                    className="bg-transparent text-[10px] font-mono uppercase outline-none focus:text-accent"
+                    value={kbFilter.status}
+                    onChange={(e) => setKbFilter({ ...kbFilter, status: e.target.value })}
+                  >
+                    <option value="all" className="bg-black">All</option>
+                    <option value="enabled" className="bg-black">Enabled</option>
+                    <option value="disabled" className="bg-black">Disabled</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => { setIsEditing("new_kb"); setFormData({ isEnabled: true, tags: "" }); }}
+                  className="px-6 py-2 bg-[#00ffa3] text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
+                >
+                  <Plus size={14} /> Add Info
+                </button>
+              </div>
             </div>
 
             {(isEditing === "new_kb" || (isEditing && activeTab === "knowledgeBase")) && (
@@ -1272,40 +1315,49 @@ export default function Admin() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {knowledgeBase.map((kb) => (
-                <div key={kb.id} className={`glass p-6 rounded-2xl border-line group relative ${!kb.isEnabled ? 'opacity-50 grayscale' : ''}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <span className="px-2 py-0.5 bg-white/5 border border-line rounded text-[8px] font-mono uppercase text-secondary mb-2 inline-block">
-                        {kb.category}
-                      </span>
-                      <h3 className="text-lg font-display uppercase leading-tight">{kb.title}</h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => { setIsEditing(kb.id); setFormData(kb); }}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-white"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteKnowledgeEntry(kb.id)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-red-500"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-secondary line-clamp-4 leading-relaxed italic">"{kb.content}"</p>
-                  <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-1">
-                    {(kb.tags || []).map((tag: string, i: number) => (
-                      <span key={i} className="text-[8px] font-mono text-secondary uppercase bg-white/5 px-1.5 py-0.5 rounded">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+              {filteredKb.length === 0 ? (
+                <div className="col-span-full text-center py-20 glass rounded-3xl border border-line">
+                  <p className="text-secondary font-mono text-xs uppercase">No entries match your search</p>
                 </div>
-              ))}
+              ) : (
+                filteredKb.map((kb) => (
+                  <div key={kb.id} className={`glass p-6 rounded-2xl border-line group relative transition-all hover:border-[#00ffa3]/30 ${!kb.isEnabled ? 'opacity-50 grayscale' : ''}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="px-2 py-0.5 bg-white/5 border border-line rounded text-[8px] font-mono uppercase text-[#00ffa3] tracking-wider">
+                            {kb.category}
+                          </span>
+                          {!kb.isEnabled && <span className="text-[8px] font-mono text-red-500 uppercase tracking-widest">[Disabled]</span>}
+                        </div>
+                        <h3 className="text-lg font-display uppercase leading-tight line-clamp-2">{kb.title}</h3>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => { setIsEditing(kb.id); setFormData(kb); }}
+                          className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-white"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteKnowledgeEntry(kb.id)}
+                          className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-secondary line-clamp-4 leading-relaxed font-light mb-4 italic">"{kb.content}"</p>
+                    <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-1">
+                      {(Array.isArray(kb.tags) ? kb.tags : (kb.tags || "").split(',').filter(Boolean)).map((tag: string, i: number) => (
+                        <span key={i} className="text-[8px] font-mono text-secondary/60 uppercase bg-white/5 px-1.5 py-0.5 rounded">
+                          #{tag.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
             {knowledgeBase.length === 0 && (
               <div className="text-center py-20 glass rounded-3xl border border-line">
