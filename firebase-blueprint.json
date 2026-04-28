@@ -81,11 +81,17 @@
         "title": { "type": "string" },
         "subtitle": { "type": "string" },
         "aboutText": { "type": "string" },
+        "aboutTitle": { "type": "string" },
+        "aboutImage": { "type": "string" },
         "experienceYears": { "type": "string" },
         "education": { "type": "string" },
         "location": { "type": "string" },
         "email": { "type": "string" },
         "phone": { "type": "string" },
+        "logoType": { "type": "string", "enum": ["text", "image"] },
+        "logoText": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "logoAlt": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },

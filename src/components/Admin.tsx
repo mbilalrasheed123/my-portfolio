@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
@@ -78,6 +78,7 @@ export default function Admin() {
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
+  const [isLoading, setIsLoading] = useState(false);
   const [pendingCertFile, setPendingCertFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
@@ -198,12 +199,16 @@ export default function Admin() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       await api.saveSettings(settings);
-      alert("Settings saved!");
+      alert("Success: About Me / Profile information updated!");
       fetchData();
     } catch (error) {
       console.error("Failed to save settings:", error);
+      alert("Error: Failed to save settings. Check console for details.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -292,14 +297,22 @@ export default function Admin() {
         repliedAt: new Date().toISOString()
       });
 
-      await api.notify({
-        to: userEmail,
-        subject: `Reply to your query: ${subject}`,
-        text: `Hello,\n\nAdmin has replied to your query "${subject}":\n\n"${text}"\n\nBest regards,\nPortfolio Team`
-      });
+      await api.sendEmail(
+        userEmail,
+        `Reply to your query: ${subject}`,
+        `Hello,\n\nAdmin has replied to your query "${subject}":\n\n"${text}"\n\nBest regards,\nPortfolio Team`,
+        `<div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2 style="color: #000;">Reply to your query</h2>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            ${text.replace(/\n/g, '<br/>')}
+          </div>
+          <p>Best regards,<br/><strong>Bilal Rasheed Portfolio Team</strong></p>
+        </div>`
+      );
 
       setReplyText({ ...replyText, [queryId]: "" });
-      alert("Reply sent and user notified!");
+      alert("Reply sent and user notified via email!");
       fetchData();
     } catch (error) {
       console.error("Failed to reply:", error);
@@ -472,7 +485,16 @@ export default function Admin() {
                   <div className="flex items-center gap-6">
                     <div className="w-32 h-32 rounded-2xl overflow-hidden border border-line bg-white/5">
                       {settings.aboutImage ? (
-                        <img src={settings.aboutImage} alt="About" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <div className="relative group">
+                          <img src={settings.aboutImage} alt="About" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <button 
+                            type="button"
+                            onClick={() => setSettings({ ...settings, aboutImage: "" })}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <ImageIcon className="text-secondary opacity-20" size={32} />
@@ -631,7 +653,7 @@ export default function Admin() {
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Email</th>
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Last Login</th>
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Registered</th>
-                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Password</th>
+                    <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Status</th>
                     <th className="px-6 py-4 font-mono text-[10px] uppercase text-secondary">Actions</th>
                   </tr>
                 </thead>
@@ -647,7 +669,18 @@ export default function Admin() {
                               {u.displayName?.charAt(0) || u.email?.charAt(0)}
                             </div>
                           )}
-                          <span className="text-sm">{u.displayName}</span>
+                          <div>
+                            <span className="text-sm block">{u.displayName}</span>
+                            {u.emailVerified ? (
+                              <span className="text-[8px] text-green-500 font-mono uppercase flex items-center gap-1">
+                                <CheckCircle size={8} /> Verified
+                              </span>
+                            ) : (
+                              <span className="text-[8px] text-yellow-500 font-mono uppercase flex items-center gap-1">
+                                <AlertCircle size={8} /> Unverified
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-secondary">{u.email}</td>

@@ -175,6 +175,10 @@ export const api = {
       name: "Bilal Rasheed",
       title: "Full Stack Developer",
       aboutText: "Welcome to my professional portfolio.",
+      aboutTitle: "Full Stack Developer & UI Designer",
+      aboutImage: "",
+      experienceYears: "3+ Years",
+      location: "Remote / Global",
       email: "muhammadbilalrasheed78@gmail.com",
       logoType: "text", // "text" or "image"
       logoText: "Bilal",
@@ -239,11 +243,27 @@ export const api = {
 
   async saveSettings(data: any) {
     try {
+      console.log("Saving settings to Firebase:", data);
       const docRef = doc(db, "settings", "global");
       await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
       return { status: "saved" };
     } catch (error) {
+      console.error("Failed to save settings:", error);
       handleFirestoreError(error, OperationType.WRITE, "settings/global");
+    }
+  },
+
+  async sendEmail(to: string, subject: string, text: string, html?: string) {
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, text, html }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to send email through proxy:", error);
+      return { success: false, error };
     }
   },
 

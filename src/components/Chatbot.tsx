@@ -385,7 +385,7 @@ export default function Chatbot() {
                           </button>
                         </div>
                         <p className="mt-2 text-[9px] text-center text-secondary font-mono uppercase tracking-widest opacity-40">
-                          AI Agent Powered by Gemini
+                          ai agent powered by bilal's tech
                         </p>
                       </div>
                     </motion.div>

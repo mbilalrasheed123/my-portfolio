@@ -36,9 +36,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    function isValidSetting(data) {
+      return data.keys().hasAll(['updatedAt']) &&
+             (!data.keys().hasAny(['name']) || data.name is string) &&
+             (!data.keys().hasAny(['title']) || data.title is string) &&
+             (!data.keys().hasAny(['aboutText']) || data.aboutText is string) &&
+             (!data.keys().hasAny(['aboutImage']) || data.aboutImage is string);
+    }
+
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() && isValidSetting(incoming());
     }
 
     // User Profiles
