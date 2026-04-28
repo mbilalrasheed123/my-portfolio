@@ -61,6 +61,19 @@ export default function Contact() {
         status: "pending",
         userUid: user?.uid || null
       });
+
+      // Send email notification to admin
+      api.sendEmail(
+        settings.email || "muhammadbilalrasheed78@gmail.com",
+        `New Inquiry: ${formData.name}`,
+        `You have a new message from ${formData.name} (${formData.email}):\n\n${formData.message}`,
+        `<h3>New Inquiry from Professional Portfolio</h3>
+         <p><strong>Name:</strong> ${formData.name}</p>
+         <p><strong>Email:</strong> ${formData.email}</p>
+         <p><strong>Message:</strong></p>
+         <p>${formData.message}</p>`
+      ).catch(err => console.warn("Admin email notification failed:", err));
+
       setStatus("success");
       setFormData({ name: "", email: "", message: "" });
     } catch (error) {

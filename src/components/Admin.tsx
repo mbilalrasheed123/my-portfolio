@@ -3,67 +3,11 @@ import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings 
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
+import { FileUpload } from "./FileUpload";
 import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
 const DEFAULT_ADMIN_PASSWORD = "mypass";
-
-const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUpload: (urls: string[]) => void, folder?: string, multiple?: boolean }) => {
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    console.log(`Starting upload for ${files.length} files to folder: ${folder}`);
-    setUploading(true);
-    const urls: string[] = [];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`);
-        const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
-        console.log(`Upload successful for ${file.name}. URL: ${url}`);
-        urls.push(url);
-      }
-      onUpload(urls);
-    } catch (error: any) {
-      console.error("Upload failed details:", error);
-      alert(`Upload failed: ${error.message || "Unknown error"}. Check console for details.`);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <input
-        type="file"
-        multiple={multiple}
-        accept="image/*"
-        onChange={handleFileChange}
-        className="hidden"
-        ref={fileInputRef}
-      />
-      <button
-        type="button"
-        disabled={uploading}
-        onClick={() => fileInputRef.current?.click()}
-        className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-line rounded-lg hover:bg-white/20 transition-all disabled:opacity-50"
-      >
-        {uploading ? <Clock className="animate-spin" size={16} /> : <Upload size={16} />}
-        <span className="font-mono text-[10px] uppercase tracking-widest">
-          {uploading ? "Uploading..." : multiple ? "Upload Images" : "Upload Image"}
-        </span>
-      </button>
-    </div>
-  );
-};
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
@@ -251,20 +195,10 @@ export default function Admin() {
         order: Number(formData.order) || 0
       };
 
-      // 1. Save or create the record
-      let certId = isEditing;
       if (isEditing === "new_cert") {
-        const result = await api.post("certificates", certData);
-        certId = result?.id;
+        await api.post("certificates", certData);
       } else if (isEditing) {
         await api.put("certificates", isEditing, certData);
-      }
-
-      // 2. Upload file if pending and we have an ID
-      if (pendingCertFile && certId) {
-        const url = await api.uploadCertificateImage(pendingCertFile, certId);
-        // 3. Update with final URL
-        await api.put("certificates", certId, { ...certData, image: url });
       }
 
       setIsEditing(null);
@@ -512,12 +446,22 @@ export default function Admin() {
                         </div>
                       )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                       <FileUpload 
                         folder="profile" 
                         onUpload={(urls) => setSettings({ ...settings, aboutImage: urls[0] })} 
+                        label="Upload Profile Image"
                       />
-                      <p className="text-[8px] font-mono text-secondary uppercase">Recommended: Square image, max 500KB</p>
+                      <div className="space-y-2">
+                        <label className="font-mono text-[8px] uppercase text-secondary">Or paste image URL</label>
+                        <input
+                          placeholder="https://example.com/profile.jpg"
+                          className="w-full bg-white/5 border border-line rounded px-3 py-1.5 text-[10px] outline-none focus:border-accent"
+                          value={settings.aboutImage || ""}
+                          onChange={e => setSettings({ ...settings, aboutImage: e.target.value })}
+                        />
+                      </div>
+                      <p className="text-[8px] font-mono text-secondary/60 uppercase tracking-tighter">Recommended: Square image, max 500KB</p>
                     </div>
                   </div>
                 </div>
@@ -789,38 +733,44 @@ export default function Admin() {
                   </div>
                   <div className="space-y-2">
                     <label className="font-mono text-[10px] uppercase text-secondary">Certificate Image</label>
-                    <div className="flex items-center gap-4">
-                      {formData.image ? (
-                        <div className="w-20 h-20 rounded-lg overflow-hidden border border-line">
-                          <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        </div>
-                      ) : (
-                        <div className="w-20 h-20 rounded-lg border border-line border-dashed flex items-center justify-center p-2 text-center">
-                          <span className="text-[8px] font-mono text-secondary uppercase">No Image Selected</span>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          id="cert-file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setPendingCertFile(file);
-                              setFormData({ ...formData, image: URL.createObjectURL(file) });
-                            }
+                    <div className="flex items-center gap-6">
+                      <div className="w-24 h-24 rounded-lg overflow-hidden border border-line bg-white/5 relative group">
+                        {formData.image ? (
+                          <>
+                            <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button 
+                                type="button"
+                                onClick={() => setFormData({ ...formData, image: "" })}
+                                className="p-2 border border-white/20 rounded-full hover:bg-red-500/20 text-red-500 transition-colors"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center opacity-30">
+                            <ImageIcon size={24} className="mb-1" />
+                            <span className="text-[8px] font-mono uppercase">Empty</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <FileUpload 
+                          folder="certificates"
+                          onUpload={(urls) => {
+                            console.log("Certificate uploaded:", urls[0]);
+                            setFormData({ ...formData, image: urls[0] });
                           }}
                         />
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById('cert-file')?.click()}
-                          className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-line rounded-lg hover:bg-white/20 transition-all"
-                        >
-                          <Upload size={16} />
-                          <span className="font-mono text-[10px] uppercase tracking-widest">Select Image</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            placeholder="Or paste URL..."
+                            className="bg-white/5 border border-line rounded px-2 py-1 text-[10px] outline-none w-32 focus:border-accent"
+                            value={formData.image || ""}
+                            onChange={e => setFormData({ ...formData, image: e.target.value })}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1034,6 +984,7 @@ export default function Admin() {
                     value={settings.email || ""}
                     onChange={e => setSettings({ ...settings, email: e.target.value })}
                   />
+                  <p className="text-[8px] font-mono text-secondary/60 uppercase">Note: Email notifications require SMTP config in environment variables.</p>
                 </div>
                 <div className="space-y-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">Phone</label>

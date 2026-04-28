@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Edit2, Save, X, Upload, Image as ImageIcon, ExternalLink, Github, Monitor, Star, Layers, Loader2, GripVertical } from "lucide-react";
 import { api } from "../lib/api";
+import { FileUpload } from "./FileUpload";
 
 interface Project {
   id: string;
@@ -71,52 +72,15 @@ export default function AdminProjectManager() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // If it's a new project, we show a preview and save the file to upload later
-    if (isEditing === "new") {
-      setPendingFile(file);
-      const previewUrl = URL.createObjectURL(file);
-      setFormData({ ...formData, thumbnailUrl: previewUrl });
-      return;
-    }
-
-    // For existing projects, upload immediately
-    console.log(`Starting compressed upload for: ${file.name}, size: ${file.size}`);
-    try {
-      setUploadProgress(0);
-      const url = await api.uploadProjectThumbnail(file, isEditing!, (p) => {
-        console.log(`Upload progress: ${p}%`);
-        setUploadProgress(p);
-      });
-      console.log(`Upload successful. URL: ${url}`);
-      setFormData({ ...formData, thumbnailUrl: url });
-      setUploadProgress(null);
-    } catch (error: any) {
-      console.error("Upload failed in AdminProjectManager:", error);
-      alert(`Failed to upload image: ${error.message || "Unknown error"}. Check console for details.`);
-      setUploadProgress(null);
-    }
+    // This is replaced by FileUpload component usage in the render
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // 1. Create or update the project record
-      const result = await api.saveProject(formData);
-      const projectId = isEditing === "new" ? result?.id : isEditing;
-
-      // 2. If there's a pending file and we have an ID, upload it now
-      if (pendingFile && projectId) {
-        setUploadProgress(0);
-        console.log(`Uploading pending file for new project ${projectId}`);
-        const url = await api.uploadProjectThumbnail(pendingFile, projectId, (p) => setUploadProgress(p));
-        
-        // 3. Update the project with the final thumbnail URL
-        await api.saveProject({ ...formData, id: projectId, thumbnailUrl: url });
-      }
+      // 1. Save the project record
+      await api.saveProject(formData);
 
       setIsEditing(null);
       setFormData({});
@@ -319,65 +283,52 @@ export default function AdminProjectManager() {
                 </div>
               </div>
 
-              <div className="space-y-2 pt-4">
+              <div className="space-y-4 pt-4">
                 <label className="font-mono text-[10px] uppercase text-secondary">Thumbnail Image</label>
-                <div className="relative group aspect-video bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center overflow-hidden hover:border-[#00ffa3]/50 transition-colors">
-                  {formData.thumbnailUrl ? (
-                    <>
-                      <img src={formData.thumbnailUrl} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                        <button 
-                          type="button" 
-                          onClick={() => fileInputRef.current?.click()}
-                          className="p-3 bg-white text-black rounded-full hover:bg-[#00ffa3] transition-colors"
-                        >
-                          <Upload size={20} />
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setFormData({ ...formData, thumbnailUrl: "" })}
-                          className="p-3 bg-red-500 text-white rounded-full hover:bg-red-400 transition-colors"
-                        >
-                          <Trash2 size={20} />
-                        </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="relative group aspect-video bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center overflow-hidden hover:border-[#00ffa3]/50 transition-colors">
+                    {formData.thumbnailUrl ? (
+                      <div className="relative w-full h-full">
+                        <img src={formData.thumbnailUrl} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button 
+                            type="button" 
+                            onClick={() => setFormData({ ...formData, thumbnailUrl: "" })}
+                            className="p-3 bg-red-500 text-white rounded-full hover:bg-red-400 transition-colors"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
                       </div>
-                    </>
-                  ) : (
-                    <div 
-                      className="flex flex-col items-center gap-2 cursor-pointer p-8 w-full h-full"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <ImageIcon className="text-secondary" size={32} />
-                      <span className="font-mono text-[10px] uppercase text-secondary">Upload & Auto-Compress</span>
-                      <span className="text-[8px] text-white/30 uppercase tracking-tighter">Max 200KB Optimized</span>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 p-8">
+                        <ImageIcon className="text-secondary/20" size={32} />
+                        <span className="font-mono text-[8px] uppercase text-secondary">No Preview</span>
+                      </div>
+                    )}
+                  </div>
                   
-                  {uploadProgress !== null && (
-                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-4">
-                      <Loader2 className="animate-spin text-[#00ffa3]" size={32} />
-                      <div className="w-48 bg-white/10 h-1 rounded-full overflow-hidden">
-                        <div className="bg-[#00ffa3] h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                      </div>
-                      <span className="font-mono text-[9px] uppercase text-[#00ffa3]">Optimizing...</span>
+                  <div className="space-y-4">
+                    <FileUpload 
+                      folder="projects"
+                      onUpload={(urls) => setFormData({ ...formData, thumbnailUrl: urls[0] })}
+                      label="Upload & Auto-Compress"
+                    />
+                    <div className="space-y-2">
+                       <label className="font-mono text-[8px] uppercase text-secondary">Or use direct image URL</label>
+                       <input
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-[10px] outline-none focus:border-[#00ffa3]"
+                        value={formData.thumbnailUrl || ""}
+                        onChange={e => setFormData({ ...formData, thumbnailUrl: e.target.value })}
+                      />
                     </div>
-                  )}
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleFileChange} 
-                />
-                
-                <div className="flex gap-2">
-                   <input
-                    placeholder="Or paste direct image URL..."
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-[10px] outline-none focus:border-[#00ffa3]"
-                    value={formData.thumbnailUrl || ""}
-                    onChange={e => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                  />
+                    <ul className="text-[7px] font-mono text-secondary/60 uppercase space-y-1">
+                      <li>• Maximum size: 200KB</li>
+                      <li>• Recommended ratio: 16:10</li>
+                      <li>• Formats: JPG, PNG, WEBP</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
