@@ -23,7 +23,7 @@ export default function Navbar() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      setIsScrolled(window.scrollY > 10);
     };
     window.addEventListener("scroll", handleScroll);
     
@@ -50,7 +50,7 @@ export default function Navbar() {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        isScrolled || !isHomePage ? "bg-black/80 backdrop-blur-xl py-4 border-b border-line" : "bg-transparent py-8"
+        isScrolled || !isHomePage || isMobileMenuOpen ? "bg-black/90 backdrop-blur-2xl py-4 border-b border-line" : "bg-transparent py-8"
       }`}
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
@@ -61,7 +61,7 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center gap-12">
+        <div className="hidden md:flex items-center gap-16">
           {navLinks.map((link) => (
             <a
               key={link.name}
@@ -146,7 +146,7 @@ export default function Navbar() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed inset-0 z-40 bg-black flex flex-col items-center justify-center md:hidden"
+            className="fixed inset-0 z-40 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center md:hidden"
           >
             <button 
               className="absolute top-8 right-6 text-white"

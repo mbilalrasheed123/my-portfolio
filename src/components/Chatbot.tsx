@@ -6,17 +6,21 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { auth, onAuthStateChanged } from "../firebase";
 import { api } from "../lib/api";
 
-const SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
+const BASE_SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
 
 **CORE DIRECTIVES:**
 1. **Be Concise:** Keep responses short and professional.
 2. **Website Context:** You know all sections: Navbar, Hero, About, Skills, Projects, Certificates, Contact, and Admin.
-3. **Greetings:** Standard welcome message for first greets.
-4. **Lead Detection:** If the user expresses interest in web design, development, or hiring Bilal, NATURALLY suggest connecting. 
-5. **Collection of Info:** If they are interested, you MUST ask for their: Name, Email, Phone, and Project Description.
-6. **Triggering Lead Save:** Once you have ALL 4 pieces of information (Name, Email, Phone, Description), you must confirm you've received it and clearly state that Bilal will follow up soon.
+3. **Identity:** You represent Bilal. Use "Bilal" or "he/him" when referring to him, or "we" if referring to the "team".
+4. **PROACTIVE LEAD COLLECTION (CRITICAL):** If the user expresses interest in web design, development, or hiring Bilal, you MUST proactively ask for their contact information to facilitate a follow-up. 
+   - You need 4 specific pieces of info: **Name, Email, Phone, and Project Description**.
+   - Do NOT ask for all at once; be natural. (e.g., "I'd love to help with that! What's your name and best email so Bilal can reach out?")
+5. **CONFIRMATION:** Once you have collected ALL 4 pieces (Name, Email, Phone, Description), you MUST explicitly confirm receipt of all details and inform the user that "Bilal will personally follow up with you shortly".
 
-**ABOUT BILAL:**
+**KNOWLEDGE BASE CONTEXT:**
+{{KNOWLEDGE_CONTEXT}}
+
+**ABOUT BILAL (QUICK FACT):**
 CS student from Multan, Pakistan. Specialist in WordPress, Frontend, and Vibe Coding.`;
 
 interface Message {
@@ -48,10 +52,20 @@ export default function Chatbot() {
   const [session, setSession] = useState<ChatSession | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
+  const [kbContent, setKbContent] = useState("");
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const fetchData = async () => {
+      const kb = await api.fetchKnowledgeBase(true);
+      if (kb && kb.length > 0) {
+        const context = kb.map(entry => `[${entry.category}] ${entry.title}: ${entry.content}`).join("\n\n");
+        setKbContent(context);
+      }
+    };
+    fetchData();
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       loadHistory(u);
@@ -60,10 +74,17 @@ export default function Chatbot() {
   }, []);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current && isOpen && !isMinimized) {
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: "smooth"
+          });
+        }
+      }, 100);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, isOpen, isMinimized]);
 
   const loadHistory = async (u: any) => {
     if (u) {
@@ -128,6 +149,8 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
+      const systemInstruction = BASE_SYSTEM_INSTRUCTION.replace("{{KNOWLEDGE_CONTEXT}}", kbContent || "No additional personal knowledge base entries provided.");
+
       const historyForAI = newMessages.slice(1).map(m => ({ 
         role: m.role as "user" | "model", 
         parts: [{ text: m.text }] 
@@ -140,7 +163,7 @@ export default function Chatbot() {
           ...historyForAI
         ],
         config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
+          systemInstruction: systemInstruction,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -199,17 +222,17 @@ export default function Chatbot() {
       <AnimatePresence mode="wait">
         {isOpen ? (
           <motion.div
-            layoutId="chat-panel"
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            initial={{ opacity: 0, scale: 0.5, y: 50, transformOrigin: "bottom right" }}
             animate={{ 
               opacity: 1, 
               scale: 1, 
               y: 0,
-              height: isMinimized ? "64px" : "600px",
-              width: "400px"
+              height: isMinimized ? "64px" : "min(600px, 85vh)",
+              width: "min(400px, 90vw)"
             }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-black border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col mb-4"
+            exit={{ opacity: 0, scale: 0.5, y: 50, transformOrigin: "bottom right" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-4 origin-bottom-right"
           >
             {/* Header */}
             <div className="p-4 bg-white/5 border-b border-line flex items-center justify-between">
@@ -221,7 +244,7 @@ export default function Chatbot() {
                   <h4 className="text-sm font-display uppercase tracking-wider">Bilal's AI Agent</h4>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] font-mono text-secondary uppercase tracking-widest">Active Ahora</span>
+                    <span className="text-[10px] font-mono text-secondary uppercase tracking-widest">Active Now</span>
                   </div>
                 </div>
               </div>
@@ -249,7 +272,7 @@ export default function Chatbot() {
             </div>
 
             {!isMinimized && (
-              <div className="flex-1 flex flex-col relative overflow-hidden">
+              <div className="flex-1 flex flex-col relative overflow-hidden min-h-0">
                 <AnimatePresence mode="wait">
                   {showHistory ? (
                     <motion.div
@@ -257,7 +280,7 @@ export default function Chatbot() {
                       initial={{ x: -20, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       exit={{ x: -20, opacity: 0 }}
-                      className="absolute inset-0 bg-black z-10 p-6 overflow-y-auto"
+                      className="absolute inset-0 bg-black z-20 p-6 overflow-y-auto"
                     >
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="font-display uppercase text-sm tracking-widest text-secondary">Past Conversations</h3>
@@ -269,7 +292,7 @@ export default function Chatbot() {
                         </button>
                       </div>
                       
-                      <div className="space-y-3">
+                      <div className="space-y-3 pb-4">
                         {pastSessions.length > 0 ? pastSessions.map((s, i) => (
                           <div 
                             key={i}
@@ -301,59 +324,69 @@ export default function Chatbot() {
                       key="chat"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="flex-1 flex flex-col"
+                      exit={{ opacity: 0 }}
+                      className="flex-1 flex flex-col h-full overflow-hidden"
                     >
-                      {/* Messages Area */}
+                      {/* Messages Area - This should be the only scrolling part */}
                       <div 
                         ref={scrollRef}
-                        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-line"
+                        className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scroll-smooth"
                       >
                         {messages.map((msg, i) => (
                           <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
                             key={i}
-                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mb-2`}
                           >
-                            <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${
+                            <div className={`relative max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
                               msg.role === "user" 
-                                ? "bg-accent text-white rounded-tr-none shadow-lg shadow-accent/20" 
-                                : "bg-white/5 text-secondary border border-line rounded-tl-none font-medium"
+                                ? "bg-[#00ffa3] text-black font-semibold rounded-br-none shadow-[0_10px_25px_-5px_rgba(0,255,163,0.4)]" 
+                                : "bg-white/5 text-white/90 border border-white/10 rounded-bl-none font-medium backdrop-blur-sm"
                             }`}>
-                              <Markdown>{msg.text}</Markdown>
+                              <div className="markdown-body">
+                                <Markdown>{msg.text}</Markdown>
+                              </div>
+                              <span className="absolute -bottom-5 left-0 right-0 text-[9px] font-mono opacity-30 text-center uppercase tracking-tighter">
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
                             </div>
                           </motion.div>
                         ))}
                         {isLoading && (
                           <div className="flex justify-start">
-                            <div className="bg-white/5 border border-line p-4 rounded-2xl rounded-tl-none flex gap-1.5">
-                              <div className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" />
-                              <div className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce [animation-delay:0.2s]" />
-                              <div className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce [animation-delay:0.4s]" />
+                            <div className="bg-white/5 border border-white/10 p-4 rounded-2xl rounded-bl-none flex gap-1.5 backdrop-blur-sm">
+                              <div className="w-1.5 h-1.5 bg-[#00ffa3] rounded-full animate-bounce [animation-duration:0.6s]" />
+                              <div className="w-1.5 h-1.5 bg-[#00ffa3] rounded-full animate-bounce [animation-duration:0.6s] [animation-delay:0.1s]" />
+                              <div className="w-1.5 h-1.5 bg-[#00ffa3] rounded-full animate-bounce [animation-duration:0.6s] [animation-delay:0.2s]" />
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Input Area */}
-                      <div className="p-4 border-t border-line bg-white/5">
-                        <div className="relative">
+                      {/* Input Area - Fixed at bottom of this container */}
+                      <div className="p-4 border-t border-white/10 bg-black/40 backdrop-blur-md mt-auto">
+                        <div className="relative group">
                           <input
                             type="text"
-                            placeholder="Need a website? Ask Bilal..."
+                            placeholder="Ask about web design, projects, or hiring Bilal..."
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                            className="w-full bg-black border border-line rounded-full py-4 pl-6 pr-14 text-sm focus:outline-none focus:border-accent transition-all shadow-inner"
+                            className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 pl-6 pr-14 text-sm focus:outline-none focus:border-[#00ffa3] focus:ring-1 focus:ring-[#00ffa3]/20 transition-all shadow-inner text-white"
                           />
                           <button
                             onClick={handleSend}
                             disabled={!input.trim() || isLoading}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                            title="Send Message"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-[#00ffa3] text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100 shadow-[0_0_15px_rgba(0,255,163,0.3)] z-10"
                           >
-                            <Send size={16} />
+                            <Send size={18} />
                           </button>
                         </div>
+                        <p className="mt-2 text-[9px] text-center text-secondary font-mono uppercase tracking-widest opacity-40">
+                          AI Agent Powered by Gemini
+                        </p>
                       </div>
                     </motion.div>
                   )}
@@ -363,9 +396,11 @@ export default function Chatbot() {
           </motion.div>
         ) : (
           <motion.button
-            layoutId="chat-panel"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
             className="w-16 h-16 rounded-full bg-accent text-white shadow-2xl flex items-center justify-center hover:shadow-accent/40 transition-all border-4 border-black group"
           >

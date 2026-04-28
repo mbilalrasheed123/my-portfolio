@@ -1,5 +1,6 @@
 import { 
   db, 
+  storage,
   collection, 
   doc, 
   getDoc, 
@@ -13,8 +14,13 @@ import {
   where,
   serverTimestamp,
   handleFirestoreError,
-  OperationType
+  OperationType,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
 } from "../firebase";
+import imageCompression from "browser-image-compression";
 
 // API utility with explicit fetch functions and graceful error handling
 export const api = {
@@ -38,6 +44,70 @@ export const api = {
 
   async fetchProjects() {
     return this.fetchList("projects");
+  },
+
+  async saveProject(data: any) {
+    try {
+      const payload = {
+        ...data,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (!data.id) {
+        payload.createdAt = serverTimestamp();
+        const docRef = await addDoc(collection(db, "projects"), payload);
+        return { id: docRef.id };
+      } else {
+        const docRef = doc(db, "projects", data.id);
+        await updateDoc(docRef, payload);
+        return { id: data.id };
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "projects");
+    }
+  },
+
+  async deleteProject(id: string) {
+    // Attempt to delete thumbnail if it exists in storage
+    try {
+      const projectDoc = await getDoc(doc(db, "projects", id));
+      if (projectDoc.exists()) {
+        const data = projectDoc.data();
+        if (data.thumbnailUrl && data.thumbnailUrl.includes("firebase")) {
+          const fileRef = ref(storage, `projects/${id}.jpg`);
+          await deleteObject(fileRef).catch(e => console.warn("Thumbnail not found or already deleted"));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not delete associated media:", e);
+    }
+    return this.delete("projects", id);
+  },
+
+  async uploadProjectThumbnail(file: File, id: string, onProgress?: (p: number) => void) {
+    try {
+      // 1. Compression options
+      const options = {
+        maxSizeMB: 0.2, // ~200KB
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+      };
+
+      // 2. Compress
+      const compressedFile = await imageCompression(file, options);
+      
+      // 3. Upload to Storage
+      const storageRef = ref(storage, `projects/${id}.jpg`);
+      const snapshot = await uploadBytes(storageRef, compressedFile);
+      
+      // 4. Get URL
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      return downloadURL;
+    } catch (error) {
+      console.error("Image compression/upload failed:", error);
+      throw error;
+    }
   },
 
   async fetchCertificates() {
@@ -196,6 +266,45 @@ export const api = {
     } catch (error) {
       console.error("Failed to save lead:", error);
     }
+  },
+
+  async fetchKnowledgeBase(onlyEnabled = false) {
+    try {
+      let q;
+      if (onlyEnabled) {
+        q = query(collection(db, "knowledgeBase"), where("isEnabled", "==", true));
+      } else {
+        q = collection(db, "knowledgeBase");
+      }
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+    } catch (error) {
+      console.error("Failed to fetch knowledge base:", error);
+      return [];
+    }
+  },
+
+  async saveKnowledgeEntry(data: any) {
+    try {
+      if (data.id) {
+        const docRef = doc(db, "knowledgeBase", data.id);
+        await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+        return { id: data.id };
+      } else {
+        const docRef = await addDoc(collection(db, "knowledgeBase"), {
+          ...data,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        return { id: docRef.id };
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "knowledgeBase");
+    }
+  },
+
+  async deleteKnowledgeEntry(id: string) {
+    return this.delete("knowledgeBase", id);
   },
 
   async notify(data: any) {

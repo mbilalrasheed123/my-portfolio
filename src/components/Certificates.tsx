@@ -125,13 +125,19 @@ export default function Certificates() {
               className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
             >
               {/* Left Side: Image */}
-              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group">
-                <img 
-                  src={currentCert.image} 
-                  alt={currentCert.title}
-                  className="w-full h-full object-contain bg-white/5"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group bg-white/5">
+                {currentCert.image ? (
+                  <img 
+                    src={currentCert.image} 
+                    alt={currentCert.title}
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-secondary font-mono text-[10px] uppercase">
+                    No Image Available
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
               </div>
 

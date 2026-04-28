@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
+import AdminProjectManager from "./AdminProjectManager";
 import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
@@ -63,7 +64,7 @@ const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUplo
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "knowledgeBase">("projects");
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
@@ -71,6 +72,7 @@ export default function Admin() {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [chatSessions, setChatSessions] = useState<any[]>([]);
+  const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
@@ -91,14 +93,15 @@ export default function Admin() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [p, s, q, c, u, l, cs] = await Promise.all([
+      const [p, s, q, c, u, l, cs, kb] = await Promise.all([
         api.get("projects"),
         api.getSettings(),
         api.get("contactMessages"),
         api.get("certificates"),
         api.fetchUsers(),
         api.get("leads"),
-        api.fetchChatSessions("all") // Fetch all for admin
+        api.fetchChatSessions("all"),
+        api.fetchKnowledgeBase()
       ]);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
@@ -132,6 +135,15 @@ export default function Admin() {
         return getTime(b.createdAt) - getTime(a.createdAt);
       }));
       if (Array.isArray(cs)) setChatSessions(cs.sort((a: any, b: any) => {
+        const getTime = (ts: any) => {
+          if (ts?.seconds) return ts.seconds * 1000;
+          if (ts?.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'string') return new Date(ts).getTime();
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      }));
+      if (Array.isArray(kb)) setKnowledgeBase(kb.sort((a: any, b: any) => {
         const getTime = (ts: any) => {
           if (ts?.seconds) return ts.seconds * 1000;
           if (ts?.toDate) return ts.toDate().getTime();
@@ -304,6 +316,35 @@ export default function Admin() {
     }
   };
 
+  const handleSaveKnowledgeEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const data = {
+        ...formData,
+        tags: typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()) : formData.tags,
+        isEnabled: formData.isEnabled ?? true
+      };
+
+      await api.saveKnowledgeEntry(data);
+      setIsEditing(null);
+      setFormData({});
+      fetchData();
+    } catch (error) {
+      console.error("Failed to save knowledge entry:", error);
+    }
+  };
+
+  const handleDeleteKnowledgeEntry = async (id: string) => {
+    if (window.confirm("Delete this knowledge entry?")) {
+      try {
+        await api.deleteKnowledgeEntry(id);
+        fetchData();
+      } catch (error) {
+        console.error("Failed to delete knowledge entry:", error);
+      }
+    }
+  };
+
   if (!user) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -324,7 +365,7 @@ export default function Admin() {
       <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full overflow-hidden border border-line bg-white/10 flex items-center justify-center">
-              {user.photoURL ? <img src={user.photoURL} alt="Admin" /> : <LogIn size={20} />}
+              {user.photoURL ? <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" /> : <LogIn size={20} />}
             </div>
             <div>
               <h1 className="text-2xl font-display uppercase">Dashboard</h1>
@@ -375,6 +416,12 @@ export default function Admin() {
               <Bot size={14} className="inline mr-2" /> Chat History
             </button>
             <button
+              onClick={() => setActiveTab("knowledgeBase")}
+              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'knowledgeBase' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+            >
+              <Users size={14} className="inline mr-2" /> Knowledge Base
+            </button>
+            <button
               onClick={() => setActiveTab("settings")}
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
@@ -390,156 +437,7 @@ export default function Admin() {
         </div>
 
         {activeTab === "projects" && (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-display uppercase">Manage Projects</h2>
-              <button
-                onClick={() => { setIsEditing("new"); setFormData({ order: projects.length, images: [] }); }}
-                className="px-6 py-2 bg-accent text-white rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2"
-              >
-                <Plus size={14} /> Add Project
-              </button>
-            </div>
-
-            {(isEditing === "new" || isEditing) && (
-              <div className="glass p-8 rounded-2xl border-accent/30">
-                <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Title</label>
-                    <input
-                      required
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.title || ""}
-                      onChange={e => setFormData({ ...formData, title: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Category</label>
-                    <input
-                      required
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.category || ""}
-                      onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Description</label>
-                    <textarea
-                      required
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.description || ""}
-                      onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Project Images</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
-                      {(formData.images || []).map((url: string, idx: number) => (
-                        <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-line group">
-                          <img src={url} alt="" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newImages = [...formData.images];
-                              newImages.splice(idx, 1);
-                              setFormData({ ...formData, images: newImages });
-                            }}
-                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                      <div className="aspect-square flex items-center justify-center border border-dashed border-line rounded-lg hover:border-accent transition-colors">
-                        <FileUpload 
-                          multiple 
-                          folder="projects" 
-                          onUpload={(urls) => setFormData({ ...formData, images: [...(formData.images || []), ...urls] })} 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Tags (comma separated)</label>
-                    <input
-                      required
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.tags || ""}
-                      onChange={e => setFormData({ ...formData, tags: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">GitHub URL</label>
-                    <input
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.github || ""}
-                      onChange={e => setFormData({ ...formData, github: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Demo URL</label>
-                    <input
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.demo || ""}
-                      onChange={e => setFormData({ ...formData, demo: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="font-mono text-[10px] uppercase text-secondary">Display Order</label>
-                    <input
-                      type="number"
-                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                      value={formData.order ?? ""}
-                      onChange={e => setFormData({ ...formData, order: e.target.value })}
-                    />
-                  </div>
-                  <div className="md:col-span-2 flex justify-end gap-4 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => { setIsEditing(null); setFormData({}); }}
-                      className="px-6 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-8 py-2 bg-white text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2"
-                    >
-                      <Save size={14} /> Save Project
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => (
-                <div key={project.id} className="glass rounded-2xl overflow-hidden border-line group">
-                  <div className="aspect-video relative">
-                    <img src={project.images?.[0] || project.image} alt={project.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <button
-                        onClick={() => { setIsEditing(project.id); setFormData(project); }}
-                        className="p-3 bg-white text-black rounded-full hover:scale-110 transition-transform"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProject(project.id)}
-                        className="p-3 bg-red-500 text-white rounded-full hover:scale-110 transition-transform"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-xl font-display uppercase mb-2">{project.title}</h3>
-                    <p className="text-secondary text-xs line-clamp-2">{project.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <AdminProjectManager />
         )}
 
         {activeTab === "queries" && (
@@ -643,7 +541,7 @@ export default function Admin() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {u.photoURL ? (
-                            <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full" />
+                            <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xs">
                               {u.displayName?.charAt(0) || u.email?.charAt(0)}
@@ -748,9 +646,13 @@ export default function Admin() {
                   <div className="space-y-2">
                     <label className="font-mono text-[10px] uppercase text-secondary">Certificate Image</label>
                     <div className="flex items-center gap-4">
-                      {formData.image && (
+                      {formData.image ? (
                         <div className="w-20 h-20 rounded-lg overflow-hidden border border-line">
-                          <img src={formData.image} alt="" className="w-full h-full object-cover" />
+                          <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-lg border border-line border-dashed flex items-center justify-center p-2 text-center">
+                          <span className="text-[8px] font-mono text-secondary uppercase">No Image Selected</span>
                         </div>
                       )}
                       <FileUpload folder="certificates" onUpload={(urls) => setFormData({ ...formData, image: urls[0] })} />
@@ -814,7 +716,13 @@ export default function Admin() {
               {certificates.map((cert) => (
                 <div key={cert.id} className="glass rounded-2xl overflow-hidden border-line group">
                   <div className="aspect-[4/3] relative">
-                    <img src={cert.image} alt={cert.title} className="w-full h-full object-cover" />
+                    {cert.image ? (
+                      <img src={cert.image} alt={cert.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full bg-white/5 flex items-center justify-center">
+                        <span className="text-[10px] font-mono text-secondary uppercase">No Image</span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                       <button
                         onClick={() => { setIsEditing(cert.id); setFormData(cert); }}
@@ -1064,6 +972,139 @@ export default function Admin() {
             {chatSessions.length === 0 && (
               <div className="text-center py-20 glass rounded-3xl border border-line">
                 <p className="text-secondary font-mono text-xs uppercase">No chat sessions found</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "knowledgeBase" && (
+          <div className="space-y-8">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-display uppercase">AI Knowledge Base</h2>
+              <button
+                onClick={() => { setIsEditing("new_kb"); setFormData({ isEnabled: true, tags: "" }); }}
+                className="px-6 py-2 bg-[#00ffa3] text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
+              >
+                <Plus size={14} /> Add Info
+              </button>
+            </div>
+
+            {(isEditing === "new_kb" || (isEditing && activeTab === "knowledgeBase")) && (
+              <div className="glass p-8 rounded-2xl border-[#00ffa3]/30">
+                <form onSubmit={handleSaveKnowledgeEntry} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Category</label>
+                    <select
+                      required
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-[#00ffa3] text-white"
+                      value={formData.category || ""}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                    >
+                      <option value="">Select Category</option>
+                      <option value="Basic Info">Basic Info</option>
+                      <option value="Preferences">Preferences</option>
+                      <option value="Business Info">Business Info</option>
+                      <option value="Custom Notes">Custom Notes</option>
+                      <option value="FAQs">FAQs</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Title / Question</label>
+                    <input
+                      required
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-[#00ffa3]"
+                      value={formData.title || ""}
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Content / Answer</label>
+                    <textarea
+                      required
+                      rows={6}
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-[#00ffa3]"
+                      value={formData.content || ""}
+                      onChange={e => setFormData({ ...formData, content: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Tags (comma separated)</label>
+                    <input
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-[#00ffa3]"
+                      value={formData.tags || ""}
+                      onChange={e => setFormData({ ...formData, tags: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 pt-6">
+                    <input
+                      type="checkbox"
+                      id="isEnabled"
+                      checked={formData.isEnabled ?? true}
+                      onChange={e => setFormData({ ...formData, isEnabled: e.target.checked })}
+                      className="w-4 h-4 rounded border-line bg-white/5 text-[#00ffa3] focus:ring-[#00ffa3]"
+                    />
+                    <label htmlFor="isEnabled" className="font-mono text-[10px] uppercase text-secondary cursor-pointer">
+                      Enable for AI use
+                    </label>
+                  </div>
+                  <div className="md:col-span-2 flex justify-end gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => { setIsEditing(null); setFormData({}); }}
+                      className="px-6 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-8 py-2 bg-white text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <Save size={14} /> Save Entry
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {knowledgeBase.map((kb) => (
+                <div key={kb.id} className={`glass p-6 rounded-2xl border-line group relative ${!kb.isEnabled ? 'opacity-50 grayscale' : ''}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <span className="px-2 py-0.5 bg-white/5 border border-line rounded text-[8px] font-mono uppercase text-secondary mb-2 inline-block">
+                        {kb.category}
+                      </span>
+                      <h3 className="text-lg font-display uppercase leading-tight">{kb.title}</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setIsEditing(kb.id); setFormData(kb); }}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-white"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteKnowledgeEntry(kb.id)}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-secondary hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-secondary line-clamp-4 leading-relaxed italic">"{kb.content}"</p>
+                  <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-1">
+                    {(kb.tags || []).map((tag: string, i: number) => (
+                      <span key={i} className="text-[8px] font-mono text-secondary uppercase bg-white/5 px-1.5 py-0.5 rounded">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {knowledgeBase.length === 0 && (
+              <div className="text-center py-20 glass rounded-3xl border border-line">
+                <p className="text-secondary font-mono text-xs uppercase">Your Knowledge Base is empty</p>
               </div>
             )}
           </div>

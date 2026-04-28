@@ -78,7 +78,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="my-8 max-w-xl text-center text-base leading-relaxed md:text-lg md:leading-relaxed text-secondary font-light"
         >
-          {settings.subtitle}
+          {settings.subtitle?.replace(/,vmvmvmvm/g, '')}
         </motion.p>
         
         <motion.div

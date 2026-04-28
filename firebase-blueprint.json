@@ -2,21 +2,24 @@
   "entities": {
     "Project": {
       "title": "Project",
-      "description": "Portfolio project entry",
+      "description": "Portfolio project entry with iframe support",
       "type": "object",
       "properties": {
         "title": { "type": "string" },
-        "category": { "type": "string" },
         "description": { "type": "string" },
-        "images": { "type": "array", "items": { "type": "string" } },
-        "tags": { "type": "array", "items": { "type": "string" } },
-        "github": { "type": "string" },
-        "demo": { "type": "string" },
+        "category": { "type": "string" },
+        "technologies": { "type": "array", "items": { "type": "string" } },
+        "thumbnailUrl": { "type": "string" },
+        "liveUrl": { "type": "string" },
+        "githubUrl": { "type": "string" },
+        "showInIframe": { "type": "boolean" },
+        "showOpenInNewTab": { "type": "boolean" },
+        "featured": { "type": "boolean" },
         "order": { "type": "number" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "category", "description"]
+      "required": ["title", "description", "category", "liveUrl", "thumbnailUrl"]
     },
     "Certificate": {
       "title": "Certificate",
@@ -124,6 +127,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "email"]
+    },
+    "KnowledgeEntry": {
+      "title": "Knowledge Base Entry",
+      "description": "Personalized data for AI chatbot context",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "enum": ["Basic Info", "Preferences", "Business Info", "Custom Notes", "FAQs"] },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "isEnabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["category", "title", "content"]
     }
   },
   "firestore": {
@@ -154,6 +172,10 @@
     "/leads/{leadId}": {
       "schema": "Lead",
       "description": "Collected potential client info"
+    },
+    "/knowledgeBase/{entryId}": {
+      "schema": "KnowledgeEntry",
+      "description": "Bilal's personalized context for AI"
     }
   }
 }

@@ -67,6 +67,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Knowledge Base
+    match /knowledgeBase/{entryId} {
+      allow read: if true; // Publicly readable for the chatbot to use as context
+      allow write: if isAdmin();
+    }
+
     // Contact Messages (Queries)
     match /contactMessages/{messageId} {
       // Allow creation by anyone (signed in or anonymous)
