@@ -22,6 +22,7 @@ export default function AdminProjectManager() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   
   const [formData, setFormData] = useState<Partial<Project>>({
     technologies: [],
@@ -47,6 +48,7 @@ export default function AdminProjectManager() {
   const handleEdit = (project: Project) => {
     setFormData(project);
     setIsEditing(project.id);
+    setPendingFile(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -64,6 +66,7 @@ export default function AdminProjectManager() {
       featured: false,
       order: projects.length
     });
+    setPendingFile(null);
     setIsEditing("new");
   };
 
@@ -71,12 +74,19 @@ export default function AdminProjectManager() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // If it's a new project, we show a preview and save the file to upload later
+    if (isEditing === "new") {
+      setPendingFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setFormData({ ...formData, thumbnailUrl: previewUrl });
+      return;
+    }
+
+    // For existing projects, upload immediately
     console.log(`Starting compressed upload for: ${file.name}, size: ${file.size}`);
     try {
       setUploadProgress(0);
-      const tempId = isEditing === "new" ? `temp_${Date.now()}` : isEditing!;
-      
-      const url = await api.uploadProjectThumbnail(file, tempId, (p) => {
+      const url = await api.uploadProjectThumbnail(file, isEditing!, (p) => {
         console.log(`Upload progress: ${p}%`);
         setUploadProgress(p);
       });
@@ -94,14 +104,29 @@ export default function AdminProjectManager() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await api.saveProject(formData);
+      // 1. Create or update the project record
+      const result = await api.saveProject(formData);
+      const projectId = isEditing === "new" ? result?.id : isEditing;
+
+      // 2. If there's a pending file and we have an ID, upload it now
+      if (pendingFile && projectId) {
+        setUploadProgress(0);
+        console.log(`Uploading pending file for new project ${projectId}`);
+        const url = await api.uploadProjectThumbnail(pendingFile, projectId, (p) => setUploadProgress(p));
+        
+        // 3. Update the project with the final thumbnail URL
+        await api.saveProject({ ...formData, id: projectId, thumbnailUrl: url });
+      }
+
       setIsEditing(null);
       setFormData({});
+      setPendingFile(null);
       fetchProjects();
     } catch (error) {
       console.error("Save failed:", error);
     } finally {
       setIsLoading(false);
+      setUploadProgress(null);
     }
   };
 

@@ -78,6 +78,8 @@ export default function Admin() {
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
+  const [pendingCertFile, setPendingCertFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [adminPassData, setAdminPassData] = useState({ current: "", new: "" });
   const [adminPassStatus, setAdminPassStatus] = useState({ error: "", success: "" });
@@ -243,14 +245,25 @@ export default function Admin() {
         order: Number(formData.order) || 0
       };
 
+      // 1. Save or create the record
+      let certId = isEditing;
       if (isEditing === "new_cert") {
-        await api.post("certificates", certData);
+        const result = await api.post("certificates", certData);
+        certId = result?.id;
       } else if (isEditing) {
         await api.put("certificates", isEditing, certData);
       }
 
+      // 2. Upload file if pending and we have an ID
+      if (pendingCertFile && certId) {
+        const url = await api.uploadCertificateImage(pendingCertFile, certId);
+        // 3. Update with final URL
+        await api.put("certificates", certId, { ...certData, image: url });
+      }
+
       setIsEditing(null);
       setFormData({});
+      setPendingCertFile(null);
       fetchData();
     } catch (error) {
       console.error("Failed to save certificate:", error);
@@ -658,7 +671,29 @@ export default function Admin() {
                           <span className="text-[8px] font-mono text-secondary uppercase">No Image Selected</span>
                         </div>
                       )}
-                      <FileUpload folder="certificates" onUpload={(urls) => setFormData({ ...formData, image: urls[0] })} />
+                      <div className="space-y-2">
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          id="cert-file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setPendingCertFile(file);
+                              setFormData({ ...formData, image: URL.createObjectURL(file) });
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('cert-file')?.click()}
+                          className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-line rounded-lg hover:bg-white/20 transition-all"
+                        >
+                          <Upload size={16} />
+                          <span className="font-mono text-[10px] uppercase tracking-widest">Select Image</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">

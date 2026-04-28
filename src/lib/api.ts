@@ -26,20 +26,22 @@ import imageCompression from "browser-image-compression";
 export const api = {
   // Generic list fetcher with graceful fallback and optional ordering
   async fetchList(collectionName: string, orderField: string = "order") {
+    const collectionsWithOrder = ["projects", "certificates", "skills", "experience"];
+    const shouldOrder = collectionsWithOrder.includes(collectionName);
+
     try {
-      // For collections like projects, certificates, skills, experience
-      const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
-      const snapshot = await getDocs(q);
-      if (snapshot.empty && collectionName !== "projects" && collectionName !== "settings") {
-        // If empty, try without order just in case
-        const simpleSnapshot = await getDocs(collection(db, collectionName));
-        return simpleSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+      if (shouldOrder) {
+        const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+      } else {
+        // Higher density/unsorted collections
+        const snapshot = await getDocs(collection(db, collectionName));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
       }
-      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
     } catch (error) {
       console.warn(`Failed to fetch ${collectionName} with orderField ${orderField}:`, error);
       try {
-        // Fallback to simple fetch (important for collections without "order" field like contactMessages)
         const snapshot = await getDocs(collection(db, collectionName));
         return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
       } catch (innerError) {
@@ -93,15 +95,24 @@ export const api = {
 
   async uploadProjectThumbnail(file: File, id: string, onProgress?: (p: number) => void) {
     try {
+      console.log(`Starting compressed upload for project ${id}:`, file.name);
       // 1. Compression options
       const options = {
-        maxSizeMB: 0.2, // ~200KB
+        maxSizeMB: 0.15, // ~150KB for even better performance
         maxWidthOrHeight: 1200,
         useWebWorker: true,
       };
 
       // 2. Compress
-      const compressedFile = await imageCompression(file, options);
+      let compressedFile = file;
+      if (file.type.startsWith('image/')) {
+        try {
+          compressedFile = await imageCompression(file, options);
+          console.log(`Compression successful: ${file.size} -> ${compressedFile.size}`);
+        } catch (e) {
+          console.warn("Compression failed, uploading original:", e);
+        }
+      }
       
       // 3. Upload to Storage
       const storageRef = ref(storage, `projects/${id}.jpg`);
@@ -109,10 +120,40 @@ export const api = {
       
       // 4. Get URL
       const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log(`Upload successful for project ${id}. Final URL:`, downloadURL);
       
       return downloadURL;
     } catch (error) {
-      console.error("Image compression/upload failed:", error);
+      console.error("Image upload failed in api.ts:", error);
+      throw error;
+    }
+  },
+
+  async uploadCertificateImage(file: File, id: string, onProgress?: (p: number) => void) {
+    try {
+      console.log(`Starting compressed upload for certificate ${id}:`, file.name);
+      const options = {
+        maxSizeMB: 0.2,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+      };
+
+      let compressedFile = file;
+      if (file.type.startsWith('image/')) {
+        try {
+          compressedFile = await imageCompression(file, options);
+        } catch (e) {
+          console.warn("Compression failed, uploading original:", e);
+        }
+      }
+      
+      const storageRef = ref(storage, `certificates/${id}.jpg`);
+      const snapshot = await uploadBytes(storageRef, compressedFile);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      return downloadURL;
+    } catch (error) {
+      console.error("Certificate image upload failed:", error);
       throw error;
     }
   },

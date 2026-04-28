@@ -17,5 +17,6 @@ service firebase.storage {
     match /certificates/{allPaths=**} { allow write: if isAdmin(); }
     match /resume/{allPaths=**} { allow write: if isAdmin(); }
     match /profile/{allPaths=**} { allow write: if isAdmin(); }
+    match /branding/{allPaths=**} { allow write: if isAdmin(); }
   }
 }
