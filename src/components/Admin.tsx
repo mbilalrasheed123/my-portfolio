@@ -35,19 +35,24 @@ export default function Admin() {
     return () => unsubscribe();
   }, []);
 
+  const isSuperAdmin = user?.email === ADMIN_EMAIL;
+
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [p, s, q, c, u, l, cs, kb] = await Promise.all([
+      const fetchActions = [
         api.get("projects", user.uid),
         api.getSettings(user.uid),
-        api.get("contactMessages", user.uid),
+        // Super admins see all queries and leads, normal users see only theirs
+        api.get("contactMessages", isSuperAdmin ? undefined : user.uid),
         api.get("certificates", user.uid),
-        api.fetchUsers(),
-        api.get("leads", user.uid),
-        api.fetchChatSessions(user.uid),
+        isSuperAdmin ? api.fetchUsers() : Promise.resolve([]),
+        api.get("leads", isSuperAdmin ? undefined : user.uid),
+        api.fetchChatSessions(isSuperAdmin ? undefined : user.uid),
         api.fetchKnowledgeBase(user.uid)
-      ]);
+      ];
+      
+      const [p, s, q, c, u, l, cs, kb] = await Promise.all(fetchActions);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
       if (s) setSettings(s);
@@ -141,6 +146,10 @@ export default function Admin() {
     setIsLoading(true);
     try {
       await api.saveSettings(settings, user.uid);
+      // Also save to global if super admin so it reflects on homepage
+      if (isSuperAdmin) {
+        await api.saveSettings(settings, "global");
+      }
       alert("Success: About Me / Profile information updated!");
       fetchData();
     } catch (error) {
@@ -306,13 +315,34 @@ export default function Admin() {
     return (
       <div className="flex items-center justify-center py-12">
         <Auth loginOnly={true} onSuccess={(u) => {
-          if (u.email === ADMIN_EMAIL) {
-            setUser(u);
-          } else {
-            alert("This account is not authorized as an administrator.");
-            signOut(auth);
-          }
+          setUser(u);
         }} />
+      </div>
+    );
+  }
+
+  // Strict check for Admin access
+  if (user.email !== ADMIN_EMAIL) {
+    return (
+      <div className="container mx-auto px-6 py-20 text-center">
+        <div className="glass p-12 rounded-3xl border border-line inline-block max-w-xl">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
+          <h1 className="text-3xl font-display uppercase mb-4">Access Denied</h1>
+          <p className="text-secondary font-mono text-xs uppercase tracking-widest leading-relaxed mb-8">
+            This area is restricted to the site administrator. Your account ({user.email}) does not have permission to access the administrative panel.
+          </p>
+          <div className="flex justify-center gap-4">
+            <a href="/" className="px-8 py-3 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+              Return Home
+            </a>
+            <button 
+              onClick={handleLogout}
+              className="px-8 py-3 bg-red-500/10 text-red-500 rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -362,24 +392,26 @@ export default function Admin() {
               onClick={() => setActiveTab("queries")}
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'queries' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
-              <MessageSquare size={14} className="inline mr-2" /> Queries
+              <MessageSquare size={14} className="inline mr-2" /> {isSuperAdmin ? "All Queries" : "My Queries"}
               {queries.filter(q => q.status === 'pending').length > 0 && (
                 <span className="ml-2 bg-accent text-white px-2 py-0.5 rounded-full text-[8px]">
                   {queries.filter(q => q.status === 'pending').length}
                 </span>
               )}
             </button>
-            <button
-              onClick={() => setActiveTab("users")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Users size={14} className="inline mr-2" /> Users
-            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab("users")}
+                className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+              >
+                <Users size={14} className="inline mr-2" /> Users
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("leads")}
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'leads' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
-              <CheckCircle size={14} className="inline mr-2" /> Leads
+              <CheckCircle size={14} className="inline mr-2" /> {isSuperAdmin ? "Global Leads" : "My Leads"}
               {leads.length > 0 && <span className="ml-2 bg-accent text-white px-2 py-0.5 rounded-full text-[8px]">{leads.length}</span>}
             </button>
             <button
@@ -469,6 +501,34 @@ export default function Admin() {
                   </div>
                 </div>
 
+                <div className="space-y-4 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Display Name & Hero Title</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                      placeholder="Your Full Name"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                      value={settings.name || ""}
+                      onChange={e => setSettings({ ...settings, name: e.target.value })}
+                    />
+                    <input
+                      placeholder="Title (e.g. Full Stack Developer)"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                      value={settings.title || ""}
+                      onChange={e => setSettings({ ...settings, title: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Hero Subtitle</label>
+                  <input
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                    value={settings.subtitle || ""}
+                    onChange={e => setSettings({ ...settings, subtitle: e.target.value })}
+                    placeholder="Short description for the hero section..."
+                  />
+                </div>
+
                 <div className="space-y-2 md:col-span-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">About Title</label>
                   <input
@@ -495,6 +555,15 @@ export default function Admin() {
                     className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
                     value={settings.experienceYears || "3+ Years"}
                     onChange={e => setSettings({ ...settings, experienceYears: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Education</label>
+                  <input
+                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                    value={settings.education || ""}
+                    onChange={e => setSettings({ ...settings, education: e.target.value })}
                   />
                 </div>
 

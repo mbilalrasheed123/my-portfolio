@@ -6,8 +6,10 @@ service cloud.firestore {
     // ---------------------------------------------------------
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && 
-             request.auth.token.email == "muhammadbilalrasheed78@gmail.com";
+      return isSignedIn() && (
+        (request.auth.token.email == "muhammadbilalrasheed78@gmail.com" && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -25,15 +27,21 @@ service cloud.firestore {
     // 3. COLLECTIONS
     // ---------------------------------------------------------
 
-    // Public Collections (Read-Only for public, Write for Admin)
+    // Public Collections (Read-Only for public, Write for Owner/Admin)
     match /projects/{projectId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && existing().userId == request.auth.uid)
+      ));
     }
     
     match /certificates/{certId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && existing().userId == request.auth.uid)
+      ));
     }
 
     function isValidSetting(data) {
@@ -46,7 +54,7 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidSetting(incoming());
+      allow write: if isAdmin() || (isSignedIn() && settingId == request.auth.uid && isValidSetting(incoming()));
     }
 
     // User Profiles
@@ -57,51 +65,45 @@ service cloud.firestore {
         incoming().uid == request.auth.uid;
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin()) &&
         incoming().uid == existing().uid; // UID is immutable
+      // List users: Only Admin
+      allow list: if isAdmin();
     }
 
     // Chat Sessions
     match /chatSessions/{sessionId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if true; // Allow guests to save (indexed by unique guest ID if needed, or just public-write-private-read)
+      allow create: if true;
       allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
     // Leads
     match /leads/{leadId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if true;
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow delete: if isAdmin();
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
     // Knowledge Base
     match /knowledgeBase/{entryId} {
-      allow read: if true; // Publicly readable for the chatbot to use as context
-      allow write: if isAdmin();
+      allow read: if true; 
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && (existing().userId == request.auth.uid || !existing().keys().hasAny(['userId'])))
+      ));
     }
 
     // Contact Messages (Queries)
     match /contactMessages/{messageId} {
-      // Allow creation by anyone (signed in or anonymous)
-      // If user is signed in, we link their UID
       allow create: if 
         incoming().keys().hasAll(['userName', 'userEmail', 'message', 'subject', 'status']) &&
-        incoming().userName is string && incoming().userName.size() <= 100 &&
-        incoming().userEmail is string && incoming().userEmail.size() <= 100 &&
-        incoming().message is string && incoming().message.size() <= 5000 &&
-        incoming().status == 'pending' &&
         (incoming().userUid == null || incoming().userUid == request.auth.uid);
 
-      // List queries: Users can see their own messages, Admin sees all
       allow list: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
-      
-      // Get single message
       allow get: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
-
-      // Update: Only Admin can reply or change status
-      allow update: if isAdmin();
-      
-      // Delete: Only Admin
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid); // Sender/Recipient can update (e.g. status or reply)
       allow delete: if isAdmin();
     }
   }

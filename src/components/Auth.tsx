@@ -71,7 +71,9 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
     } catch (err: any) {
       console.error("Auth error:", err);
       let msg = err.message || "Authentication failed. Please try again.";
-      if (msg.includes("requests-from-referer") || err.code?.includes("referer")) {
+      if (err.code === "auth/invalid-credential") {
+        msg = "Invalid credentials. Please check your email and password, or use Google Sign-In if you previously used it.";
+      } else if (msg.includes("requests-from-referer") || err.code?.includes("referer")) {
         msg = "Domain Blocked: Please add this domain to 'Authorized domains' in Firebase Console (Authentication > Settings) and check API Key restrictions in Google Cloud Console.";
       }
       setError(msg);

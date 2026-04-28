@@ -67,7 +67,7 @@ export default function Projects({ userId }: ProjectProps) {
   }
 
   return (
-    <div id="projects-showcase">
+    <div id="projects">
       {/* 1. Featured Carousel (Hero Section for Projects) */}
       <FeaturedProjects 
         projects={projects.filter(p => p.featured)} 

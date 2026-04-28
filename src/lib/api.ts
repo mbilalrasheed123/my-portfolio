@@ -34,10 +34,11 @@ export const api = {
       const colRef = collection(db, collectionName);
       
       if (userId) {
+        const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
         if (shouldOrder) {
-          q = query(colRef, where("userId", "==", userId), orderBy(orderField, "asc"));
+          q = query(colRef, where(uidField, "==", userId), orderBy(orderField, "asc"));
         } else {
-          q = query(colRef, where("userId", "==", userId));
+          q = query(colRef, where(uidField, "==", userId));
         }
       } else {
         if (shouldOrder) {
@@ -49,15 +50,24 @@ export const api = {
 
       const snapshot = await getDocs(q as any);
       return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
-    } catch (error) {
-      console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
-      try {
-        const snapshot = await getDocs(collection(db, collectionName));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
-      } catch (innerError) {
-        console.error(`Fatal fetch failure for ${collectionName}:`, innerError);
-        return [];
+    } catch (error: any) {
+      const isPermissionError = error?.message?.includes("permissions") || error?.code === "permission-denied";
+      // Don't log warning for expected permission denials from guests
+      if (!isPermissionError) {
+        console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
       }
+      
+      // Fallback only if NOT a permission error (e.g. index missing) or if isSuperAdmin might want global
+      if (!isPermissionError) {
+        try {
+          const snapshot = await getDocs(collection(db, collectionName));
+          return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+        } catch (innerError) {
+          console.error(`Fatal fetch failure for ${collectionName}:`, innerError);
+          return [];
+        }
+      }
+      return [];
     }
   },
 
@@ -313,6 +323,7 @@ export const api = {
 
   async fetchUserQueries(userUid: string) {
     try {
+      // Primary attempt: Secured and ordered (requires composite index: userUid ASC, timestamp DESC)
       const q = query(
         collection(db, "contactMessages"),
         where("userUid", "==", userUid),
@@ -321,13 +332,21 @@ export const api = {
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
     } catch (error) {
-      console.error("Failed to fetch user queries secured:", error);
-      // Fallback if index isn't ready or other issue
+      console.warn("Ordered fetch failed for contactMessages (Index likely missing):", error);
+      // Fallback: Just filter by userUid (standard index, usually automatic)
       try {
         const q = query(collection(db, "contactMessages"), where("userUid", "==", userUid));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        // Manual sort in JS
+        const results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        return results.sort((a, b) => {
+          const tA = a.timestamp || a.createdAt;
+          const tB = b.timestamp || b.createdAt;
+          const getTime = (t: any) => t?.seconds ? t.seconds * 1000 : new Date(t).getTime() || 0;
+          return getTime(tB) - getTime(tA);
+        });
       } catch (inner) {
+        console.error("Fatal fetch failure for user queries:", inner);
         return [];
       }
     }

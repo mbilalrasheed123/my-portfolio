@@ -28,13 +28,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    console.log("Starting upload to Cloudinary...", { fileCount: files.length });
+
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
     if (!cloudName || !uploadPreset) {
-      console.error("Cloudinary config missing:", { cloudName, uploadPreset });
+      const error = `Cloudinary Configuration Missing: ${!cloudName ? "VITE_CLOUDINARY_CLOUD_NAME " : ""}${!uploadPreset ? "VITE_CLOUDINARY_UPLOAD_PRESET" : ""} not found in environment.`;
+      console.error(error);
       setStatus("error");
-      setErrorMsg("Cloudinary (Cloud Name or Preset) not configured in .env");
+      setErrorMsg(error);
       return;
     }
 
@@ -46,35 +49,44 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log(`Uploading file ${i + 1}/${files.length}: ${file.name} (${Math.round(file.size / 1024)}KB)`);
+        
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", uploadPreset);
         formData.append("folder", folder);
 
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+        
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          body: formData,
+        });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || "Cloudinary upload failed");
+          let errorInfo = "";
+          try {
+            const errorData = await response.json();
+            errorInfo = errorData.error?.message || JSON.stringify(errorData);
+          } catch (e) {
+            errorInfo = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(`Cloudinary Error: ${errorInfo}`);
         }
 
         const data = await response.json();
+        console.log("Upload successful:", data.secure_url);
         urls.push(data.secure_url);
       }
       
+      console.log("All files uploaded successfully.");
       onUpload(urls);
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3000);
     } catch (error: any) {
-      console.error("Cloudinary upload failed:", error);
+      console.error("Cloudinary upload sequence failed:", error);
       setStatus("error");
-      setErrorMsg(error.message || "Upload failed");
+      setErrorMsg(error.message || "Upload failed. Check console for details.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
