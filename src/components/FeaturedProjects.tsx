@@ -55,7 +55,7 @@ export default function FeaturedProjects({ projects, onViewProject }: FeaturedPr
           <motion.h2 
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
-            className="text-5xl md:text-7xl font-display font-black text-white uppercase tracking-tighter"
+            className="text-4xl md:text-7xl font-display font-black text-white uppercase tracking-tighter"
           >
             Featured<br /><span className="text-secondary">Projects</span>
           </motion.h2>

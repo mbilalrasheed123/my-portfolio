@@ -51,7 +51,7 @@ export default function Certificates() {
 
   const variants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? 1000 : -1000,
+      x: direction > 0 ? "100%" : "-100%",
       opacity: 0
     }),
     center: {
@@ -61,7 +61,7 @@ export default function Certificates() {
     },
     exit: (direction: number) => ({
       zIndex: 0,
-      x: direction < 0 ? 1000 : -1000,
+      x: direction < 0 ? "100%" : "-100%",
       opacity: 0
     })
   };
@@ -102,7 +102,7 @@ export default function Certificates() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="text-5xl md:text-7xl font-display uppercase leading-none"
+              className="text-4xl md:text-7xl font-display uppercase leading-none"
             >
               Certificates
             </motion.h2>

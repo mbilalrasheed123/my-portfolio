@@ -171,7 +171,7 @@ export default function Navbar() {
                   transition={{ delay: i * 0.1 }}
                   key={link.name}
                   href={link.href}
-                  className="text-5xl font-display uppercase hover:text-accent transition-colors"
+                  className="text-4xl font-display uppercase hover:text-accent transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {link.name}

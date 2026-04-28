@@ -60,7 +60,7 @@ export default function About() {
                 <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block">The Story</span>
               </Reveal>
               <Reveal width="100%">
-                <h2 className="text-5xl md:text-6xl font-display uppercase leading-tight mb-8">
+                <h2 className="text-4xl md:text-6xl font-display uppercase leading-tight mb-8">
                   {settings.aboutTitle || "Driven by Innovation"}
                 </h2>
               </Reveal>
