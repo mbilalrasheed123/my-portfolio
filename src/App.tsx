@@ -67,12 +67,19 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
 function Portfolio() {
   const { userId } = useParams<{ userId: string }>();
-  // If no userId and not on a specific user route, we could show global as default
   const targetUserId = userId || undefined; 
 
   return (
     <DataProvider userId={targetUserId}>
       <PortfolioContent userId={targetUserId} />
+    </DataProvider>
+  );
+}
+
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <DataProvider>
+      {children}
     </DataProvider>
   );
 }
@@ -85,24 +92,30 @@ export default function App() {
           <Route path="/" element={<Portfolio />} />
           <Route path="/u/:userId" element={<Portfolio />} />
           <Route path="/admin" element={
-            <div className="min-h-screen bg-black text-white">
-              <Navbar />
-              <div className="pt-24 pb-12">
-                <Admin />
+            <PageWrapper>
+              <div className="min-h-screen bg-black text-white">
+                <Navbar />
+                <div className="pt-24 pb-12">
+                  <Admin />
+                </div>
               </div>
-            </div>
+            </PageWrapper>
           } />
           <Route path="/queries" element={
-            <div className="min-h-screen bg-black text-white pt-24">
-              <Navbar />
-              <UserQueries />
-            </div>
+            <PageWrapper>
+              <div className="min-h-screen bg-black text-white pt-24">
+                <Navbar />
+                <UserQueries />
+              </div>
+            </PageWrapper>
           } />
           <Route path="/settings" element={
-            <div className="min-h-screen bg-black text-white pt-24">
-              <Navbar />
-              <Settings />
-            </div>
+            <PageWrapper>
+              <div className="min-h-screen bg-black text-white pt-24">
+                <Navbar />
+                <Settings />
+              </div>
+            </PageWrapper>
           } />
         </Routes>
       </Router>

@@ -47,7 +47,10 @@ export default function Navbar({ userId }: NavbarProps) {
 
   const isHomePage = location.pathname === "/";
 
-  const brandName = settings.logoText || (settings.name?.split(' ')[0] || "Bilal");
+  const brandName = settings?.logoText || (settings?.name?.split(' ')[0] || "Bilal");
+  const logoType = settings?.logoType;
+  const logoUrl = settings?.logoUrl;
+  const logoAlt = settings?.logoAlt;
 
   return (
     <nav
@@ -57,10 +60,10 @@ export default function Navbar({ userId }: NavbarProps) {
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <Link to="/" className="group flex items-center gap-2 relative z-[110]" onClick={() => setIsMobileMenuOpen(false)}>
-          {settings.logoType === "image" && settings.logoUrl ? (
+          {logoType === "image" && logoUrl ? (
             <img 
-              src={settings.logoUrl} 
-              alt={settings.logoAlt || "Logo"} 
+              src={logoUrl} 
+              alt={logoAlt || "Logo"} 
               className="h-8 md:h-10 w-auto object-contain transition-transform group-hover:scale-110"
               referrerPolicy="no-referrer"
             />
