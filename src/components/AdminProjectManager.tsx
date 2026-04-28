@@ -71,19 +71,21 @@ export default function AdminProjectManager() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log(`Starting compressed upload for: ${file.name}, size: ${file.size}`);
     try {
       setUploadProgress(0);
-      // We need an ID for the folder structure in storage
-      // If we are editing, we have the ID. If not, we might need to generate a temp one or save first.
-      // Let's use a temp ID if needed, but for simplicity, let's use current timestamp if it's new.
       const tempId = isEditing === "new" ? `temp_${Date.now()}` : isEditing!;
       
-      const url = await api.uploadProjectThumbnail(file, tempId, (p) => setUploadProgress(p));
+      const url = await api.uploadProjectThumbnail(file, tempId, (p) => {
+        console.log(`Upload progress: ${p}%`);
+        setUploadProgress(p);
+      });
+      console.log(`Upload successful. URL: ${url}`);
       setFormData({ ...formData, thumbnailUrl: url });
       setUploadProgress(null);
-    } catch (error) {
-      console.error("Upload failed:", error);
-      alert("Failed to upload image. Please check console.");
+    } catch (error: any) {
+      console.error("Upload failed in AdminProjectManager:", error);
+      alert(`Failed to upload image: ${error.message || "Unknown error"}. Check console for details.`);
       setUploadProgress(null);
     }
   };

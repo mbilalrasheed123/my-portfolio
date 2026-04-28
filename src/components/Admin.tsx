@@ -16,21 +16,24 @@ const FileUpload = ({ onUpload, folder = "general", multiple = false }: { onUplo
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    console.log(`Starting upload for ${files.length} files to folder: ${folder}`);
     setUploading(true);
     const urls: string[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log(`Uploading file: ${file.name}, size: ${file.size} bytes`);
         const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name}`);
         const snapshot = await uploadBytes(storageRef, file);
         const url = await getDownloadURL(snapshot.ref);
+        console.log(`Upload successful for ${file.name}. URL: ${url}`);
         urls.push(url);
       }
       onUpload(urls);
-    } catch (error) {
-      console.error("Upload failed:", error);
-      alert("Upload failed. Please try again.");
+    } catch (error: any) {
+      console.error("Upload failed details:", error);
+      alert(`Upload failed: ${error.message || "Unknown error"}. Check console for details.`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -754,6 +757,56 @@ export default function Admin() {
             <h2 className="text-3xl font-display uppercase mb-8">Site Settings</h2>
             <form onSubmit={handleSaveSettings} className="glass p-8 rounded-2xl space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4 md:col-span-2 border-b border-line pb-8 mb-4">
+                  <h3 className="text-lg font-display uppercase">Logo Customization</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Logo Type</label>
+                      <select 
+                        className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                        value={settings.logoType || "text"}
+                        onChange={e => setSettings({ ...settings, logoType: e.target.value })}
+                      >
+                        <option value="text">Text Logo (Default)</option>
+                        <option value="image">Image Logo</option>
+                      </select>
+                    </div>
+                    {settings.logoType === "image" ? (
+                      <div className="space-y-2">
+                        <label className="font-mono text-[10px] uppercase text-secondary">Logo Image</label>
+                        <div className="flex items-center gap-4">
+                          {settings.logoUrl && (
+                            <img src={settings.logoUrl} alt="Logo Preview" className="h-10 w-auto object-contain bg-white/5 p-1 rounded" referrerPolicy="no-referrer" />
+                          )}
+                          <FileUpload 
+                            folder="branding" 
+                            onUpload={(urls) => setSettings({ ...settings, logoUrl: urls[0] })} 
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="font-mono text-[10px] uppercase text-secondary">Logo Text</label>
+                        <input
+                          className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                          value={settings.logoText || "Bilal"}
+                          onChange={e => setSettings({ ...settings, logoText: e.target.value })}
+                          placeholder="e.g. BILAL"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Logo Alt Text (Accessibility)</label>
+                      <input
+                        className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                        value={settings.logoAlt || "Bilal Rasheed Logo"}
+                        onChange={e => setSettings({ ...settings, logoAlt: e.target.value })}
+                        placeholder="e.g. Bilal Rasheed - Web Portfolio"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">Display Name</label>
                   <input

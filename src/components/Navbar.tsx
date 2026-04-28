@@ -45,7 +45,7 @@ export default function Navbar() {
 
   const isHomePage = location.pathname === "/";
 
-  const brandName = settings.name?.split(' ')[0] || "Bilal";
+  const brandName = settings.logoText || (settings.name?.split(' ')[0] || "Bilal");
 
   return (
     <nav
@@ -55,9 +55,18 @@ export default function Navbar() {
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <Link to="/" className="group flex items-center gap-2">
-          <span className="text-2xl font-display uppercase tracking-tighter">
-            {brandName}<span className="text-accent">.</span>
-          </span>
+          {settings.logoType === "image" && settings.logoUrl ? (
+            <img 
+              src={settings.logoUrl} 
+              alt={settings.logoAlt || "Logo"} 
+              className="h-8 md:h-10 w-auto object-contain transition-transform group-hover:scale-110"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-2xl font-display uppercase tracking-tighter">
+              {brandName}<span className="text-accent">.</span>
+            </span>
+          )}
         </Link>
 
         {/* Desktop Menu */}

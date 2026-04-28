@@ -24,20 +24,27 @@ import imageCompression from "browser-image-compression";
 
 // API utility with explicit fetch functions and graceful error handling
 export const api = {
-  // Generic list fetcher with graceful fallback to empty array on error
-  async fetchList(collectionName: string) {
+  // Generic list fetcher with graceful fallback and optional ordering
+  async fetchList(collectionName: string, orderField: string = "order") {
     try {
-      const q = query(collection(db, collectionName), orderBy("order", "asc"));
+      // For collections like projects, certificates, skills, experience
+      const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
       const snapshot = await getDocs(q);
+      if (snapshot.empty && collectionName !== "projects" && collectionName !== "settings") {
+        // If empty, try without order just in case
+        const simpleSnapshot = await getDocs(collection(db, collectionName));
+        return simpleSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+      }
       return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
     } catch (error) {
-      console.warn(`Failed to fetch ${collectionName} with order, trying without:`, error);
+      console.warn(`Failed to fetch ${collectionName} with orderField ${orderField}:`, error);
       try {
+        // Fallback to simple fetch (important for collections without "order" field like contactMessages)
         const snapshot = await getDocs(collection(db, collectionName));
         return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
       } catch (innerError) {
-        console.error(`Gracefully handled fetch failure for ${collectionName}:`, innerError);
-        return []; // Return empty list instead of crashing
+        console.error(`Fatal fetch failure for ${collectionName}:`, innerError);
+        return [];
       }
     }
   },
@@ -127,13 +134,16 @@ export const api = {
       name: "Bilal Rasheed",
       title: "Full Stack Developer",
       aboutText: "Welcome to my professional portfolio.",
-      email: "muhammadbilalrasheed78@gmail.com"
+      email: "muhammadbilalrasheed78@gmail.com",
+      logoType: "text", // "text" or "image"
+      logoText: "Bilal",
+      logoAlt: "Bilal Rasheed Logo"
     };
 
     try {
       const docRef = doc(db, "settings", "global");
       const snapshot = await getDoc(docRef);
-      return snapshot.exists() ? snapshot.data() : DEFAULT_SETTINGS;
+      return snapshot.exists() ? { ...DEFAULT_SETTINGS, ...snapshot.data() } : DEFAULT_SETTINGS;
     } catch (error) {
       console.error("Failed to fetch settings from Firebase, using default fallback:", error);
       return DEFAULT_SETTINGS;
@@ -146,6 +156,7 @@ export const api = {
 
   async post(collectionName: string, data: any) {
     try {
+      console.log(`Attempting to post to ${collectionName}:`, data);
       const payload: any = {
         ...data,
         updatedAt: serverTimestamp(),
@@ -158,8 +169,10 @@ export const api = {
       }
       
       const docRef = await addDoc(collection(db, collectionName), payload);
+      console.log(`Successfully posted to ${collectionName} with ID: ${docRef.id}`);
       return { id: docRef.id };
     } catch (error) {
+      console.error(`Post failed for ${collectionName}:`, error);
       handleFirestoreError(error, OperationType.CREATE, collectionName);
     }
   },
@@ -219,6 +232,28 @@ export const api = {
     } catch (error) {
       console.error("Failed to fetch users:", error);
       return [];
+    }
+  },
+
+  async fetchUserQueries(userUid: string) {
+    try {
+      const q = query(
+        collection(db, "contactMessages"),
+        where("userUid", "==", userUid),
+        orderBy("timestamp", "desc")
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+    } catch (error) {
+      console.error("Failed to fetch user queries secured:", error);
+      // Fallback if index isn't ready or other issue
+      try {
+        const q = query(collection(db, "contactMessages"), where("userUid", "==", userUid));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      } catch (inner) {
+        return [];
+      }
     }
   },
   

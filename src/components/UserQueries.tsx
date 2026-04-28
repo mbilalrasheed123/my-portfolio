@@ -31,18 +31,11 @@ export default function UserQueries() {
     return () => unsubscribe();
   }, []);
 
-  const fetchQueries = async (email: string) => {
+  const fetchQueries = async (uid: string) => {
     try {
-      const data = await api.get("contactMessages");
+      const data = await api.fetchUserQueries(uid);
       if (data) {
-        const userQueries = data.filter((q: any) => q.userEmail === email);
-        setQueries(userQueries.sort((a: any, b: any) => {
-          const tsA = a.timestamp as any;
-          const tsB = b.timestamp as any;
-          const timeA = tsA?.seconds ? tsA.seconds * 1000 : new Date(a.timestamp || 0).getTime();
-          const timeB = tsB?.seconds ? tsB.seconds * 1000 : new Date(b.timestamp || 0).getTime();
-          return timeB - timeA;
-        }));
+        setQueries(data as any);
       }
     } catch (error) {
       console.error("Failed to fetch queries:", error);
@@ -50,8 +43,8 @@ export default function UserQueries() {
   };
 
   useEffect(() => {
-    if (!user?.email) return;
-    fetchQueries(user.email);
+    if (!user?.uid) return;
+    fetchQueries(user.uid);
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,18 +54,17 @@ export default function UserQueries() {
 
     try {
       await api.post("contactMessages", {
-        userId: user.uid,
+        userUid: user.uid,
         userName: user.displayName || user.email.split("@")[0],
         userEmail: user.email,
         subject,
         message,
-        status: "pending",
-        timestamp: new Date().toISOString()
+        status: "pending"
       });
       setSubject("");
       setMessage("");
       
-      if (user.email) await fetchQueries(user.email);
+      await fetchQueries(user.uid);
     } catch (error) {
       console.error("Failed to submit query:", error);
     } finally {

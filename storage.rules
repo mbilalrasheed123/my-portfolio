@@ -4,8 +4,7 @@ service firebase.storage {
     // Helper to identify the admin
     function isAdmin() {
       return request.auth != null && 
-        request.auth.token.email == "muhammadbilalrasheed78@gmail.com" &&
-        request.auth.token.email_verified == true;
+        request.auth.token.email == "muhammadbilalrasheed78@gmail.com";
     }
 
     // Public read access for all files

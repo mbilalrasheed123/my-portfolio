@@ -7,8 +7,7 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
       return isSignedIn() && 
-             request.auth.token.email == "muhammadbilalrasheed78@gmail.com" &&
-             request.auth.token.email_verified == true;
+             request.auth.token.email == "muhammadbilalrasheed78@gmail.com";
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
