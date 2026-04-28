@@ -77,11 +77,15 @@ export const api = {
 
   async saveProject(data: any, userId?: string) {
     try {
-      const payload = {
+      const payload: any = {
         ...data,
-        userId: userId || data.userId,
         updatedAt: serverTimestamp(),
       };
+
+      const finalUserId = userId || data.userId;
+      if (finalUserId) {
+        payload.userId = finalUserId;
+      }
 
       if (!data.id) {
         payload.createdAt = serverTimestamp();
@@ -228,9 +232,14 @@ export const api = {
       console.log(`Attempting to post to ${collectionName}:`, data);
       const payload: any = {
         ...data,
-        userId: userId || data.userId,
         updatedAt: serverTimestamp(),
       };
+      
+      const finalUserId = userId || data.userId;
+      if (finalUserId) {
+        const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
+        payload[uidField] = finalUserId;
+      }
       
       if (collectionName === "contactMessages") {
         payload.timestamp = serverTimestamp();
@@ -271,7 +280,17 @@ export const api = {
       console.log("Saving settings to Firebase for user:", userId);
       const settingsId = userId || "global";
       const docRef = doc(db, "settings", settingsId);
-      await setDoc(docRef, { ...data, userId, updatedAt: serverTimestamp() }, { merge: true });
+      
+      const payload: any = { 
+        ...data, 
+        updatedAt: serverTimestamp() 
+      };
+      
+      if (userId) {
+        payload.userId = userId;
+      }
+      
+      await setDoc(docRef, payload, { merge: true });
       return { status: "saved" };
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -423,17 +442,23 @@ export const api = {
 
   async saveKnowledgeEntry(data: any, userId?: string) {
     try {
+      const payload: any = { 
+        ...data, 
+        updatedAt: serverTimestamp() 
+      };
+
+      const finalUserId = userId || data.userId;
+      if (finalUserId) {
+        payload.userId = finalUserId;
+      }
+
       if (data.id) {
         const docRef = doc(db, "knowledgeBase", data.id);
-        await updateDoc(docRef, { ...data, userId: userId || data.userId, updatedAt: serverTimestamp() });
+        await updateDoc(docRef, payload);
         return { id: data.id };
       } else {
-        const docRef = await addDoc(collection(db, "knowledgeBase"), {
-          ...data,
-          userId: userId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+        payload.createdAt = serverTimestamp();
+        const docRef = await addDoc(collection(db, "knowledgeBase"), payload);
         return { id: docRef.id };
       }
     } catch (error) {

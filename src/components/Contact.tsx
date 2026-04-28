@@ -61,9 +61,8 @@ export default function Contact({ userId }: ContactProps) {
         userEmail: formData.email,
         subject: `Inquiry from ${formData.name}`,
         message: formData.message,
-        status: "pending",
-        userUid: userId || null
-      });
+        status: "pending"
+      }, userId);
 
       // Send email notification to admin
       api.sendEmail(

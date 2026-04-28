@@ -99,7 +99,7 @@ service cloud.firestore {
     match /contactMessages/{messageId} {
       allow create: if 
         incoming().keys().hasAll(['userName', 'userEmail', 'message', 'subject', 'status']) &&
-        (incoming().userUid == null || incoming().userUid == request.auth.uid);
+        (incoming().get('userUid', null) == null || isValidId(incoming().userUid));
 
       allow list: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
       allow get: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
