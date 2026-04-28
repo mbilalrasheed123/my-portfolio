@@ -17,23 +17,43 @@ import Settings from "./components/Settings";
 import Certificates from "./components/Certificates";
 import Chatbot from "./components/Chatbot";
 
-function Portfolio() {
-  const { userId } = useParams<{ userId: string }>();
-  // If no userId and not on a specific user route, we could show global as default
-  const targetUserId = userId || undefined; 
+import { DataProvider, useData } from "./contexts/DataContext";
+import LoadingSpinner from "./components/LoadingSpinner";
+
+function PortfolioContent({ userId }: { userId?: string }) {
+  const { loading, error } = useData();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <h1 className="text-4xl font-display uppercase mb-4 text-red-500">Error Loading Portfolio</h1>
+        <p className="text-secondary font-mono text-sm max-w-md">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-8 px-8 py-3 bg-white text-black rounded-full font-mono text-xs uppercase tracking-widest hover:bg-accent hover:text-white transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen selection:bg-accent/30">
-      <Navbar userId={targetUserId} />
+    <div className="min-h-screen selection:bg-accent/30 bg-black text-white">
+      <Navbar userId={userId} />
       <main>
-        <Hero userId={targetUserId} />
-        <About userId={targetUserId} />
-        <Skills userId={targetUserId} />
-        <Projects userId={targetUserId} />
-        <Certificates userId={targetUserId} />
-        <Contact userId={targetUserId} />
+        <Hero userId={userId} />
+        <About userId={userId} />
+        <Skills userId={userId} />
+        <Projects userId={userId} />
+        <Certificates userId={userId} />
+        <Contact userId={userId} />
       </main>
-      <Chatbot userId={targetUserId} />
+      <Chatbot userId={userId} />
       <footer className="py-12 border-t border-line text-center">
         <div className="container mx-auto px-6">
           <p className="text-secondary text-xs font-mono uppercase tracking-widest">
@@ -42,6 +62,18 @@ function Portfolio() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function Portfolio() {
+  const { userId } = useParams<{ userId: string }>();
+  // If no userId and not on a specific user route, we could show global as default
+  const targetUserId = userId || undefined; 
+
+  return (
+    <DataProvider userId={targetUserId}>
+      <PortfolioContent userId={targetUserId} />
+    </DataProvider>
   );
 }
 

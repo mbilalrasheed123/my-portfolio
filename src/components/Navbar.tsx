@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Menu, X, User, LogOut, MessageSquare, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { auth, onAuthStateChanged, signOut } from "../firebase";
-import { api } from "../lib/api";
+import { useData } from "../contexts/DataContext";
 
 interface NavbarProps {
   userId?: string;
@@ -13,7 +13,7 @@ export default function Navbar({ userId }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [settings, setSettings] = useState<any>({});
+  const { settings } = useData();
   const location = useLocation();
 
   useEffect(() => {
@@ -26,13 +26,11 @@ export default function Navbar({ userId }: NavbarProps) {
       setUser(u);
     });
 
-    api.getSettings(userId).then(setSettings);
-
     return () => {
       window.removeEventListener("scroll", handleScroll);
       unsubscribe();
     };
-  }, [userId]);
+  }, []);
 
   const activeNavLinks = [
     { name: "Home", href: userId ? `/u/${userId}#home` : "/#home" },

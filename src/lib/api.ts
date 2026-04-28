@@ -200,6 +200,7 @@ export const api = {
       aboutImage: "",
       experienceYears: "0+ Years",
       location: "Remote / Global",
+      education: "BS Computer Science",
       email: "",
       logoType: "text", // "text" or "image"
       logoText: "My Portfolio",

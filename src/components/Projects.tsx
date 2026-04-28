@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { api } from "../lib/api";
+import React, { useState } from "react";
+import { useData } from "../contexts/DataContext";
 import FeaturedProjects from "./FeaturedProjects";
 import ProjectGrid from "./ProjectGrid";
 import ProjectPreviewModal from "./ProjectPreviewModal";
@@ -23,26 +23,9 @@ interface ProjectProps {
 }
 
 export default function Projects({ userId }: ProjectProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { projects } = useData();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [userId]);
-
-  const fetchProjects = async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.fetchProjects(userId);
-      setProjects(data);
-    } catch (error) {
-      console.error("Failed to load projects:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleViewProject = (project: Project) => {
     if (project.showInIframe) {
@@ -52,15 +35,6 @@ export default function Projects({ userId }: ProjectProps) {
       window.open(project.liveUrl, "_blank");
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="py-24 bg-black flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <div className="w-12 h-12 border-4 border-white/10 border-t-[#00ffa3] rounded-full animate-spin" />
-        <p className="font-mono text-[10px] uppercase tracking-widest text-secondary">Decrypting Repository...</p>
-      </div>
-    );
-  }
 
   if (projects.length === 0) {
     return null;

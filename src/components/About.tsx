@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { useData } from "../contexts/DataContext";
 import { Reveal } from "./Reveal";
 
 interface AboutProps {
@@ -9,22 +8,9 @@ interface AboutProps {
 }
 
 export default function About({ userId }: AboutProps) {
-  const [settings, setSettings] = useState<any>({
-    aboutText: "Welcome to my portfolio! I'm a dedicated developer focused on creating impactful digital experiences.",
-    experienceYears: "00+",
-    education: "Professional Developer",
-    location: "Global / Remote"
-  });
+  const { settings } = useData();
 
-  useEffect(() => {
-    api.getSettings(userId).then((data) => {
-      if (data) {
-        setSettings(data);
-      }
-    }).catch((error) => {
-      console.error("Failed to fetch settings:", error);
-    });
-  }, [userId]);
+  if (!settings) return null;
 
   return (
     <section id="about" className="py-24 bg-black">
@@ -47,7 +33,7 @@ export default function About({ userId }: AboutProps) {
             </div>
             <div className="absolute -bottom-10 -right-10 hidden md:block">
               <div className="glass p-8 rounded-2xl border border-line">
-                <span className="font-display text-4xl block mb-2">{settings.experienceYears || "03+"}</span>
+                <span className="font-display text-4xl block mb-2">{settings.experienceYears}</span>
                 <span className="font-mono text-[10px] uppercase tracking-widest text-secondary">Experience Level</span>
               </div>
             </div>
@@ -65,7 +51,7 @@ export default function About({ userId }: AboutProps) {
               </Reveal>
               <Reveal width="100%">
                 <h2 className="text-4xl md:text-6xl font-display uppercase leading-tight mb-8">
-                  {settings.aboutTitle || "Driven by Innovation"}
+                  {settings.aboutTitle}
                 </h2>
               </Reveal>
               
@@ -80,11 +66,11 @@ export default function About({ userId }: AboutProps) {
               <div className="mt-12 grid grid-cols-2 gap-8 border-t border-line pt-12">
                 <div>
                   <span className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Education</span>
-                  <p className="text-white font-medium">{settings.education || "BS Computer Science"}</p>
+                  <p className="text-white font-medium">{settings.education}</p>
                 </div>
                 <div>
                   <span className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Location</span>
-                  <p className="text-white font-medium">{settings.location || "Pakistan (Remote)"}</p>
+                  <p className="text-white font-medium">{settings.location}</p>
                 </div>
               </div>
 

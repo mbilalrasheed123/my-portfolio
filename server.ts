@@ -21,25 +21,31 @@ async function startServer() {
     const { to, subject, text, html } = req.body;
     
     console.log(`[Email Service] Attempting to send email to ${to}`);
-    console.log(`[Email Service] Subject: ${subject}`);
     
-    // In a real scenario, use nodemailer with process.env.SMTP_USER etc.
-    // For now, we log and return success to demonstrate the flow
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (smtpUser && smtpPass) {
       try {
         const nodemailer = await import("nodemailer");
+        const port = parseInt(smtpPort || "587");
         const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || "smtp.gmail.com",
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          secure: false,
+          host: smtpHost || "smtp.gmail.com",
+          port: port,
+          secure: port === 465,
           auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
+            user: smtpUser,
+            pass: smtpPass,
           },
+          tls: {
+            rejectUnauthorized: false
+          }
         });
 
         await transporter.sendMail({
-          from: `"Bilal Portfolio" <${process.env.SMTP_USER}>`,
+          from: `"Portfolio Notification" <${smtpUser}>`,
           to,
           subject,
           text,
@@ -52,7 +58,9 @@ async function startServer() {
         return res.status(500).json({ success: false, error: "Failed to send email" });
       }
     } else {
-      console.log(`[Email Service] SMTP credentials not found. Email content logged above.`);
+      console.warn(`[Email Service] SMTP credentials missing. Email NOT sent.`);
+      console.log(`[Email Service] Recipient: ${to}`);
+      console.log(`[Email Service] Subject: ${subject}`);
       return res.json({ success: true, message: "Email logged (no SMTP config)" });
     }
   });

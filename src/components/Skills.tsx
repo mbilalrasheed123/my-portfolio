@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
+import { useData } from "../contexts/DataContext";
 
-const skillCategories = [
+const DEFAULT_SKILL_CATEGORIES = [
   {
     title: "Frontend",
     skills: ["React", "Next.js", "TypeScript", "Tailwind CSS", "Framer Motion", "Redux", "Three.js"]
@@ -24,7 +25,16 @@ interface SkillsProps {
 }
 
 export default function Skills({ userId }: SkillsProps) {
-  // Currently static, but could use userId later
+  const { skills } = useData();
+  
+  // Group relative skills if data exists
+  const displayCategories = skills.length > 0 
+    ? [...new Set(skills.map(s => s.category || "General"))].map(cat => ({
+        title: cat,
+        skills: skills.filter(s => (s.category || "General") === cat).map(s => s.name)
+      }))
+    : DEFAULT_SKILL_CATEGORIES;
+
   return (
     <section id="skills" className="py-24 bg-black border-y border-line overflow-hidden">
       <div className="container mx-auto px-6 mb-16">
@@ -35,7 +45,7 @@ export default function Skills({ userId }: SkillsProps) {
       </div>
 
       <div className="flex flex-col gap-12">
-        {skillCategories.map((category, idx) => (
+        {displayCategories.map((category, idx) => (
           <div key={category.title} className="flex flex-col gap-4">
             <div className="container mx-auto px-6">
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-secondary">

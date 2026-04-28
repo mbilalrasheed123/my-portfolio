@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { api } from "../lib/api";
+import { useData } from "../contexts/DataContext";
 import { Award, ExternalLink, Calendar, ArrowRight } from "lucide-react";
 import { Reveal } from "./Reveal";
 
@@ -21,25 +21,9 @@ interface CertificatesProps {
 }
 
 export default function Certificates({ userId }: CertificatesProps) {
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { certificates } = useData();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
-
-  useEffect(() => {
-    api.get("certificates", userId).then((data) => {
-      if (Array.isArray(data)) {
-        setCertificates(data.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
-      } else {
-        console.error("Expected array for certificates, got:", data);
-        setCertificates([]);
-      }
-      setLoading(false);
-    }).catch((error) => {
-      console.error("Failed to fetch certificates:", error);
-      setLoading(false);
-    });
-  }, [userId]);
 
   const nextCertificate = () => {
     setDirection(1);
@@ -50,6 +34,14 @@ export default function Certificates({ userId }: CertificatesProps) {
     setDirection(-1);
     setCurrentIndex((prev) => (prev - 1 + certificates.length) % certificates.length);
   };
+
+  if (certificates.length === 0) {
+    return (
+      <section id="certificates" className="py-24 bg-black min-h-screen flex items-center justify-center">
+        <p className="text-secondary font-mono uppercase tracking-widest">No certificates found.</p>
+      </section>
+    );
+  }
 
   const currentCert = certificates[currentIndex];
 
@@ -69,22 +61,6 @@ export default function Certificates({ userId }: CertificatesProps) {
       opacity: 0
     })
   };
-
-  if (loading) {
-    return (
-      <section id="certificates" className="py-24 bg-black min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-      </section>
-    );
-  }
-
-  if (certificates.length === 0) {
-    return (
-      <section id="certificates" className="py-24 bg-black min-h-screen flex items-center justify-center">
-        <p className="text-secondary font-mono uppercase tracking-widest">No certificates found.</p>
-      </section>
-    );
-  }
 
   return (
     <section id="certificates" className="py-24 bg-black min-h-screen flex items-center">

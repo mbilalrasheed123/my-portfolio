@@ -1,6 +1,6 @@
 import { Stars } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { FiArrowRight } from "react-icons/fi";
 import {
   useMotionTemplate,
@@ -8,7 +8,7 @@ import {
   motion,
   animate,
 } from "framer-motion";
-import { api } from "../lib/api";
+import { useData } from "../contexts/DataContext";
 
 const COLORS_TOP = ["#13FFAA", "#1E67C6", "#CE84CF", "#DD335C"];
 
@@ -17,23 +17,7 @@ interface HeroProps {
 }
 
 export default function Hero({ userId }: HeroProps) {
-  const [settings, setSettings] = useState<any>({
-    name: "Portfolio Holder",
-    title: "Full Stack Developer",
-    subtitle: "A professional portfolio showcasing skills and projects."
-  });
-
-  useEffect(() => {
-    // Option A: One-time fetch on load
-    api.fetchSettings(userId)
-      .then(data => {
-        if (data) setSettings(data);
-      })
-      .catch(error => {
-        console.error("Failed to fetch hero settings:", error);
-      });
-  }, [userId]);
-
+  const { settings } = useData();
   const color = useMotionValue(COLORS_TOP[0]);
 
   useEffect(() => {
@@ -64,7 +48,7 @@ export default function Hero({ userId }: HeroProps) {
           transition={{ duration: 0.5 }}
           className="mb-4 inline-block rounded-full bg-gray-600/50 px-3 py-1.5 text-xs font-mono uppercase tracking-widest"
         >
-          {settings.title || "PROFESSIONAL FULL STACK DEVELOPER"}
+          {settings.title}
         </motion.span>
         
         <motion.h1 
@@ -73,7 +57,7 @@ export default function Hero({ userId }: HeroProps) {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="max-w-4xl bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-4xl font-bold leading-tight text-transparent sm:text-7xl sm:leading-tight md:text-8xl md:leading-tight font-display uppercase break-words"
         >
-          {settings.name || "MUHAMMAD BILAL RASHEED"}
+          {settings.name}
         </motion.h1>
         
         <motion.p 
