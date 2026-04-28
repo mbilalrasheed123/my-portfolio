@@ -5,16 +5,11 @@ import { Link, useLocation } from "react-router-dom";
 import { auth, onAuthStateChanged, signOut } from "../firebase";
 import { api } from "../lib/api";
 
-const navLinks = [
-  { name: "Home", href: "/#home" },
-  { name: "About", href: "/#about" },
-  { name: "Skills", href: "/#skills" },
-  { name: "Projects", href: "/#projects" },
-  { name: "Certificates", href: "/#certificates" },
-  { name: "Contact", href: "/#contact" },
-];
+interface NavbarProps {
+  userId?: string;
+}
 
-export default function Navbar() {
+export default function Navbar({ userId }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -31,13 +26,22 @@ export default function Navbar() {
       setUser(u);
     });
 
-    api.getSettings().then(setSettings);
+    api.getSettings(userId).then(setSettings);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       unsubscribe();
     };
-  }, []);
+  }, [userId]);
+
+  const activeNavLinks = [
+    { name: "Home", href: userId ? `/u/${userId}#home` : "/#home" },
+    { name: "About", href: userId ? `/u/${userId}#about` : "/#about" },
+    { name: "Skills", href: userId ? `/u/${userId}#skills` : "/#skills" },
+    { name: "Projects", href: userId ? `/u/${userId}#projects` : "/#projects" },
+    { name: "Certificates", href: userId ? `/u/${userId}#certificates` : "/#certificates" },
+    { name: "Contact", href: userId ? `/u/${userId}#contact` : "/#contact" },
+  ];
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -71,7 +75,7 @@ export default function Navbar() {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-16">
-          {navLinks.map((link) => (
+          {activeNavLinks.map((link) => (
             <a
               key={link.name}
               href={link.href}
@@ -164,7 +168,7 @@ export default function Navbar() {
               <X size={32} />
             </button>
             <div className="flex flex-col items-center gap-8">
-              {navLinks.map((link, i) => (
+              {activeNavLinks.map((link, i) => (
                 <motion.a
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -182,7 +186,7 @@ export default function Navbar() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: navLinks.length * 0.1 }}
+                    transition={{ delay: activeNavLinks.length * 0.1 }}
                   >
                     <Link
                       to="/queries"
@@ -195,7 +199,7 @@ export default function Navbar() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: (navLinks.length + 1) * 0.1 }}
+                    transition={{ delay: (activeNavLinks.length + 1) * 0.1 }}
                   >
                     <Link
                       to="/settings"
@@ -211,7 +215,7 @@ export default function Navbar() {
                 <motion.button
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (navLinks.length + 2) * 0.1 }}
+                  transition={{ delay: (activeNavLinks.length + 2) * 0.1 }}
                   onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
                   className="text-2xl font-mono uppercase tracking-widest text-red-500"
                 >
@@ -221,7 +225,7 @@ export default function Navbar() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: navLinks.length * 0.1 }}
+                  transition={{ delay: activeNavLinks.length * 0.1 }}
                 >
                   <Link
                     to="/queries"

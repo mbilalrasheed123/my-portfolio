@@ -25,22 +25,32 @@ import imageCompression from "browser-image-compression";
 // API utility with explicit fetch functions and graceful error handling
 export const api = {
   // Generic list fetcher with graceful fallback and optional ordering
-  async fetchList(collectionName: string, orderField: string = "order") {
+  async fetchList(collectionName: string, orderField: string = "order", userId?: string) {
     const collectionsWithOrder = ["projects", "certificates", "skills", "experience"];
     const shouldOrder = collectionsWithOrder.includes(collectionName);
 
     try {
-      if (shouldOrder) {
-        const q = query(collection(db, collectionName), orderBy(orderField, "asc"));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+      let q;
+      const colRef = collection(db, collectionName);
+      
+      if (userId) {
+        if (shouldOrder) {
+          q = query(colRef, where("userId", "==", userId), orderBy(orderField, "asc"));
+        } else {
+          q = query(colRef, where("userId", "==", userId));
+        }
       } else {
-        // Higher density/unsorted collections
-        const snapshot = await getDocs(collection(db, collectionName));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+        if (shouldOrder) {
+          q = query(colRef, orderBy(orderField, "asc"));
+        } else {
+          q = colRef;
+        }
       }
+
+      const snapshot = await getDocs(q as any);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
     } catch (error) {
-      console.warn(`Failed to fetch ${collectionName} with orderField ${orderField}:`, error);
+      console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
       try {
         const snapshot = await getDocs(collection(db, collectionName));
         return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
@@ -51,14 +61,15 @@ export const api = {
     }
   },
 
-  async fetchProjects() {
-    return this.fetchList("projects");
+  async fetchProjects(userId?: string) {
+    return this.fetchList("projects", "order", userId);
   },
 
-  async saveProject(data: any) {
+  async saveProject(data: any, userId?: string) {
     try {
       const payload = {
         ...data,
+        userId: userId || data.userId,
         updatedAt: serverTimestamp(),
       };
 
@@ -158,52 +169,55 @@ export const api = {
     }
   },
 
-  async fetchCertificates() {
-    return this.fetchList("certificates");
+  async fetchCertificates(userId?: string) {
+    return this.fetchList("certificates", "order", userId);
   },
 
-  async fetchSkills() {
-    return this.fetchList("skills");
+  async fetchSkills(userId?: string) {
+    return this.fetchList("skills", "order", userId);
   },
 
-  async fetchExperience() {
-    return this.fetchList("experience");
+  async fetchExperience(userId?: string) {
+    return this.fetchList("experience", "order", userId);
   },
 
-  async fetchSettings() {
+  async fetchSettings(userId?: string) {
     const DEFAULT_SETTINGS = {
-      name: "Bilal Rasheed",
+      name: "User Portfolio",
       title: "Full Stack Developer",
       aboutText: "Welcome to my professional portfolio.",
       aboutTitle: "Full Stack Developer & UI Designer",
       aboutImage: "",
-      experienceYears: "3+ Years",
+      experienceYears: "0+ Years",
       location: "Remote / Global",
-      email: "muhammadbilalrasheed78@gmail.com",
+      email: "",
       logoType: "text", // "text" or "image"
-      logoText: "Bilal",
-      logoAlt: "Bilal Rasheed Logo"
+      logoText: "My Portfolio",
+      logoAlt: "My Portfolio Logo"
     };
 
     try {
-      const docRef = doc(db, "settings", "global");
+      // Use userId as the document ID for settings
+      const settingsId = userId || "global";
+      const docRef = doc(db, "settings", settingsId);
       const snapshot = await getDoc(docRef);
       return snapshot.exists() ? { ...DEFAULT_SETTINGS, ...snapshot.data() } : DEFAULT_SETTINGS;
     } catch (error) {
-      console.error("Failed to fetch settings from Firebase, using default fallback:", error);
+      console.error("Failed to fetch settings from Firebase:", error);
       return DEFAULT_SETTINGS;
     }
   },
 
   // Legacy compatibility and Mutations
-  async get(collectionName: string) { return this.fetchList(collectionName); },
-  async getSettings() { return this.fetchSettings(); },
+  async get(collectionName: string, userId?: string) { return this.fetchList(collectionName, "order", userId); },
+  async getSettings(userId?: string) { return this.fetchSettings(userId); },
 
-  async post(collectionName: string, data: any) {
+  async post(collectionName: string, data: any, userId?: string) {
     try {
       console.log(`Attempting to post to ${collectionName}:`, data);
       const payload: any = {
         ...data,
+        userId: userId || data.userId,
         updatedAt: serverTimestamp(),
       };
       
@@ -241,15 +255,16 @@ export const api = {
     }
   },
 
-  async saveSettings(data: any) {
+  async saveSettings(data: any, userId?: string) {
     try {
-      console.log("Saving settings to Firebase:", data);
-      const docRef = doc(db, "settings", "global");
-      await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+      console.log("Saving settings to Firebase for user:", userId);
+      const settingsId = userId || "global";
+      const docRef = doc(db, "settings", settingsId);
+      await setDoc(docRef, { ...data, userId, updatedAt: serverTimestamp() }, { merge: true });
       return { status: "saved" };
     } catch (error) {
       console.error("Failed to save settings:", error);
-      handleFirestoreError(error, OperationType.WRITE, "settings/global");
+      handleFirestoreError(error, OperationType.WRITE, `settings/${userId || 'global'}`);
     }
   },
 
@@ -364,15 +379,21 @@ export const api = {
     }
   },
 
-  async fetchKnowledgeBase(onlyEnabled = false) {
+  async fetchKnowledgeBase(userId?: string, onlyEnabled = false) {
     try {
-      let q;
-      if (onlyEnabled) {
-        q = query(collection(db, "knowledgeBase"), where("isEnabled", "==", true));
-      } else {
-        q = collection(db, "knowledgeBase");
+      let q = collection(db, "knowledgeBase");
+      const constraints: any[] = [];
+      
+      if (userId) {
+        constraints.push(where("userId", "==", userId));
       }
-      const snapshot = await getDocs(q);
+      
+      if (onlyEnabled) {
+        constraints.push(where("isEnabled", "==", true));
+      }
+      
+      const firestoreQuery = constraints.length > 0 ? query(q, ...constraints) : q;
+      const snapshot = await getDocs(firestoreQuery);
       return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
     } catch (error) {
       console.error("Failed to fetch knowledge base:", error);
@@ -380,15 +401,16 @@ export const api = {
     }
   },
 
-  async saveKnowledgeEntry(data: any) {
+  async saveKnowledgeEntry(data: any, userId?: string) {
     try {
       if (data.id) {
         const docRef = doc(db, "knowledgeBase", data.id);
-        await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+        await updateDoc(docRef, { ...data, userId: userId || data.userId, updatedAt: serverTimestamp() });
         return { id: data.id };
       } else {
         const docRef = await addDoc(collection(db, "knowledgeBase"), {
           ...data,
+          userId: userId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });

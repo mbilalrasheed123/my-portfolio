@@ -19,7 +19,12 @@ const skillCategories = [
   }
 ];
 
-export default function Skills() {
+interface SkillsProps {
+  userId?: string;
+}
+
+export default function Skills({ userId }: SkillsProps) {
+  // Currently static, but could use userId later
   return (
     <section id="skills" className="py-24 bg-black border-y border-line overflow-hidden">
       <div className="container mx-auto px-6 mb-16">

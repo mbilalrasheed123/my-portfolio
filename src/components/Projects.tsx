@@ -18,7 +18,11 @@ interface Project {
   order: number;
 }
 
-export default function Projects() {
+interface ProjectProps {
+  userId?: string;
+}
+
+export default function Projects({ userId }: ProjectProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,12 +30,12 @@ export default function Projects() {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [userId]);
 
   const fetchProjects = async () => {
     setIsLoading(true);
     try {
-      const data = await api.fetchProjects();
+      const data = await api.fetchProjects(userId);
       setProjects(data);
     } catch (error) {
       console.error("Failed to load projects:", error);

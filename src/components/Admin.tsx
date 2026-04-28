@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
@@ -24,19 +24,13 @@ export default function Admin() {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingCertFile, setPendingCertFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [adminPassData, setAdminPassData] = useState({ current: "", new: "" });
   const [adminPassStatus, setAdminPassStatus] = useState({ error: "", success: "" });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (u && u.email === ADMIN_EMAIL) {
-        setUser(u);
-      } else {
-        setUser(null);
-      }
+      setUser(u);
     });
     return () => unsubscribe();
   }, []);
@@ -45,14 +39,14 @@ export default function Admin() {
     if (!user) return;
     try {
       const [p, s, q, c, u, l, cs, kb] = await Promise.all([
-        api.get("projects"),
-        api.getSettings(),
-        api.get("contactMessages"),
-        api.get("certificates"),
+        api.get("projects", user.uid),
+        api.getSettings(user.uid),
+        api.get("contactMessages", user.uid),
+        api.get("certificates", user.uid),
         api.fetchUsers(),
-        api.get("leads"),
-        api.fetchChatSessions("all"),
-        api.fetchKnowledgeBase()
+        api.get("leads", user.uid),
+        api.fetchChatSessions(user.uid),
+        api.fetchKnowledgeBase(user.uid)
       ]);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
@@ -129,7 +123,7 @@ export default function Admin() {
       delete projectData.image;
 
       if (isEditing === "new") {
-        await api.post("projects", projectData);
+        await api.post("projects", projectData, user.uid);
       } else if (isEditing) {
         await api.put("projects", isEditing, projectData);
       }
@@ -146,7 +140,7 @@ export default function Admin() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await api.saveSettings(settings);
+      await api.saveSettings(settings, user.uid);
       alert("Success: About Me / Profile information updated!");
       fetchData();
     } catch (error) {
@@ -196,14 +190,13 @@ export default function Admin() {
       };
 
       if (isEditing === "new_cert") {
-        await api.post("certificates", certData);
+        await api.post("certificates", certData, user.uid);
       } else if (isEditing) {
         await api.put("certificates", isEditing, certData);
       }
 
       setIsEditing(null);
       setFormData({});
-      setPendingCertFile(null);
       fetchData();
     } catch (error) {
       console.error("Failed to save certificate:", error);
@@ -289,7 +282,7 @@ export default function Admin() {
         isEnabled: formData.isEnabled ?? true
       };
 
-      await api.saveKnowledgeEntry(data);
+      await api.saveKnowledgeEntry(data, user.uid);
       setIsEditing(null);
       setFormData({});
       fetchData();
@@ -413,11 +406,21 @@ export default function Admin() {
             >
               <LogOut size={14} className="inline mr-2" /> Logout
             </button>
+            <div className="md:ml-auto pt-4 md:pt-0">
+              <a 
+                href={`/u/${user.uid}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-2 bg-accent/10 border border-accent/20 text-accent rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-accent hover:text-white transition-all shadow-[0_0_20px_rgba(0,255,163,0.1)] hover:shadow-[0_0_25px_rgba(0,255,163,0.3)]"
+              >
+                View My Portfolio <ExternalLink size={14} className="animate-pulse" />
+              </a>
+            </div>
           </div>
         </div>
 
         {activeTab === "projects" && (
-          <AdminProjectManager />
+          <AdminProjectManager userId={user.uid} />
         )}
 
         {activeTab === "about" && (

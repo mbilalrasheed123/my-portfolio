@@ -1,6 +1,6 @@
+/// <reference types="vite/client" />
 import React, { useState, useRef } from "react";
 import { Upload, Clock, Image as ImageIcon, CheckCircle, AlertCircle } from "lucide-react";
-import { storage, ref, uploadBytes, getDownloadURL } from "../firebase";
 
 interface FileUploadProps {
   onUpload: (urls: string[]) => void;
@@ -13,7 +13,7 @@ interface FileUploadProps {
 
 export const FileUpload: React.FC<FileUploadProps> = ({ 
   onUpload, 
-  folder = "general", 
+  folder = "portfolio", 
   multiple = false,
   accept = "image/*",
   label,
@@ -28,6 +28,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
+      console.error("Cloudinary config missing:", { cloudName, uploadPreset });
+      setStatus("error");
+      setErrorMsg("Cloudinary (Cloud Name or Preset) not configured in .env");
+      return;
+    }
+
     setStatus("uploading");
     setUploading(true);
     setErrorMsg("");
@@ -36,22 +46,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        // Use a more unique path to avoid collisions and cache issues
-        const timestamp = Date.now();
-        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileName = `${timestamp}_${cleanName}`;
-        const storageRef = ref(storage, `${folder}/${fileName}`);
-        
-        const snapshot = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
-        urls.push(url);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", uploadPreset);
+        formData.append("folder", folder);
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || "Cloudinary upload failed");
+        }
+
+        const data = await response.json();
+        urls.push(data.secure_url);
       }
       
       onUpload(urls);
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3000);
     } catch (error: any) {
-      console.error("Upload failed details:", error);
+      console.error("Cloudinary upload failed:", error);
       setStatus("error");
       setErrorMsg(error.message || "Upload failed");
     } finally {

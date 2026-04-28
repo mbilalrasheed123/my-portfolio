@@ -16,14 +16,18 @@ interface Certificate {
   order: number;
 }
 
-export default function Certificates() {
+interface CertificatesProps {
+  userId?: string;
+}
+
+export default function Certificates({ userId }: CertificatesProps) {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
-    api.get("certificates").then((data) => {
+    api.get("certificates", userId).then((data) => {
       if (Array.isArray(data)) {
         setCertificates(data.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
       } else {
@@ -35,7 +39,7 @@ export default function Certificates() {
       console.error("Failed to fetch certificates:", error);
       setLoading(false);
     });
-  }, []);
+  }, [userId]);
 
   const nextCertificate = () => {
     setDirection(1);

@@ -4,23 +4,27 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Reveal } from "./Reveal";
 
-export default function About() {
+interface AboutProps {
+  userId?: string;
+}
+
+export default function About({ userId }: AboutProps) {
   const [settings, setSettings] = useState<any>({
-    aboutText: "I am a Website Developer / Full Stack dedicated to crafting digital solutions that balance technical complexity with human-centric design. My journey is defined by a relentless pursuit of excellence and a deep-seated passion for problem-solving.",
-    experienceYears: "03+",
-    education: "BS Computer Science",
-    location: "Pakistan (Remote)"
+    aboutText: "Welcome to my portfolio! I'm a dedicated developer focused on creating impactful digital experiences.",
+    experienceYears: "00+",
+    education: "Professional Developer",
+    location: "Global / Remote"
   });
 
   useEffect(() => {
-    api.getSettings().then((data) => {
+    api.getSettings(userId).then((data) => {
       if (data) {
         setSettings(data);
       }
     }).catch((error) => {
       console.error("Failed to fetch settings:", error);
     });
-  }, []);
+  }, [userId]);
 
   return (
     <section id="about" className="py-24 bg-black">
@@ -35,7 +39,7 @@ export default function About() {
           >
             <div className="aspect-[3/4] rounded-2xl overflow-hidden border border-line animate-float bg-white/5">
               <img
-                src={settings.aboutImage || "https://picsum.photos/seed/bilal/1200/1600"}
+                src={settings.aboutImage || `https://picsum.photos/seed/${userId || 'default'}/1200/1600`}
                 alt="Profile"
                 className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
                 referrerPolicy="no-referrer"

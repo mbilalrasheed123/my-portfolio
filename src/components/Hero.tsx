@@ -12,23 +12,27 @@ import { api } from "../lib/api";
 
 const COLORS_TOP = ["#13FFAA", "#1E67C6", "#CE84CF", "#DD335C"];
 
-export default function Hero() {
+interface HeroProps {
+  userId?: string;
+}
+
+export default function Hero({ userId }: HeroProps) {
   const [settings, setSettings] = useState<any>({
-    name: "MUHAMMAD BILAL RASHEED",
-    title: "PROFESSIONAL FULL STACK DEVELOPER",
-    subtitle: "Crafting high-performance digital solutions with precision and modern aesthetics. Specialized in building scalable architectures and immersive user experiences."
+    name: "Portfolio Holder",
+    title: "Full Stack Developer",
+    subtitle: "A professional portfolio showcasing skills and projects."
   });
 
   useEffect(() => {
     // Option A: One-time fetch on load
-    api.fetchSettings()
+    api.fetchSettings(userId)
       .then(data => {
         if (data) setSettings(data);
       })
       .catch(error => {
         console.error("Failed to fetch hero settings:", error);
       });
-  }, []);
+  }, [userId]);
 
   const color = useMotionValue(COLORS_TOP[0]);
 

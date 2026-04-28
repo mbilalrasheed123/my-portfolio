@@ -18,12 +18,14 @@ interface Project {
   order: number;
 }
 
-export default function AdminProjectManager() {
+interface ProjectManagerProps {
+  userId: string;
+}
+
+export default function AdminProjectManager({ userId }: ProjectManagerProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   
   const [formData, setFormData] = useState<Partial<Project>>({
     technologies: [],
@@ -37,11 +39,12 @@ export default function AdminProjectManager() {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [userId]);
 
   const fetchProjects = async () => {
+    if (!userId) return;
     setIsLoading(true);
-    const data = await api.fetchProjects();
+    const data = await api.fetchProjects(userId);
     setProjects(data);
     setIsLoading(false);
   };
@@ -49,7 +52,6 @@ export default function AdminProjectManager() {
   const handleEdit = (project: Project) => {
     setFormData(project);
     setIsEditing(project.id);
-    setPendingFile(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -67,30 +69,25 @@ export default function AdminProjectManager() {
       featured: false,
       order: projects.length
     });
-    setPendingFile(null);
     setIsEditing("new");
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // This is replaced by FileUpload component usage in the render
+    // Handled by FileUpload component
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // 1. Save the project record
-      await api.saveProject(formData);
-
+      await api.saveProject(formData, userId);
       setIsEditing(null);
       setFormData({});
-      setPendingFile(null);
       fetchProjects();
     } catch (error) {
       console.error("Save failed:", error);
     } finally {
       setIsLoading(false);
-      setUploadProgress(null);
     }
   };
 

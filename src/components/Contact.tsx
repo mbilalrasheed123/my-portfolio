@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { auth } from "../firebase";
 
-export default function Contact() {
+interface ContactProps {
+  userId?: string;
+}
+
+export default function Contact({ userId }: ContactProps) {
   const [settings, setSettings] = useState<any>({
-    email: "muhammadbilalrasheed78@gmail.com",
-    phone: "+92 3XX XXXXXXX",
-    location: "Pakistan (Remote)"
+    email: "portfolio@example.com",
+    phone: "+00 000 0000000",
+    location: "Global / Remote"
   });
   const [formData, setFormData] = useState({
     name: "",
@@ -35,14 +39,14 @@ export default function Contact() {
   };
 
   useEffect(() => {
-    api.getSettings().then((data) => {
+    api.getSettings(userId).then((data) => {
       if (data) {
         setSettings(data);
       }
     }).catch((error) => {
       console.error("Failed to fetch settings:", error);
     });
-  }, []);
+  }, [userId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +56,13 @@ export default function Contact() {
     setStatus("idle");
 
     try {
-      const user = auth.currentUser;
       await api.post("contactMessages", {
         userName: formData.name,
         userEmail: formData.email,
         subject: `Inquiry from ${formData.name}`,
         message: formData.message,
         status: "pending",
-        userUid: user?.uid || null
+        userUid: userId || null
       });
 
       // Send email notification to admin

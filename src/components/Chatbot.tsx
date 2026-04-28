@@ -40,13 +40,16 @@ interface ChatSession {
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export default function Chatbot() {
+interface ChatbotProps {
+  userId?: string;
+}
+
+export default function Chatbot({ userId }: ChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "model", text: "Hello! Welcome to Muhammad Bilal Rasheed's portfolio. I’m here to help you explore his work and expertise. How can I assist you today?", timestamp: new Date().toISOString() }
-  ]);
+  const [settings, setSettings] = useState<any>({});
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -58,11 +61,13 @@ export default function Chatbot() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const kb = await api.fetchKnowledgeBase(true);
+      const kb = await api.fetchKnowledgeBase(userId, true);
       if (kb && kb.length > 0) {
         const context = kb.map(entry => `[${entry.category}] ${entry.title}: ${entry.content}`).join("\n\n");
         setKbContent(context);
       }
+      const s = await api.getSettings(userId);
+      setSettings(s || {});
     };
     fetchData();
 
@@ -71,7 +76,16 @@ export default function Chatbot() {
       loadHistory(u);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userId]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      const name = settings.name || "the developer";
+      setMessages([
+        { role: "model", text: `Hello! Welcome to ${name}'s portfolio. I’m here to help you explore their work and expertise. How can I assist you today?`, timestamp: new Date().toISOString() }
+      ]);
+    }
+  }, [settings]);
 
   useEffect(() => {
     if (scrollRef.current && isOpen && !isMinimized) {
@@ -99,11 +113,12 @@ export default function Chatbot() {
   };
 
   const createNewSession = async () => {
+    const name = settings.name || "the developer";
     const newSession: ChatSession = {
       userId: user?.uid || "guest",
       userName: user?.displayName || "Guest",
       isGuest: !user,
-      messages: [{ role: "model", text: "Hello! Welcome to Muhammad Bilal Rasheed's portfolio. I’m here to help you explore his work and expertise. How can I assist you today?", timestamp: new Date().toISOString() }],
+      messages: [{ role: "model", text: `Hello! Welcome to ${name}'s portfolio. I’m here to help you explore their work and expertise. How can I assist you today?`, timestamp: new Date().toISOString() }],
       createdAt: new Date().toISOString()
     };
     
@@ -149,7 +164,24 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const systemInstruction = BASE_SYSTEM_INSTRUCTION.replace("{{KNOWLEDGE_CONTEXT}}", kbContent || "No additional personal knowledge base entries provided.");
+      const name = settings.name || "Bilal";
+      const dynamicInstruction = `You are a professional AI assistant for **${name}**. 
+
+**CORE DIRECTIVES:**
+1. **Be Concise:** Keep responses short and professional.
+2. **Website Context:** You know all sections: Navbar, Hero, About, Skills, Projects, Certificates, Contact, and Admin.
+3. **Identity:** You represent ${name}. Use "${name}" or "he/him" (or appropriate pronouns) when referring to them.
+4. **PROACTIVE LEAD COLLECTION (CRITICAL):** If the user expresses interest in web design, development, or hiring ${name}, you MUST proactively ask for their contact information.
+   - You need 4 specific pieces of info: **Name, Email, Phone, and Project Description**.
+5. **CONFIRMATION:** Once you have collected ALL 4 pieces, you MUST explicitly confirm receipt and inform the user that "${name} will personally follow up with you shortly".
+
+**KNOWLEDGE BASE CONTEXT:**
+${kbContent || "No additional personal knowledge base entries provided."}
+
+**ABOUT ${name.toUpperCase()}:**
+${settings.aboutText || "Professional Developer."}`;
+
+      const systemInstruction = dynamicInstruction;
 
       const historyForAI = newMessages.slice(1).map(m => ({ 
         role: m.role as "user" | "model", 
@@ -196,7 +228,7 @@ export default function Chatbot() {
         await api.saveLead({
           ...data.leadInfo,
           source: "chatbot",
-          userId: user?.uid || "guest"
+          userId: userId || "guest"
         });
         // Also notify via existing simulation
         api.notify({ type: "lead", ...data.leadInfo });
@@ -241,7 +273,7 @@ export default function Chatbot() {
                   <Bot size={22} className="text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-display uppercase tracking-wider">Bilal's AI Agent</h4>
+                  <h4 className="text-sm font-display uppercase tracking-wider">{settings.name || "Bilal"}'s AI Agent</h4>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     <span className="text-[10px] font-mono text-secondary uppercase tracking-widest">Active Now</span>
