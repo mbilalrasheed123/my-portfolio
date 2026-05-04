@@ -2,9 +2,9 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
-import admin, { adminDb } from "./src/lib/firebase-admin";
-import { KeyRotationService } from "./src/lib/KeyRotationService";
-import { aggregateDailyStats } from "./src/lib/analytics-aggregator";
+import admin, { adminDb } from "./src/lib/firebase-admin.js";
+import { KeyRotationService } from "./src/lib/KeyRotationService.js";
+import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
 
 dotenv.config();
 

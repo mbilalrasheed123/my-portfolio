@@ -1,4 +1,4 @@
-import { adminDb } from '../../src/lib/firebase-admin';
+import { adminDb } from '../../src/lib/firebase-admin.js';
 
 /**
  * Endpoint to delete old analytics data (events older than 90 days)
