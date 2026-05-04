@@ -184,11 +184,27 @@ ABOUT: ${settings.aboutText || "Professional Developer."}
 CONTEXT: ${kbContent || "No additional personal knowledge base entries provided."}`;
 
       // 1. Get a key from the rotation service
-      const keyResponse = await fetch('/api/keys/rotate');
-      if (!keyResponse.ok) {
-        throw new Error('All assistants are busy. Please try again soon.');
+      let apiKey = null;
+      let keyId = null;
+
+      try {
+        const keyResponse = await fetch('/api/keys/rotate');
+        if (keyResponse.ok) {
+          const keyData = await keyResponse.json();
+          apiKey = keyData.key;
+          keyId = keyData.id;
+        }
+      } catch (err) {
+        console.warn("Key rotation service unreachable, checking environment fallback...", err);
       }
-      const { id: keyId, key: apiKey } = await keyResponse.json();
+
+      // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
+      if (!apiKey) {
+        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error('Our AI assistants are currently at capacity. Please try again in a few minutes or contact support.');
+        }
+      }
 
       try {
         // 2. Initialize Gemini

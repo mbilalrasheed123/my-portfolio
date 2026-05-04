@@ -68,22 +68,29 @@ async function startServer() {
   // Key Rotation Endpoints (For Frontend Use)
   app.get("/api/keys/rotate", async (req, res) => {
     if (!keyRotation) return res.status(503).json({ error: "Key Rotation service unavailable" });
-    const keyData = await keyRotation.getCurrentKey();
+    
+    let keyData = await keyRotation.getCurrentKey();
+    
+    // Fallback to process.env.GEMINI_API_KEY if no keys in DB
+    if (!keyData && process.env.GEMINI_API_KEY) {
+      return res.json({ id: "env_key", key: process.env.GEMINI_API_KEY });
+    }
+
     if (!keyData) return res.status(404).json({ error: "No active keys available" });
-    // Note: We return the key decrypted so the frontend can use it
+    
     res.json({ id: keyData.id, key: keyData.key });
   });
 
   app.post("/api/keys/usage", async (req, res) => {
     const { id } = req.body;
-    if (!id || !keyRotation) return res.status(400).json({ error: "Invalid request" });
+    if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
     await keyRotation.incrementUsage(id);
     res.json({ success: true });
   });
 
   app.post("/api/keys/exhausted", async (req, res) => {
     const { id } = req.body;
-    if (!id || !keyRotation) return res.status(400).json({ error: "Invalid request" });
+    if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
     await keyRotation.markExhausted(id);
     res.json({ success: true });
   });
@@ -161,9 +168,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production") {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+export default startServer();
