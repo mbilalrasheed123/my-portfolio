@@ -1,9 +1,9 @@
-import { adminDb } from '../../src/lib/firebase-admin.js';
-import { KeyRotationService } from '../../src/lib/KeyRotationService.js';
+import { adminDb } from '../../src/lib/firebase-admin.mjs';
+import { KeyRotationService } from '../../src/lib/KeyRotationService.mjs';
 
 const keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

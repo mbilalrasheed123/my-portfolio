@@ -1,11 +1,6 @@
-import { adminDb } from '../../src/lib/firebase-admin.js';
+import { adminDb } from '../../src/lib/firebase-admin.mjs';
 
-/**
- * Endpoint to delete old analytics data (events older than 90 days)
- * to keep the database size within limits and optimize performance.
- */
-export default async function handler(req: any, res: any) {
-  // Simple auth check using a shared secret
+export default async function handler(req, res) {
   if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -14,7 +9,6 @@ export default async function handler(req: any, res: any) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
     
-    // Fetch in batches to avoid timeouts and high memory usage
     const snapshot = await adminDb.collection('analytics')
       .where('timestamp', '<', cutoffDate)
       .limit(500)
