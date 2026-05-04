@@ -2,8 +2,13 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
+import admin, { adminDb } from "./src/lib/firebase-admin";
+import { KeyRotationService } from "./src/lib/KeyRotationService";
 
 dotenv.config();
+
+// Initialize Services
+const keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
 
 async function startServer() {
   const app = express();
@@ -12,9 +17,56 @@ async function startServer() {
   // JSON Body Parser
   app.use(express.json());
 
+  // Background Reset Job (Every Minute)
+  const runReset = async () => {
+    if (!keyRotation) return;
+    try {
+      console.log("[Server] Running auto-reset for API keys...");
+      await keyRotation.resetAllKeys();
+    } catch (error) {
+      console.error("[Server] Error resetting keys:", error);
+    }
+  };
+
+  runReset(); // Run once at startup
+  setInterval(runReset, 60000); // And then every minute
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Key Rotation Endpoints (For Frontend Use)
+  app.get("/api/keys/rotate", async (req, res) => {
+    if (!keyRotation) return res.status(503).json({ error: "Key Rotation service unavailable" });
+    const keyData = await keyRotation.getCurrentKey();
+    if (!keyData) return res.status(404).json({ error: "No active keys available" });
+    // Note: We return the key decrypted so the frontend can use it
+    res.json({ id: keyData.id, key: keyData.key });
+  });
+
+  app.post("/api/keys/usage", async (req, res) => {
+    const { id } = req.body;
+    if (!id || !keyRotation) return res.status(400).json({ error: "Invalid request" });
+    await keyRotation.incrementUsage(id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/keys/exhausted", async (req, res) => {
+    const { id } = req.body;
+    if (!id || !keyRotation) return res.status(400).json({ error: "Invalid request" });
+    await keyRotation.markExhausted(id);
+    res.json({ success: true });
+  });
+
+  // Key Encryption Helper (For Admin)
+  app.post("/api/admin/encrypt-key", (req, res) => {
+    const { key } = req.body;
+    if (!key) return res.status(400).json({ error: "Key required" });
+    if (!keyRotation) return res.status(503).json({ error: "Encryption service unavailable" });
+    // In real app, check for admin token here
+    const encrypted = keyRotation.encrypt(key);
+    res.json({ encrypted });
   });
 
   app.post("/api/send-email", async (req, res) => {

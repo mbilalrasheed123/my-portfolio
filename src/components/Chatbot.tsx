@@ -2,26 +2,23 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2, History, Trash2, ArrowLeft } from "lucide-react";
 import Markdown from "react-markdown";
-import { GoogleGenAI, Type } from "@google/genai";
 import { auth, onAuthStateChanged } from "../firebase";
 import { api } from "../lib/api";
 
+import { GoogleGenAI } from "@google/genai";
+
 const BASE_SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
+CORE DIRECTIVES:
+1. Be Concise and professional.
+2. website context: You are on Bilal's official portfolio.
+3. PROACTIVE LEAD COLLECTION: If the user is interested in hiring, collect: Name, Email, Phone, Project Description.
 
-**CORE DIRECTIVES:**
-1. **Be Concise:** Keep responses short and professional.
-2. **Website Context:** You know all sections: Navbar, Hero, About, Skills, Projects, Certificates, Contact, and Admin.
-3. **Identity:** You represent Bilal. Use "Bilal" or "he/him" when referring to him, or "we" if referring to the "team".
-4. **PROACTIVE LEAD COLLECTION (CRITICAL):** If the user expresses interest in web design, development, or hiring Bilal, you MUST proactively ask for their contact information to facilitate a follow-up. 
-   - You need 4 specific pieces of info: **Name, Email, Phone, and Project Description**.
-   - Do NOT ask for all at once; be natural. (e.g., "I'd love to help with that! What's your name and best email so Bilal can reach out?")
-5. **CONFIRMATION:** Once you have collected ALL 4 pieces (Name, Email, Phone, Description), you MUST explicitly confirm receipt of all details and inform the user that "Bilal will personally follow up with you shortly".
-
-**KNOWLEDGE BASE CONTEXT:**
-{{KNOWLEDGE_CONTEXT}}
-
-**ABOUT BILAL (QUICK FACT):**
-CS student from Multan, Pakistan. Specialist in WordPress, Frontend, and Vibe Coding.`;
+OUTPUT FORMAT: You must output valid JSON with this schema:
+{
+  "reply": "your text response",
+  "isLeadDetected": boolean,
+  "leadInfo": { "name": "...", "email": "...", "phone": "...", "description": "..." }
+}`;
 
 interface Message {
   role: "user" | "model";
@@ -37,8 +34,6 @@ interface ChatSession {
   messages: Message[];
   createdAt: any;
 }
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface ChatbotProps {
   userId?: string;
@@ -165,78 +160,90 @@ export default function Chatbot({ userId }: ChatbotProps) {
 
     try {
       const name = settings.name || "Bilal";
-      const dynamicInstruction = `You are a professional AI assistant for **${name}**. 
+      const personalContext = `NAME: ${name}
+ABOUT: ${settings.aboutText || "Professional Developer."}
+CONTEXT: ${kbContent || "No additional personal knowledge base entries provided."}`;
 
-**CORE DIRECTIVES:**
-1. **Be Concise:** Keep responses short and professional.
-2. **Website Context:** You know all sections: Navbar, Hero, About, Skills, Projects, Certificates, Contact, and Admin.
-3. **Identity:** You represent ${name}. Use "${name}" or "he/him" (or appropriate pronouns) when referring to them.
-4. **PROACTIVE LEAD COLLECTION (CRITICAL):** If the user expresses interest in web design, development, or hiring ${name}, you MUST proactively ask for their contact information.
-   - You need 4 specific pieces of info: **Name, Email, Phone, and Project Description**.
-5. **CONFIRMATION:** Once you have collected ALL 4 pieces, you MUST explicitly confirm receipt and inform the user that "${name} will personally follow up with you shortly".
+      // 1. Get a key from the rotation service
+      const keyResponse = await fetch('/api/keys/rotate');
+      if (!keyResponse.ok) {
+        throw new Error('All assistants are busy. Please try again soon.');
+      }
+      const { id: keyId, key: apiKey } = await keyResponse.json();
 
-**KNOWLEDGE BASE CONTEXT:**
-${kbContent || "No additional personal knowledge base entries provided."}
-
-**ABOUT ${name.toUpperCase()}:**
-${settings.aboutText || "Professional Developer."}`;
-
-      const systemInstruction = dynamicInstruction;
-
-      const historyForAI = newMessages.slice(1).map(m => ({ 
-        role: m.role as "user" | "model", 
-        parts: [{ text: m.text }] 
-      }));
-
-      // Lead detection logic
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...historyForAI
-        ],
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              reply: { type: Type.STRING },
-              isLeadDetected: { type: Type.BOOLEAN },
-              leadInfo: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  email: { type: Type.STRING },
-                  phone: { type: Type.STRING },
-                  description: { type: Type.STRING }
-                }
-              }
-            }
-          }
-        }
-      });
-
-      const data = JSON.parse(response.text || "{}");
-      const modelText = data.reply || "I'm sorry, I couldn't process that.";
-      const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
-      
-      const finalMessages = [...newMessages, modelMsg];
-      setMessages(finalMessages);
-      saveCurrentSession(finalMessages);
-
-      if (data.isLeadDetected && data.leadInfo?.name && data.leadInfo?.email) {
-        await api.saveLead({
-          ...data.leadInfo,
-          source: "chatbot",
-          userId: userId || "guest"
+      try {
+        // 2. Initialize Gemini
+        const ai = new GoogleGenAI({ apiKey });
+        
+        // 3. Prepare History for @google/genai
+        const contents = messages.map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
+        contents.push({
+          role: "user",
+          parts: [{ text: input.trim() }]
         });
-        // Also notify via existing simulation
-        api.notify({ type: "lead", ...data.leadInfo });
+
+        // 4. Generate Content
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: contents,
+          config: {
+            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
+            responseMimeType: "application/json",
+          }
+        });
+
+        if (!response.text) {
+          throw new Error("Empty response from AI");
+        }
+
+        // Successful call! Increment usage
+        fetch('/api/keys/usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: keyId })
+        }).catch(err => console.error("Failed to report usage:", err));
+
+        let modelData;
+        try {
+          modelData = JSON.parse(response.text.trim());
+        } catch (e) {
+          // Fallback for non-JSON response
+          modelData = { reply: response.text, isLeadDetected: false };
+        }
+
+        const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
+        const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
+        
+        const finalMessages = [...newMessages, modelMsg];
+        setMessages(finalMessages);
+        saveCurrentSession(finalMessages);
+
+        // handle lead detection
+        if (modelData.isLeadDetected && modelData.leadInfo) {
+          api.saveLead({
+            ...modelData.leadInfo,
+            userId: userId || 'guest',
+            chatId: session?.id || 'none'
+          }).catch(err => console.error("Lead saving failed:", err));
+        }
+      } catch (innerError: any) {
+        // If it's a quota error, mark it exhausted
+        if (innerError.message?.includes("429") || innerError.message?.includes("quota") || innerError.status === 429) {
+          fetch('/api/keys/exhausted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: keyId })
+          }).catch(err => console.error("Failed to report exhausted key:", err));
+        }
+        throw innerError;
       }
 
     } catch (error: any) {
       console.error("Chatbot error:", error);
-      const errorMsg: Message = { role: "model", text: "Something went wrong. Let's try that again.", timestamp: new Date().toISOString() };
+      const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);

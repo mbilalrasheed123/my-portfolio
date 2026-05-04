@@ -10,6 +10,7 @@ import {
   signInWithPopup, 
   googleProvider,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut
 } from "../firebase";
 
@@ -20,22 +21,27 @@ interface AuthProps {
 
 export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [message, setMessage] = useState("");
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
-    setVerificationSent(false);
 
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        await sendPasswordResetEmail(auth, email);
+        setMessage("Password reset email sent! Please check your inbox.");
+        setIsForgotPassword(false);
+      } else if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
@@ -45,6 +51,11 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         }
 
         await api.saveUser(user);
+
+        if (!user.emailVerified) {
+          setError("Your email is not verified. Please check your inbox for the verification link.");
+          // Optionally resend or allow login but with limited access
+        }
 
         setSuccess(true);
         setTimeout(() => {
@@ -58,23 +69,26 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
           await updateProfile(user, { displayName: name });
         }
 
-        // Send verification email in background
-        sendEmailVerification(user).catch(err => console.error("Verification email failed:", err));
+        // Send verification email
+        await sendEmailVerification(user);
         
         await api.saveUser(user);
         
+        setMessage("Verification email sent! Please verify your email to access all features.");
         setSuccess(true);
         setTimeout(() => {
           onSuccess?.(user);
-        }, 1500);
+        }, 2000);
       }
     } catch (err: any) {
       console.error("Auth error:", err);
       let msg = err.message || "Authentication failed. Please try again.";
       if (err.code === "auth/invalid-credential") {
-        msg = "Invalid credentials. Please check your email and password, or use Google Sign-In if you previously used it.";
+        msg = "Invalid credentials. Please check your email and password.";
+      } else if (err.code === "auth/user-not-found") {
+        msg = "No account found with this email.";
       } else if (msg.includes("requests-from-referer") || err.code?.includes("referer")) {
-        msg = "Domain Blocked: Please add this domain to 'Authorized domains' in Firebase Console (Authentication > Settings) and check API Key restrictions in Google Cloud Console.";
+        msg = "Domain Blocked: Please add this domain to 'Authorized domains' in Firebase Console.";
       }
       setError(msg);
     } finally {
@@ -83,12 +97,16 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
   };
 
   const handleResendVerification = async () => {
+    if (!auth.currentUser) {
+      setError("Please sign in first to resend verification email.");
+      return;
+    }
     setLoading(true);
     setError("");
+    setMessage("");
     try {
-      // We can't resend if logged out unless we sign in again, 
-      // but usually we can tell them to try signing in which triggers the message again.
-      setError("Please try signing in with your credentials to receive a new verification prompt if needed.");
+      await sendEmailVerification(auth.currentUser);
+      setMessage("Verification email resent! Please check your inbox.");
     } catch (err: any) {
       setError(err.message || "Failed to resend verification email.");
     } finally {
@@ -134,15 +152,17 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         <>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-display uppercase mb-2">
-              {isLogin ? "Welcome Back" : "Create Account"}
+              {isForgotPassword ? "Reset Password" : (isLogin ? "Welcome Back" : "Create Account")}
             </h2>
             <p className="text-secondary text-sm font-mono uppercase tracking-widest">
-              {isLogin ? "Sign in to manage your portfolio" : "Join us to start a conversation"}
+              {isForgotPassword 
+                ? "Enter your email to receive a reset link" 
+                : (isLogin ? "Sign in to manage your portfolio" : "Join us to start a conversation")}
             </p>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
+            {!isLogin && !isForgotPassword && (
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
                 <input
@@ -168,23 +188,49 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               />
             </div>
 
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
-                required
-                minLength={6}
-              />
-            </div>
+            {!isForgotPassword && (
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary" size={18} />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-line rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-accent transition-colors"
+                  required
+                  minLength={6}
+                />
+              </div>
+            )}
+
+            {isLogin && !isForgotPassword && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPassword(true)}
+                  className="text-[10px] font-mono text-secondary hover:text-white uppercase tracking-widest transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
+
+            {isForgotPassword && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPassword(false)}
+                  className="text-[10px] font-mono text-secondary hover:text-white uppercase tracking-widest transition-colors"
+                >
+                  Back to Login
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mb-4">
                 <p className="text-red-500 text-xs font-mono">{error}</p>
-                {verificationSent && isLogin && (
+                {error.includes("not verified") && (
                   <button
                     type="button"
                     onClick={handleResendVerification}
@@ -196,12 +242,18 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               </div>
             )}
 
+            {message && (
+              <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl mb-4">
+                <p className="text-green-500 text-xs font-mono">{message}</p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full py-4 bg-white text-black font-display uppercase tracking-widest text-sm rounded-xl hover:bg-accent hover:text-white transition-all disabled:opacity-50"
             >
-              {loading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
+              {loading ? "Processing..." : (isForgotPassword ? "Send Reset Link" : (isLogin ? "Sign In" : "Create Account"))}
             </button>
 
             <div className="relative my-6">

@@ -13,6 +13,7 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   sendEmailVerification,
+  sendPasswordResetEmail,
   EmailAuthProvider
 } from "firebase/auth";
 import { 
@@ -60,12 +61,13 @@ export const auth = getAuth(app);
 // 3. Initialize Firestore with WebSocket Fix (Option A: Reliability)
 // experimentalForceLongPolling resolves "WebSocket closed without opened" errors
 // which commonly occur in restricted iframe/sandbox environments.
+const databaseId = (import.meta as any).env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   }),
   experimentalForceLongPolling: true 
-});
+}, databaseId);
 
 // 4. Initialize Storage
 export const storage = getStorage(app);
@@ -82,6 +84,7 @@ export {
   updatePassword,
   reauthenticateWithCredential,
   sendEmailVerification,
+  sendPasswordResetEmail,
   EmailAuthProvider,
   collection, 
   doc, 

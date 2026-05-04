@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, User, LogOut, MessageSquare, Settings } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Settings, AlertTriangle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { auth, onAuthStateChanged, signOut } from "../firebase";
+import { auth, onAuthStateChanged, signOut, sendEmailVerification } from "../firebase";
 import { useData } from "../contexts/DataContext";
 
 interface NavbarProps {
@@ -13,6 +13,8 @@ export default function Navbar({ userId }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
   const { settings } = useData();
   const location = useLocation();
 
@@ -45,6 +47,22 @@ export default function Navbar({ userId }: NavbarProps) {
     await signOut(auth);
   };
 
+  const handleResendVerification = async () => {
+    if (!user) return;
+    setVerificationLoading(true);
+    try {
+      await sendEmailVerification(user);
+      setVerificationMessage("Verification email sent!");
+      setTimeout(() => setVerificationMessage(""), 5000);
+    } catch (err: any) {
+      console.error("Failed to resend verification:", err);
+      setVerificationMessage("Failed to send email.");
+      setTimeout(() => setVerificationMessage(""), 5000);
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
   const isHomePage = location.pathname === "/";
 
   const brandName = settings?.logoText || (settings?.name?.split(' ')[0] || "Bilal");
@@ -53,11 +71,27 @@ export default function Navbar({ userId }: NavbarProps) {
   const logoAlt = settings?.logoAlt;
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ${
-        isScrolled || !isHomePage || isMobileMenuOpen ? "bg-black/90 backdrop-blur-2xl py-4 border-b border-line" : "bg-transparent py-8"
-      }`}
-    >
+    <>
+      {user && !user.emailVerified && !user.isAnonymous && (
+        <div className="fixed top-0 left-0 right-0 z-[120] bg-accent py-2 px-6 flex items-center justify-center gap-4 text-white animate-pulse">
+          <AlertTriangle size={14} className="shrink-0" />
+          <p className="text-[10px] font-mono uppercase tracking-widest leading-none">
+            Please verify your email address to access all features.
+          </p>
+          <button
+            onClick={handleResendVerification}
+            disabled={verificationLoading}
+            className="text-[10px] font-mono uppercase underline hover:text-white/80 transition-colors disabled:opacity-50"
+          >
+            {verificationLoading ? "Sending..." : (verificationMessage || "Resend Email")}
+          </button>
+        </div>
+      )}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ${
+          isScrolled || !isHomePage || isMobileMenuOpen ? "bg-black/90 backdrop-blur-2xl py-4 border-b border-line" : "bg-transparent py-8"
+        } ${user && !user.emailVerified && !user.isAnonymous ? "mt-10 md:mt-8" : ""}`}
+      >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <Link to="/" className="group flex items-center gap-2 relative z-[110]" onClick={() => setIsMobileMenuOpen(false)}>
           {logoType === "image" && logoUrl ? (
@@ -240,5 +274,6 @@ export default function Navbar({ userId }: NavbarProps) {
         )}
       </AnimatePresence>
     </nav>
+    </>
   );
 }

@@ -44,6 +44,22 @@ service cloud.firestore {
       ));
     }
 
+    match /skills/{skillId} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && existing().userId == request.auth.uid)
+      ));
+    }
+
+    match /experience/{expId} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && existing().userId == request.auth.uid)
+      ));
+    }
+
     function isValidSetting(data) {
       return data.keys().hasAll(['updatedAt']) &&
              (!data.keys().hasAny(['name']) || data.name is string) &&
@@ -105,6 +121,13 @@ service cloud.firestore {
       allow get: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
       allow update: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid); // Sender/Recipient can update (e.g. status or reply)
       allow delete: if isAdmin();
+    }
+
+    // API Keys (Rotation System)
+    match /apiKeys/{keyId} {
+      allow read: if true; // Server needs to read keys
+      allow create, delete: if isAdmin(); // Only admin can add/remove keys
+      allow update: if true; // Server needs to update usage counters (requestsThisMinute, requestsToday)
     }
   }
 }
