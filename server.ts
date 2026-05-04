@@ -11,39 +11,41 @@ dotenv.config();
 // Initialize Services
 const keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
 
-async function startServer() {
+async function setupApp() {
   const app = express();
   const PORT = 3000;
 
   // JSON Body Parser
   app.use(express.json());
 
-  // Background Reset Job (Every Minute)
-  const runReset = async () => {
-    if (!keyRotation) return;
-    try {
-      console.log("[Server] Running auto-reset for API keys...");
-      await keyRotation.resetAllKeys();
-    } catch (error) {
-      console.error("[Server] Error resetting keys:", error);
-    }
-  };
+  // Background Reset Job (Every Minute) - only in long-running environments
+  if (process.env.NODE_ENV !== "production") {
+    const runReset = async () => {
+      if (!keyRotation) return;
+      try {
+        console.log("[Server] Running auto-reset for API keys...");
+        await keyRotation.resetAllKeys();
+      } catch (error) {
+        console.error("[Server] Error resetting keys:", error);
+      }
+    };
 
-  runReset(); // Run once at startup
-  setInterval(runReset, 60000); // And then every minute
+    runReset(); // Run once at startup
+    setInterval(runReset, 60000); // And then every minute
 
-  // Analytics Aggregation Job (Every 6 hours)
-  const runAggregation = async () => {
-    try {
-      console.log("[Server] Running daily analytics aggregation...");
-      await aggregateDailyStats();
-    } catch (error) {
-      console.error("[Server] Analytics aggregation failed:", error);
-    }
-  };
+    // Analytics Aggregation Job (Every 6 hours)
+    const runAggregation = async () => {
+      try {
+        console.log("[Server] Running daily analytics aggregation...");
+        await aggregateDailyStats();
+      } catch (error) {
+        console.error("[Server] Analytics aggregation failed:", error);
+      }
+    };
 
-  runAggregation(); // Initial run
-  setInterval(runAggregation, 6 * 60 * 60 * 1000);
+    runAggregation(); // Initial run
+    setInterval(runAggregation, 6 * 60 * 60 * 1000);
+  }
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -65,35 +67,7 @@ async function startServer() {
     }
   });
 
-  // Key Rotation Endpoints (For Frontend Use)
-  app.get("/api/keys/rotate", async (req, res) => {
-    if (!keyRotation) return res.status(503).json({ error: "Key Rotation service unavailable" });
-    
-    let keyData = await keyRotation.getCurrentKey();
-    
-    // Fallback to process.env.GEMINI_API_KEY if no keys in DB
-    if (!keyData && process.env.GEMINI_API_KEY) {
-      return res.json({ id: "env_key", key: process.env.GEMINI_API_KEY });
-    }
-
-    if (!keyData) return res.status(404).json({ error: "No active keys available" });
-    
-    res.json({ id: keyData.id, key: keyData.key });
-  });
-
-  app.post("/api/keys/usage", async (req, res) => {
-    const { id } = req.body;
-    if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-    await keyRotation.incrementUsage(id);
-    res.json({ success: true });
-  });
-
-  app.post("/api/keys/exhausted", async (req, res) => {
-    const { id } = req.body;
-    if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-    await keyRotation.markExhausted(id);
-    res.json({ success: true });
-  });
+  // REST OF ROUTES handled by individual files or Express middleware
 
   // Key Encryption Helper (For Admin)
   app.post("/api/admin/encrypt-key", (req, res) => {
@@ -177,4 +151,4 @@ async function startServer() {
   return app;
 }
 
-export default startServer();
+export default setupApp();

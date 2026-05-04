@@ -22,8 +22,19 @@ export class KeyRotationService {
   }
 
   private decrypt(ciphertext: string): string {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, this.secret);
-    return bytes.toString(CryptoJS.enc.Utf8);
+    if (!ciphertext) return "";
+    try {
+      const bytes = CryptoJS.AES.decrypt(ciphertext, this.secret);
+      const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+      if (!plaintext) {
+        // Fallback for unencrypted keys or wrong secret
+        return ciphertext;
+      }
+      return plaintext;
+    } catch (error) {
+      console.warn("[KeyRotation] Decryption failed, returning raw value.");
+      return ciphertext;
+    }
   }
 
   public encrypt(text: string): string {
@@ -70,7 +81,7 @@ export class KeyRotationService {
       return null;
     } catch (error) {
       console.error("[KeyRotation] Error getting current key:", error);
-      return null;
+      throw error; // Throw so the API handler catches it
     }
   }
 
@@ -106,14 +117,24 @@ export class KeyRotationService {
 
   private shouldResetMinute(key: ApiKeyData, now: Date): boolean {
     if (!key.lastResetMinute) return true;
-    const lastReset = key.lastResetMinute.toDate ? key.lastResetMinute.toDate() : new Date(key.lastResetMinute);
-    return now.getTime() - lastReset.getTime() > 60000;
+    try {
+      const lastReset = key.lastResetMinute.toDate ? key.lastResetMinute.toDate() : new Date(key.lastResetMinute);
+      if (isNaN(lastReset.getTime())) return true;
+      return now.getTime() - lastReset.getTime() > 60000;
+    } catch (e) {
+      return true;
+    }
   }
 
   private shouldResetDay(key: ApiKeyData, now: Date): boolean {
     if (!key.lastResetDay) return true;
-    const lastReset = key.lastResetDay.toDate ? key.lastResetDay.toDate() : new Date(key.lastResetDay);
-    return now.getDate() !== lastReset.getDate() || now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
+    try {
+      const lastReset = key.lastResetDay.toDate ? key.lastResetDay.toDate() : new Date(key.lastResetDay);
+      if (isNaN(lastReset.getTime())) return true;
+      return now.getDate() !== lastReset.getDate() || now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
+    } catch (e) {
+      return true;
+    }
   }
 
   async resetKeyMinute(keyId: string) {
