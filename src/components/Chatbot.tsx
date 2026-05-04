@@ -4,6 +4,8 @@ import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2, History, Trash
 import Markdown from "react-markdown";
 import { auth, onAuthStateChanged } from "../firebase";
 import { api } from "../lib/api";
+import { trackClick } from "../lib/analytics";
+import { handleAnalyticsQuery } from "../lib/chatbot-analytics";
 
 import { GoogleGenAI } from "@google/genai";
 
@@ -151,6 +153,8 @@ export default function Chatbot({ userId }: ChatbotProps) {
       await createNewSession();
     }
 
+    trackClick('chatbot-send-message');
+
     const userMsg: Message = { role: "user", text: input.trim(), timestamp: new Date().toISOString() };
     const newMessages = [...messages, userMsg];
     
@@ -159,6 +163,21 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
+      // 0. Check for Intelligence (Analytics) Queries if Admin
+      const messageLower = input.toLowerCase();
+      const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'page', 'device', 'click', 'report', 'stats', 'popular', 'intelligence'];
+      const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
+      
+      if (isAnalyticsQuery && auth.currentUser?.email === 'muhammadbilalrasheed78@gmail.com') {
+        const analyticsResponse = await handleAnalyticsQuery(auth.currentUser?.email || undefined, input);
+        const modelMsg: Message = { role: "model", text: analyticsResponse, timestamp: new Date().toISOString() };
+        const finalMessages = [...newMessages, modelMsg];
+        setMessages(finalMessages);
+        saveCurrentSession(finalMessages);
+        setIsLoading(false);
+        return;
+      }
+
       const name = settings.name || "Bilal";
       const personalContext = `NAME: ${name}
 ABOUT: ${settings.aboutText || "Professional Developer."}
@@ -223,6 +242,7 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
 
         // handle lead detection
         if (modelData.isLeadDetected && modelData.leadInfo) {
+          trackClick('chatbot-lead-detected');
           api.saveLead({
             ...modelData.leadInfo,
             userId: userId || 'guest',
@@ -440,7 +460,10 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            onClick={() => setIsOpen(true)}
+            onClick={() => {
+              setIsOpen(true);
+              trackClick('chatbot-open');
+            }}
             className="w-16 h-16 rounded-full bg-accent text-white shadow-2xl flex items-center justify-center hover:shadow-accent/40 transition-all border-4 border-black group"
           >
             <Bot size={32} className="group-hover:rotate-12 transition-transform" />

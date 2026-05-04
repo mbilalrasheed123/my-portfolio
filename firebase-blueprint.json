@@ -166,6 +166,131 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "key", "priority"]
+    },
+    "AnalyticsEvent": {
+      "title": "Analytics Event",
+      "description": "Granular user interaction event",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "eventType": { "type": "string", "enum": ["page_view", "section_view", "button_click", "scroll_depth", "session_end"] },
+        "page": { "type": "string" },
+        "section": { "type": "string" },
+        "element": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "duration": { "type": "number" },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "device": { "type": "string", "enum": ["desktop", "mobile", "tablet"] },
+            "browser": { "type": "string" },
+            "os": { "type": "string" },
+            "screenWidth": { "type": "number" },
+            "screenHeight": { "type": "number" },
+            "referrer": { "type": "string" },
+            "userAgent": { "type": "string" }
+          }
+        },
+        "scrollDepth": { "type": "number" },
+        "clickPosition": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        }
+      },
+      "required": ["userId", "sessionId", "eventType", "page", "timestamp"]
+    },
+    "Session": {
+      "title": "Analytics Session",
+      "description": "Aggregated user session data",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "totalDuration": { "type": "number" },
+        "pagesVisited": { "type": "array", "items": { "type": "string" } },
+        "totalPageViews": { "type": "integer" },
+        "totalClicks": { "type": "integer" },
+        "totalScrollEvents": { "type": "integer" },
+        "entryPage": { "type": "string" },
+        "exitPage": { "type": "string" },
+        "device": { "type": "string" },
+        "browser": { "type": "string" },
+        "referrer": { "type": "string" }
+      },
+      "required": ["sessionId", "userId", "startTime"]
+    },
+    "DailyStats": {
+      "title": "Daily Analytics Aggregate",
+      "description": "Pre-aggregated daily statistics",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "totalVisitors": { "type": "integer" },
+        "authenticatedUsers": { "type": "integer" },
+        "anonymousUsers": { "type": "integer" },
+        "totalPageViews": { "type": "integer" },
+        "topPages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "page": { "type": "string" },
+              "views": { "type": "integer" },
+              "avgDuration": { "type": "number" }
+            }
+          }
+        },
+        "topSections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "section": { "type": "string" },
+              "views": { "type": "integer" }
+            }
+          }
+        },
+        "avgSessionDuration": { "type": "number" },
+        "avgPagesPerSession": { "type": "number" },
+        "totalClicks": { "type": "integer" },
+        "deviceStats": {
+          "type": "object",
+          "properties": {
+            "desktop": { "type": "integer" },
+            "mobile": { "type": "integer" },
+            "tablet": { "type": "integer" }
+          }
+        },
+        "browserStats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "browser": { "type": "string" },
+              "count": { "type": "integer" }
+            }
+          }
+        },
+        "topReferrers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": { "type": "string" },
+              "count": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "required": ["date"]
     }
   },
   "firestore": {
@@ -204,6 +329,18 @@
     "/apiKeys/{keyId}": {
       "schema": "ApiKey",
       "description": "Google AI Studio API keys with rotation metadata"
+    },
+    "/analytics/{eventId}": {
+      "schema": "AnalyticsEvent",
+      "description": "Granular engagement tracking"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "User session records"
+    },
+    "/dailyStats/{date}": {
+      "schema": "DailyStats",
+      "description": "Daily performance aggregates"
     }
   }
 }

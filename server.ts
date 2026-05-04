@@ -4,6 +4,7 @@ import path from "path";
 import dotenv from "dotenv";
 import admin, { adminDb } from "./src/lib/firebase-admin";
 import { KeyRotationService } from "./src/lib/KeyRotationService";
+import { aggregateDailyStats } from "./src/lib/analytics-aggregator";
 
 dotenv.config();
 
@@ -31,9 +32,37 @@ async function startServer() {
   runReset(); // Run once at startup
   setInterval(runReset, 60000); // And then every minute
 
+  // Analytics Aggregation Job (Every 6 hours)
+  const runAggregation = async () => {
+    try {
+      console.log("[Server] Running daily analytics aggregation...");
+      await aggregateDailyStats();
+    } catch (error) {
+      console.error("[Server] Analytics aggregation failed:", error);
+    }
+  };
+
+  runAggregation(); // Initial run
+  setInterval(runAggregation, 6 * 60 * 60 * 1000);
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Vercel-style Cron endpoint for aggregation
+  app.get("/api/cron/aggregate-analytics", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      await aggregateDailyStats();
+      res.json({ success: true, message: "Aggregation completed" });
+    } catch (error) {
+      res.status(500).json({ error: "Aggregation failed" });
+    }
   });
 
   // Key Rotation Endpoints (For Frontend Use)

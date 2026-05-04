@@ -8,5 +8,15 @@
       "source": "/admin(.*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/aggregate-analytics",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-analytics",
+      "schedule": "0 2 1 * *"
+    }
   ]
 }

@@ -9,6 +9,8 @@ import {
   animate,
 } from "framer-motion";
 import { useData } from "../contexts/DataContext";
+import { useSectionTracking } from "../hooks/useSectionTracking";
+import { trackClick } from "../lib/analytics";
 
 const COLORS_TOP = ["#13FFAA", "#1E67C6", "#CE84CF", "#DD335C"];
 
@@ -19,6 +21,7 @@ interface HeroProps {
 export default function Hero({ userId }: HeroProps) {
   const { settings } = useData();
   const color = useMotionValue(COLORS_TOP[0]);
+  const sectionRef = useSectionTracking("hero");
 
   useEffect(() => {
     animate(color, COLORS_TOP, {
@@ -35,6 +38,7 @@ export default function Hero({ userId }: HeroProps) {
 
   return (
     <motion.section
+      ref={sectionRef}
       style={{
         backgroundImage,
       }}
@@ -86,6 +90,7 @@ export default function Hero({ userId }: HeroProps) {
               scale: 0.95,
             }}
             onClick={() => {
+              trackClick('hero-cta-button', { target: 'projects' });
               document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' });
             }}
             className="group relative flex w-fit items-center gap-2 rounded-full bg-gray-950/10 px-8 py-4 text-gray-50 transition-colors hover:bg-gray-950/50 font-display uppercase tracking-widest text-sm"
