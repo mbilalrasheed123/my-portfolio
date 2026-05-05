@@ -16,37 +16,6 @@ const keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTI
 
 app.use(express.json());
 
-// Background jobs - only run if not in a serverless environment like Vercel
-// or handle them carefully. On Vercel, cron jobs should be used instead.
-if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-  // Background Reset Job (Every Minute)
-  const runReset = async () => {
-    if (!keyRotation) return;
-    try {
-      console.log("[Server] Running auto-reset for API keys...");
-      await keyRotation.resetAllKeys();
-    } catch (error) {
-      console.error("[Server] Error resetting keys:", error);
-    }
-  };
-
-  runReset();
-  setInterval(runReset, 60000);
-
-  // Analytics Aggregation Job (Every 6 hours)
-  const runAggregation = async () => {
-    try {
-      console.log("[Server] Running daily analytics aggregation...");
-      await aggregateDailyStats();
-    } catch (error) {
-      console.error("[Server] Analytics aggregation failed:", error);
-    }
-  };
-
-  runAggregation();
-  setInterval(runAggregation, 6 * 60 * 60 * 1000);
-}
-
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });

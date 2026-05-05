@@ -53,8 +53,16 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
   const [kbContent, setKbContent] = useState("");
+  const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
+  const [currentKeyId, setCurrentKeyId] = useState<string | null>(null);
+  const messageCountRef = useRef(0);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const savedCount = sessionStorage.getItem('chatbot_message_count');
+    if (savedCount) messageCountRef.current = parseInt(savedCount);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,7 +156,6 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    // Ensure session exists
     if (!session) {
       await createNewSession();
     }
@@ -163,7 +170,34 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 0. Check for Intelligence (Analytics) Queries if Admin
+      // 1. Manage API Key Rotation (Every 15 messages)
+      let apiKey = currentApiKey;
+      let keyId = currentKeyId;
+
+      if (!apiKey || messageCountRef.current % 15 === 0) {
+        try {
+          const keyResponse = await fetch('/api/keys/rotate');
+          if (keyResponse.ok) {
+            const keyData = await keyResponse.json();
+            apiKey = keyData.key;
+            keyId = keyData.id;
+            setCurrentApiKey(apiKey);
+            setCurrentKeyId(keyId);
+          }
+        } catch (err) {
+          console.warn("Key rotation service unreachable, checking environment fallback...", err);
+        }
+      }
+
+      // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
+      if (!apiKey) {
+        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error('Our AI assistants are currently at capacity. Please try again in a few minutes or contact support.');
+        }
+      }
+
+      // 2. Intelligence Queries (Admin)
       const messageLower = input.toLowerCase();
       const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'page', 'device', 'click', 'report', 'stats', 'popular', 'intelligence'];
       const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
@@ -178,107 +212,85 @@ export default function Chatbot({ userId }: ChatbotProps) {
         return;
       }
 
+      // 3. Normal Chat Implementation
       const name = settings.name || "Bilal";
       const personalContext = `NAME: ${name}
 ABOUT: ${settings.aboutText || "Professional Developer."}
 CONTEXT: ${kbContent || "No additional personal knowledge base entries provided."}`;
 
-      // 1. Get a key from the rotation service
-      let apiKey = null;
-      let keyId = null;
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const contents = messages.map(m => ({
+        role: m.role,
+        parts: [{ text: m.text }]
+      }));
+      contents.push({
+        role: "user",
+        parts: [{ text: input.trim() }]
+      });
 
-      try {
-        const keyResponse = await fetch('/api/keys/rotate');
-        if (keyResponse.ok) {
-          const keyData = await keyResponse.json();
-          apiKey = keyData.key;
-          keyId = keyData.id;
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: contents,
+        config: {
+          systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
+          responseMimeType: "application/json",
         }
-      } catch (err) {
-        console.warn("Key rotation service unreachable, checking environment fallback...", err);
+      });
+
+      if (!response.text) {
+        throw new Error("Empty response from AI");
       }
 
-      // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
-      if (!apiKey) {
-        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-          throw new Error('Our AI assistants are currently at capacity. Please try again in a few minutes or contact support.');
-        }
+      // Update message count for rotation tracking
+      messageCountRef.current += 1;
+      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
+
+      // Success! Update usage tracking
+      fetch('/api/keys/usage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: keyId })
+      }).catch(err => console.error("Failed to report usage:", err));
+
+      let modelData;
+      try {
+        modelData = JSON.parse(response.text.trim());
+      } catch (e) {
+        modelData = { reply: response.text, isLeadDetected: false };
       }
 
-      try {
-        // 2. Initialize Gemini
-        const ai = new GoogleGenAI({ apiKey });
-        
-        // 3. Prepare History for @google/genai
-        const contents = messages.map(m => ({
-          role: m.role,
-          parts: [{ text: m.text }]
-        }));
-        contents.push({
-          role: "user",
-          parts: [{ text: input.trim() }]
-        });
+      const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
+      const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
+      
+      const finalMessages = [...newMessages, modelMsg];
+      setMessages(finalMessages);
+      saveCurrentSession(finalMessages);
 
-        // 4. Generate Content
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: contents,
-          config: {
-            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
-            responseMimeType: "application/json",
-          }
-        });
-
-        if (!response.text) {
-          throw new Error("Empty response from AI");
-        }
-
-        // Successful call! Increment usage
-        fetch('/api/keys/usage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: keyId })
-        }).catch(err => console.error("Failed to report usage:", err));
-
-        let modelData;
-        try {
-          modelData = JSON.parse(response.text.trim());
-        } catch (e) {
-          // Fallback for non-JSON response
-          modelData = { reply: response.text, isLeadDetected: false };
-        }
-
-        const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
-        const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
-        
-        const finalMessages = [...newMessages, modelMsg];
-        setMessages(finalMessages);
-        saveCurrentSession(finalMessages);
-
-        // handle lead detection
-        if (modelData.isLeadDetected && modelData.leadInfo) {
-          trackClick('chatbot-lead-detected');
-          api.saveLead({
-            ...modelData.leadInfo,
-            userId: userId || 'guest',
-            chatId: session?.id || 'none'
-          }).catch(err => console.error("Lead saving failed:", err));
-        }
-      } catch (innerError: any) {
-        // If it's a quota error, mark it exhausted
-        if (innerError.message?.includes("429") || innerError.message?.includes("quota") || innerError.status === 429) {
-          fetch('/api/keys/exhausted', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: keyId })
-          }).catch(err => console.error("Failed to report exhausted key:", err));
-        }
-        throw innerError;
+      if (modelData.isLeadDetected && modelData.leadInfo) {
+        trackClick('chatbot-lead-detected');
+        api.saveLead({
+          ...modelData.leadInfo,
+          userId: userId || 'guest',
+          chatId: session?.id || 'none'
+        }).catch(err => console.error("Lead saving failed:", err));
       }
 
     } catch (error: any) {
       console.error("Chatbot error:", error);
+      
+      // Mark key exhausted if it's a quota issue
+      if (error.message?.includes("429") || error.message?.includes("quota") || error.status === 429) {
+        const keyIdToMark = currentKeyId;
+        if (keyIdToMark && keyIdToMark !== 'env_key') {
+          fetch('/api/keys/exhausted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: keyIdToMark })
+          }).catch(err => console.error("Failed to report exhausted key:", err));
+        }
+      }
+
       const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
