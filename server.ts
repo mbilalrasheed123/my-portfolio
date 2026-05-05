@@ -53,15 +53,18 @@ app.get("/api/keys/rotate", async (req, res) => {
       return res.json({ id: keyData.id, key: keyData.key });
     }
 
-    // Fallback to process.env.GEMINI_API_KEY if no keys in DB
-    const envKey = process.env.GEMINI_API_KEY;
+    // Fallback to environment keys if no keys in DB
+    const envKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (envKey) {
-      console.log("[Server] No Firestore keys found, falling back to process.env.GEMINI_API_KEY.");
+      console.log(`[Server] No Firestore keys found, falling back to process.env.${process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'VITE_GEMINI_API_KEY'}. Key exists: ${!!envKey}`);
       return res.json({ id: "env_key", key: envKey });
     }
 
-    console.warn("[Server] No active keys available in DB or Environment.");
-    return res.status(404).json({ error: "No active keys available (Check your Vercel Environment Variables)" });
+    console.warn("[Server] No active keys available in DB or Environment. Keys in DB found:", !!keyData, "Env Key found:", !!envKey);
+    return res.status(404).json({ 
+      error: "No active keys available", 
+      details: "Check Vercel Env Vars for GEMINI_API_KEY and check Firestore 'apiKeys' collection."
+    });
   } catch (error) {
     console.error("[Server] Critical error in /api/keys/rotate:", error);
     return res.status(500).json({ error: "Internal server error during key retrieval" });

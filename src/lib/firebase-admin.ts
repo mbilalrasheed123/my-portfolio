@@ -11,6 +11,7 @@ let adminApp: admin.app.App;
 if (!admin.apps.length) {
   if (projectId && clientEmail && privateKey) {
     // Explicit service account
+    console.log(`[FirebaseAdmin] Attempting Service Account Init. Config: ProjectID=${projectId}, Email=${clientEmail}, KeyLength=${privateKey.length}`);
     adminApp = admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
@@ -22,6 +23,7 @@ if (!admin.apps.length) {
     console.log(`[FirebaseAdmin] Initialized with Service Account: ${projectId}`);
   } else {
     // Application Default Credentials (ADC) - works in AI Studio if provisioned
+    console.warn(`[FirebaseAdmin] Service Account env vars missing. Falling back to ADC. (ProjectID=${projectId || 'missing'})`);
     adminApp = admin.initializeApp({
       projectId: projectId || undefined,
     });
