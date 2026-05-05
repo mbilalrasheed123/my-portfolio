@@ -40,18 +40,24 @@ export class KeyRotationService {
   async getCurrentKey(): Promise<ApiKeyData | null> {
     try {
       const keysRef = this.db.collection("apiKeys");
-      // Find active keys, ordered by priority then usage
+      // Simplify query to avoid requirement for composite indexes on Vercel
       const querySnapshot = await keysRef
         .where("status", "==", "active")
-        .orderBy("priority", "asc")
-        .orderBy("requestsThisMinute", "asc")
         .get();
       
       const now = new Date();
       let selectedKey: ApiKeyData | null = null;
       let selectedDoc: any = null;
 
-      for (const doc of querySnapshot.docs) {
+      // Sort in memory instead of Firestore to avoid composite indexes
+      const docs = querySnapshot.docs.sort((a: any, b: any) => {
+        const dataA = a.data();
+        const dataB = b.data();
+        if (dataA.priority !== dataB.priority) return dataA.priority - dataB.priority;
+        return (dataA.requestsThisMinute || 0) - (dataB.requestsThisMinute || 0);
+      });
+
+      for (const doc of docs) {
         const data = doc.data() as ApiKeyData;
         
         // 1. Check if we need to reset the minute counter (for serverless environments)

@@ -38,18 +38,34 @@ app.get("/api/cron/aggregate-analytics", async (req, res) => {
 
 // Key Rotation Endpoints (For Frontend Use)
 app.get("/api/keys/rotate", async (req, res) => {
-  if (!keyRotation) return res.status(503).json({ error: "Key Rotation service unavailable" });
+  console.log(`[Server] Received key rotation request. URL: ${req.url}`);
   
-  let keyData = await keyRotation.getCurrentKey();
-  
-  // Fallback to process.env.GEMINI_API_KEY if no keys in DB
-  if (!keyData && process.env.GEMINI_API_KEY) {
-    return res.json({ id: "env_key", key: process.env.GEMINI_API_KEY });
+  if (!keyRotation) {
+    console.error("[Server] KeyRotationService is null.");
+    return res.status(503).json({ error: "Key Rotation service unavailable" });
   }
-
-  if (!keyData) return res.status(404).json({ error: "No active keys available" });
   
-  res.json({ id: keyData.id, key: keyData.key });
+  try {
+    let keyData = await keyRotation.getCurrentKey();
+    
+    if (keyData && keyData.key) {
+      console.log(`[Server] Returning key from Firestore: ${keyData.id}`);
+      return res.json({ id: keyData.id, key: keyData.key });
+    }
+
+    // Fallback to process.env.GEMINI_API_KEY if no keys in DB
+    const envKey = process.env.GEMINI_API_KEY;
+    if (envKey) {
+      console.log("[Server] No Firestore keys found, falling back to process.env.GEMINI_API_KEY.");
+      return res.json({ id: "env_key", key: envKey });
+    }
+
+    console.warn("[Server] No active keys available in DB or Environment.");
+    return res.status(404).json({ error: "No active keys available (Check your Vercel Environment Variables)" });
+  } catch (error) {
+    console.error("[Server] Critical error in /api/keys/rotate:", error);
+    return res.status(500).json({ error: "Internal server error during key retrieval" });
+  }
 });
 
 app.post("/api/keys/usage", async (req, res) => {

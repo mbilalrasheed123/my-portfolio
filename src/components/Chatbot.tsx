@@ -171,20 +171,37 @@ export default function Chatbot({ userId }: ChatbotProps) {
         const keyResponse = await fetch('/api/keys/rotate');
         if (keyResponse.ok) {
           const keyData = await keyResponse.json();
-          apiKey = keyData.key;
-          keyId = keyData.id;
-          setCurrentApiKey(apiKey);
-          setCurrentKeyId(keyId);
+          if (keyData && keyData.key) {
+            apiKey = keyData.key;
+            keyId = keyData.id;
+            setCurrentApiKey(apiKey);
+            setCurrentKeyId(keyId);
+            console.log("[Chatbot] Successfully retrieved API key via rotation service.");
+          } else {
+            console.warn("[Chatbot] Key rotation service returned empty key data.");
+          }
+        } else {
+          const errorText = await keyResponse.text();
+          console.warn(`[Chatbot] Key rotation service failed with status ${keyResponse.status}: ${errorText}`);
         }
       } catch (err) {
-        console.warn("Key rotation service unreachable, checking environment fallback...", err);
+        console.warn("[Chatbot] Key rotation service unreachable or returned invalid JSON:", err);
       }
 
       // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
       if (!apiKey) {
-        apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY;
+        apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY || (window as any).__GEMINI_API_KEY__;
         if (!apiKey) {
-          throw new Error('Our AI assistants are currently at capacity. Please try again in a few minutes or contact support.');
+          const configMsg = "API configuration missing. Please ensure GEMINI_API_KEY is set in your Vercel Environment Variables or active keys are added to the Firestore 'apiKeys' collection.";
+          console.error(`[Chatbot] ${configMsg}`);
+          const errorMsg: Message = { 
+            role: "model", 
+            text: "My apologies, but I'm currently unable to connect to the AI service. This is usually due to a configuration issue (Missing API Key). If you are the owner, please check the console for details.", 
+            timestamp: new Date().toISOString() 
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          setIsLoading(false);
+          return;
         }
       }
 
