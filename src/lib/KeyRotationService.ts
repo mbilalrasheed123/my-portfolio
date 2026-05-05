@@ -17,6 +17,9 @@ export class KeyRotationService {
   private secret: string;
 
   constructor(db: any, secret: string) {
+    if (!db) {
+      console.warn("[KeyRotation] Firestore instance (db) is missing. Rotation will fail.");
+    }
     this.db = db;
     this.secret = secret;
   }
@@ -39,29 +42,41 @@ export class KeyRotationService {
 
   async getCurrentKey(): Promise<ApiKeyData | null> {
     try {
+      if (!this.db) {
+        console.error("[KeyRotation] Cannot get key: Firestore DB is not initialized.");
+        return null; // Return null so fallback logic in server.ts can take over
+      }
+      console.log("[KeyRotation] Fetching keys from Firestore...");
       const keysRef = this.db.collection("apiKeys");
-      // Simplify query to avoid requirement for composite indexes on Vercel
       const querySnapshot = await keysRef
         .where("status", "==", "active")
         .get();
       
+      console.log(`[KeyRotation] Found ${querySnapshot.size} active keys.`);
+      if (querySnapshot.empty) return null;
+
       const now = new Date();
       let selectedKey: ApiKeyData | null = null;
       let selectedDoc: any = null;
 
-      // Sort in memory instead of Firestore to avoid composite indexes
+      // Sort in memory
       const docs = querySnapshot.docs.sort((a: any, b: any) => {
         const dataA = a.data();
         const dataB = b.data();
-        if (dataA.priority !== dataB.priority) return dataA.priority - dataB.priority;
+        const priorityA = typeof dataA.priority === 'number' ? dataA.priority : 100;
+        const priorityB = typeof dataB.priority === 'number' ? dataB.priority : 100;
+        if (priorityA !== priorityB) return priorityA - priorityB;
         return (dataA.requestsThisMinute || 0) - (dataB.requestsThisMinute || 0);
       });
 
+      console.log("[KeyRotation] Processing sorted keys...");
       for (const doc of docs) {
         const data = doc.data() as ApiKeyData;
+        console.log(`[KeyRotation] Checking key: ${doc.id} (Usage: ${data.requestsThisMinute}/15)`);
         
-        // 1. Check if we need to reset the minute counter (for serverless environments)
+        // 1. Reset Minute
         if (this.shouldResetMinute(data, now)) {
+          console.log(`[KeyRotation] Resetting minute counter for ${doc.id}`);
           await doc.ref.update({
             requestsThisMinute: 0,
             lastResetMinute: now,
@@ -70,8 +85,9 @@ export class KeyRotationService {
           data.requestsThisMinute = 0;
         }
 
-        // 2. Check daily limits
+        // 2. Reset Day
         if (this.shouldResetDay(data, now)) {
+          console.log(`[KeyRotation] Resetting day counter for ${doc.id}`);
           await doc.ref.update({
             requestsToday: 0,
             lastResetDay: now,
@@ -80,43 +96,46 @@ export class KeyRotationService {
           data.requestsToday = 0;
         }
 
-        // 3. Selection Logic (15 req per "rotation" cycle)
-        if (data.requestsThisMinute < 15 && data.requestsToday < 1500) {
+        // 3. Selection
+        if (data.requestsThisMinute < 15 && (data.requestsToday || 0) < 1500) {
           selectedKey = { id: doc.id, ...data };
           selectedDoc = doc;
+          console.log(`[KeyRotation] Selected key: ${doc.id}`);
           break;
         }
       }
 
-      // 4. If all keys are at 15 for this minute, reset them all and take the first one
-      if (!selectedKey && querySnapshot.docs.length > 0) {
-        console.log("[KeyRotation] All keys used up for this cycle, resetting...");
-        for (const doc of querySnapshot.docs) {
+      // 4. Force reset if all cycles exhausted
+      if (!selectedKey && docs.length > 0) {
+        console.warn("[KeyRotation] All active keys exhausted in current minute. Resetting all...");
+        for (const doc of docs) {
           await doc.ref.update({
             requestsThisMinute: 0,
             lastResetMinute: now
           });
         }
-        const firstDoc = querySnapshot.docs[0];
+        const firstDoc = docs[0];
         selectedKey = { id: firstDoc.id, ...(firstDoc.data() as ApiKeyData), requestsThisMinute: 0 };
         selectedDoc = firstDoc;
       }
 
       if (selectedKey && selectedDoc) {
-        // Increment usage atomically
+        console.log(`[KeyRotation] Incrementing usage for ${selectedKey.id}`);
         await selectedDoc.ref.update({
           requestsThisMinute: (selectedKey.requestsThisMinute || 0) + 1,
           requestsToday: (selectedKey.requestsToday || 0) + 1,
           updatedAt: now
         });
 
-        return { ...selectedKey, key: this.decrypt(selectedKey.key) };
+        const decrypted = this.decrypt(selectedKey.key);
+        return { ...selectedKey, key: decrypted };
       }
 
+      console.error("[KeyRotation] Failed to find or select a key.");
       return null;
-    } catch (error) {
-      console.error("[KeyRotation] Error getting current key:", error);
-      return null;
+    } catch (error: any) {
+      console.error("[KeyRotation] CRITICAL ERROR in getCurrentKey:", error.message, error.stack);
+      throw error; // Rethrow so server can catch it
     }
   }
 

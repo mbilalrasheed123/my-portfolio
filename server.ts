@@ -12,7 +12,13 @@ const app = express();
 const PORT = 3000;
 
 // Initialize Services
-const keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
+let keyRotation: KeyRotationService | null = null;
+try {
+  keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
+  console.log("[Server] KeyRotationService initialized.");
+} catch (e) {
+  console.error("[Server] Failed to initialize KeyRotationService:", e);
+}
 
 app.use(express.json());
 
@@ -41,11 +47,15 @@ app.get("/api/keys/rotate", async (req, res) => {
   console.log(`[Server] Received key rotation request. URL: ${req.url}`);
   
   if (!keyRotation) {
-    console.error("[Server] KeyRotationService is null.");
-    return res.status(503).json({ error: "Key Rotation service unavailable" });
+    console.error("[Server] KeyRotationService is null/undefined.");
+    return res.status(503).json({ 
+      error: "Key Rotation service unavailable", 
+      details: "Service failed to initialize during server startup."
+    });
   }
   
   try {
+    console.log("[Server] Calling keyRotation.getCurrentKey()...");
     let keyData = await keyRotation.getCurrentKey();
     
     if (keyData && keyData.key) {
@@ -53,21 +63,27 @@ app.get("/api/keys/rotate", async (req, res) => {
       return res.json({ id: keyData.id, key: keyData.key });
     }
 
+    console.log("[Server] KeyRotation returned null, trying fallback...");
+
     // Fallback to environment keys if no keys in DB
     const envKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (envKey) {
-      console.log(`[Server] No Firestore keys found, falling back to process.env.${process.env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : 'VITE_GEMINI_API_KEY'}. Key exists: ${!!envKey}`);
+      console.log(`[Server] Falling back to environment variable. Key length: ${envKey.length}`);
       return res.json({ id: "env_key", key: envKey });
     }
 
-    console.warn("[Server] No active keys available in DB or Environment. Keys in DB found:", !!keyData, "Env Key found:", !!envKey);
+    console.warn("[Server] No active keys available in DB or Environment.");
     return res.status(404).json({ 
       error: "No active keys available", 
-      details: "Check Vercel Env Vars for GEMINI_API_KEY and check Firestore 'apiKeys' collection."
+      details: "Firestore 'apiKeys' is empty or keys are inactive, AND GEMINI_API_KEY env var is missing on Vercel."
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Server] Critical error in /api/keys/rotate:", error);
-    return res.status(500).json({ error: "Internal server error during key retrieval" });
+    return res.status(500).json({ 
+      error: "Internal server error during key retrieval",
+      message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 });
 
