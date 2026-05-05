@@ -1,4 +1,4 @@
-import { adminDb } from './firebase-admin';
+import { adminDb } from './firebase-admin.js';
 
 export async function aggregateDailyStats(targetDate?: Date) {
   const dateToProcess = targetDate || new Date();
