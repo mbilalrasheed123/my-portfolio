@@ -6,10 +6,11 @@ const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 const databaseId = process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
 
-let adminApp;
+let adminApp: admin.app.App;
 
 if (!admin.apps.length) {
   if (projectId && clientEmail && privateKey) {
+    // Explicit service account
     adminApp = admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
@@ -20,6 +21,7 @@ if (!admin.apps.length) {
     });
     console.log(`[FirebaseAdmin] Initialized with Service Account: ${projectId}`);
   } else {
+    // Application Default Credentials (ADC) - works in AI Studio if provisioned
     adminApp = admin.initializeApp({
       projectId: projectId || undefined,
     });

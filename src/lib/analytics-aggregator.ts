@@ -1,8 +1,9 @@
-import { adminDb } from './firebase-admin.mjs';
+import { adminDb } from './firebase-admin';
 
-export async function aggregateDailyStats(targetDate) {
+export async function aggregateDailyStats(targetDate?: Date) {
   const dateToProcess = targetDate || new Date();
   if (!targetDate) {
+    // Default to yesterday if no date provided
     dateToProcess.setDate(dateToProcess.getDate() - 1);
   }
   
@@ -13,6 +14,7 @@ export async function aggregateDailyStats(targetDate) {
   console.log(`[Analytics] Starting aggregation for ${dateToProcess.toISOString().split('T')[0]}`);
   
   try {
+    // Fetch all events from the target day
     const eventsRef = adminDb.collection('analytics');
     const snapshot = await eventsRef
       .where('timestamp', '>=', dateToProcess)
@@ -38,14 +40,15 @@ export async function aggregateDailyStats(targetDate) {
   }
 }
 
-function calculateDailyStats(events, date) {
+function calculateDailyStats(events: any[], date: Date) {
   const pageViews = events.filter(e => e.eventType === 'page_view');
   const uniqueUsers = new Set(events.map(e => e.userId));
   const authenticatedUsers = new Set(
     events.filter(e => e.userEmail).map(e => e.userId)
   );
   
-  const pageCount = {};
+  // Page breakdown
+  const pageCount: Record<string, { views: number, durations: number[] }> = {};
   pageViews.forEach(e => {
     const page = e.page || '/';
     if (!pageCount[page]) {
@@ -66,8 +69,9 @@ function calculateDailyStats(events, date) {
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);
   
+  // Section breakdown
   const sectionViews = events.filter(e => e.eventType === 'section_view');
-  const sectionCount = {};
+  const sectionCount: Record<string, number> = {};
   sectionViews.forEach(e => {
     if (e.section) {
       sectionCount[e.section] = (sectionCount[e.section] || 0) + 1;
@@ -79,6 +83,7 @@ function calculateDailyStats(events, date) {
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);
   
+  // Device breakdown
   const deviceStats = events.reduce((acc, e) => {
     const device = e.metadata?.device;
     if (device === 'desktop' || device === 'mobile' || device === 'tablet') {
@@ -87,7 +92,8 @@ function calculateDailyStats(events, date) {
     return acc;
   }, { desktop: 0, mobile: 0, tablet: 0 });
   
-  const browserMap = {};
+  // Browser breakdown
+  const browserMap: Record<string, number> = {};
   events.forEach(e => {
     const browser = e.metadata?.browser || 'Other';
     browserMap[browser] = (browserMap[browser] || 0) + 1;
@@ -97,7 +103,8 @@ function calculateDailyStats(events, date) {
     .map(([browser, count]) => ({ browser, count }))
     .sort((a, b) => b.count - a.count);
   
-  const referrerMap = {};
+  // Referrer breakdown
+  const referrerMap: Record<string, number> = {};
   events.forEach(e => {
     const referrer = e.metadata?.referrer || 'direct';
     referrerMap[referrer] = (referrerMap[referrer] || 0) + 1;
@@ -108,6 +115,7 @@ function calculateDailyStats(events, date) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
   
+  // Session stats
   const sessionIds = [...new Set(events.map(e => e.sessionId))];
   const avgPagesPerSession = sessionIds.length > 0 ? pageViews.length / sessionIds.length : 0;
   
@@ -119,7 +127,7 @@ function calculateDailyStats(events, date) {
     totalPageViews: pageViews.length,
     topPages,
     topSections,
-    avgSessionDuration: 0,
+    avgSessionDuration: 0, // Would need entry/exit timestamps to calculate accurately
     avgPagesPerSession,
     totalClicks: events.filter(e => e.eventType === 'button_click').length,
     deviceStats,

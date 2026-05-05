@@ -1,6 +1,6 @@
-import { aggregateDailyStats } from '../../src/lib/analytics-aggregator.mjs';
+import { aggregateDailyStats } from '../../src/lib/analytics-aggregator';
 
-export default async function handler(req, res) {
+export default async function handler(req: any, res: any) {
   if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

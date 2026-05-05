@@ -1,9 +1,10 @@
 import express from "express";
+import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
-import admin, { adminDb } from "./src/lib/firebase-admin.mjs";
-import { KeyRotationService } from "./src/lib/KeyRotationService.mjs";
-import { aggregateDailyStats } from "./src/lib/analytics-aggregator.mjs";
+import admin, { adminDb } from "./src/lib/firebase-admin";
+import { KeyRotationService } from "./src/lib/KeyRotationService";
+import { aggregateDailyStats } from "./src/lib/analytics-aggregator";
 
 dotenv.config();
 
@@ -152,18 +153,28 @@ async function startServer() {
     }
   });
 
-  // Serve static files in production
-  const distPath = path.join(process.cwd(), "dist");
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
 
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production") {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  }
 
-  return server;
+  return app;
 }
 
 export default startServer();

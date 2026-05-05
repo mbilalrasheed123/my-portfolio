@@ -11,19 +11,11 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/**/*.mjs",
+      "src": "api/**/*.ts",
       "use": "@vercel/node"
     }
   ],
   "rewrites": [
-    {
-      "source": "/api/cron/(.*)",
-      "destination": "/api/cron/$1.mjs"
-    },
-    {
-      "source": "/api/keys/(.*)",
-      "destination": "/api/keys/$1.mjs"
-    },
     {
       "source": "/api/(.*)",
       "destination": "/server.ts"
