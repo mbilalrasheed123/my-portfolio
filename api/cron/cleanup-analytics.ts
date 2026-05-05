@@ -1,10 +1,16 @@
-import { adminDb } from '../../src/lib/firebase-admin.js';
+import { getAdminDb } from '../../src/lib/firebase-admin';
 
 /**
  * Endpoint to delete old analytics data (events older than 90 days)
  * to keep the database size within limits and optimize performance.
  */
 export default async function handler(req: any, res: any) {
+  const adminDb = getAdminDb();
+  if (!adminDb) {
+    console.error("[Cleanup] Cannot cleanup: Admin DB missing.");
+    return res.status(500).json({ error: "Database not initialized" });
+  }
+  
   // Simple auth check using a shared secret
   if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });

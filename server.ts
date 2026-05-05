@@ -2,22 +2,34 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
-import admin, { adminDb } from "./src/lib/firebase-admin.js";
-import { KeyRotationService } from "./src/lib/KeyRotationService.js";
-import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
+import admin, { getAdminDb } from "./src/lib/firebase-admin";
+import { KeyRotationService } from "./src/lib/KeyRotationService";
+import { aggregateDailyStats } from "./src/lib/analytics-aggregator";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-// Initialize Services
-let keyRotation: KeyRotationService | null = null;
-try {
-  keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
-  console.log("[Server] KeyRotationService initialized.");
-} catch (e) {
-  console.error("[Server] Failed to initialize KeyRotationService:", e);
+// Lazy Service Helper
+let keyRotationInstance: KeyRotationService | null = null;
+function getKeyRotation(): KeyRotationService | null {
+  if (keyRotationInstance) return keyRotationInstance;
+  
+  const db = getAdminDb();
+  if (!db) {
+    console.error("[Server] Cannot initialize KeyRotationService: Admin DB missing.");
+    return null;
+  }
+  
+  try {
+    keyRotationInstance = new KeyRotationService(db, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
+    console.log("[Server] KeyRotationService initialized lazily.");
+    return keyRotationInstance;
+  } catch (e) {
+    console.error("[Server] KeyRotationService initialization failed:", e);
+    return null;
+  }
 }
 
 app.use(express.json());
@@ -46,17 +58,18 @@ app.get("/api/cron/aggregate-analytics", async (req, res) => {
 app.get("/api/keys/rotate", async (req, res) => {
   console.log(`[Server] Received key rotation request. URL: ${req.url}`);
   
-  if (!keyRotation) {
-    console.error("[Server] KeyRotationService is null/undefined.");
+  const rotation = getKeyRotation();
+  if (!rotation) {
+    console.error("[Server] KeyRotationService is null/undefined after attempt.");
     return res.status(503).json({ 
       error: "Key Rotation service unavailable", 
-      details: "Service failed to initialize during server startup."
+      details: "Service failed to initialize. Check Firestore connectivity and credentials."
     });
   }
   
   try {
-    console.log("[Server] Calling keyRotation.getCurrentKey()...");
-    let keyData = await keyRotation.getCurrentKey();
+    console.log("[Server] Calling rotation.getCurrentKey()...");
+    let keyData = await rotation.getCurrentKey();
     
     if (keyData && keyData.key) {
       console.log(`[Server] Returning key from Firestore: ${keyData.id}`);
@@ -89,15 +102,17 @@ app.get("/api/keys/rotate", async (req, res) => {
 
 app.post("/api/keys/usage", async (req, res) => {
   const { id } = req.body;
-  if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-  await keyRotation.incrementUsage(id);
+  const rotation = getKeyRotation();
+  if (!id || id === "env_key" || !rotation) return res.json({ success: true });
+  await rotation.incrementUsage(id);
   res.json({ success: true });
 });
 
 app.post("/api/keys/exhausted", async (req, res) => {
   const { id } = req.body;
-  if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-  await keyRotation.markExhausted(id);
+  const rotation = getKeyRotation();
+  if (!id || id === "env_key" || !rotation) return res.json({ success: true });
+  await rotation.markExhausted(id);
   res.json({ success: true });
 });
 
@@ -105,8 +120,9 @@ app.post("/api/keys/exhausted", async (req, res) => {
 app.post("/api/admin/encrypt-key", (req, res) => {
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: "Key required" });
-  if (!keyRotation) return res.status(503).json({ error: "Encryption service unavailable" });
-  const encrypted = keyRotation.encrypt(key);
+  const rotation = getKeyRotation();
+  if (!rotation) return res.status(503).json({ error: "Encryption service unavailable" });
+  const encrypted = rotation.encrypt(key);
   res.json({ encrypted });
 });
 

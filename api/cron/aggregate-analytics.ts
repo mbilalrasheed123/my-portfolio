@@ -1,4 +1,4 @@
-import { aggregateDailyStats } from '../../src/lib/analytics-aggregator.js';
+import { aggregateDailyStats } from '../../src/lib/analytics-aggregator';
 
 export default async function handler(req: any, res: any) {
   if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {

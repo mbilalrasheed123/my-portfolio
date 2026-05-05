@@ -1,44 +1,69 @@
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-const databaseId = process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
+const getProjectId = () => process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+const getClientEmail = () => process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+const getPrivateKey = () => {
+  const key = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  if (!key) return undefined;
+  // Handle both escaped and literal newlines
+  return key.replace(/\\n/g, '\n');
+};
+
+const getDatabaseId = () => process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
 
 let adminApp: admin.app.App | null = null;
+let adminDb: any = null;
 
-try {
-  if (!admin.apps.length) {
-    if (projectId && clientEmail && privateKey) {
-      // Explicit service account
-      console.log(`[FirebaseAdmin] Attempting Service Account Init. ProjectID=${projectId}`);
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey: privateKey.replace(/\\n/g, '\n'),
-        }),
-        projectId
-      });
+export function getAdminApp(): admin.app.App | null {
+  if (adminApp) return adminApp;
+
+  const projectId = getProjectId();
+  const clientEmail = getClientEmail();
+  const privateKey = getPrivateKey();
+
+  try {
+    if (!admin.apps.length) {
+      if (projectId && clientEmail && privateKey) {
+        adminApp = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+          projectId
+        });
+        console.log(`[FirebaseAdmin] Initialized with Service Account: ${projectId}`);
+      } else {
+        console.warn(`[FirebaseAdmin] Missing Service Account credentials. Attempting logic-only fallback.`);
+        adminApp = admin.initializeApp({
+          projectId: projectId || undefined,
+        });
+      }
     } else {
-      // Application Default Credentials (ADC)
-      console.warn(`[FirebaseAdmin] Service Account env vars missing. Falling back to ADC.`);
-      adminApp = admin.initializeApp({
-        projectId: projectId || undefined,
-      });
+      adminApp = admin.app();
     }
-  } else {
-    adminApp = admin.app();
+    return adminApp;
+  } catch (error) {
+    console.error("[FirebaseAdmin] Initialization failure:", error);
+    return null;
   }
-} catch (error) {
-  console.error("[FirebaseAdmin] Initialization failure:", error);
 }
 
-// Export adminDb with a safe check
-export const adminDb = adminApp ? getFirestore(adminApp, databaseId === "(default)" ? undefined : databaseId) : null;
-if (!adminDb) {
-    console.error("[FirebaseAdmin] adminDb failed to initialize. Firestore operations will fail.");
+export function getAdminDb() {
+  if (adminDb) return adminDb;
+  const app = getAdminApp();
+  if (!app) return null;
+  
+  const dbId = getDatabaseId();
+  try {
+    adminDb = getFirestore(app, dbId === "(default)" ? undefined : dbId);
+    return adminDb;
+  } catch (e) {
+    console.error("[FirebaseAdmin] Firestore init failed:", e);
+    return null;
+  }
 }
 
+export { admin };
 export default admin;

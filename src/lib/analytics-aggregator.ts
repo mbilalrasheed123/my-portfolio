@@ -1,6 +1,12 @@
-import { adminDb } from './firebase-admin.js';
+import { getAdminDb } from './firebase-admin';
 
 export async function aggregateDailyStats(targetDate?: Date) {
+  const adminDb = getAdminDb();
+  if (!adminDb) {
+    console.error("[Analytics] Cannot aggregate: Admin DB missing.");
+    return;
+  }
+  
   const dateToProcess = targetDate || new Date();
   if (!targetDate) {
     // Default to yesterday if no date provided
