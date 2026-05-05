@@ -22,8 +22,15 @@ export class KeyRotationService {
   }
 
   private decrypt(ciphertext: string): string {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, this.secret);
-    return bytes.toString(CryptoJS.enc.Utf8);
+    try {
+      const bytes = CryptoJS.AES.decrypt(ciphertext, this.secret);
+      const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+      if (!decrypted) return ciphertext; // Return raw if decryption failed/not encrypted
+      return decrypted;
+    } catch (e) {
+      console.warn("[KeyRotation] Decryption failed, using raw key.");
+      return ciphertext;
+    }
   }
 
   public encrypt(text: string): string {
@@ -33,38 +40,71 @@ export class KeyRotationService {
   async getCurrentKey(): Promise<ApiKeyData | null> {
     try {
       const keysRef = this.db.collection("apiKeys");
-      const querySnapshot = await keysRef.orderBy("priority", "asc").get();
+      // Find active keys, ordered by priority then usage
+      const querySnapshot = await keysRef
+        .where("status", "==", "active")
+        .orderBy("priority", "asc")
+        .orderBy("requestsThisMinute", "asc")
+        .get();
       
       const now = new Date();
-      const keys: ApiKeyData[] = [];
-      
-      querySnapshot.forEach((doc: any) => {
-        keys.push({ id: doc.id, ...doc.data() } as ApiKeyData);
-      });
+      let selectedKey: ApiKeyData | null = null;
+      let selectedDoc: any = null;
 
-      // Filter and Rotate
-      for (const key of keys) {
-        // Check if reset is needed
-        if (this.shouldResetMinute(key, now)) {
-          await this.resetKeyMinute(key.id);
-          key.requestsThisMinute = 0;
-          key.status = "active";
-        }
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data() as ApiKeyData;
         
-        if (this.shouldResetDay(key, now)) {
-          await this.resetKeyDay(key.id);
-          key.requestsToday = 0;
-          key.status = "active";
+        // 1. Check if we need to reset the minute counter (for serverless environments)
+        if (this.shouldResetMinute(data, now)) {
+          await doc.ref.update({
+            requestsThisMinute: 0,
+            lastResetMinute: now,
+            status: "active"
+          });
+          data.requestsThisMinute = 0;
         }
 
-        if (key.status === "active" && key.requestsThisMinute < 15 && key.requestsToday < 1500) {
-          return { ...key, key: this.decrypt(key.key) };
+        // 2. Check daily limits
+        if (this.shouldResetDay(data, now)) {
+          await doc.ref.update({
+            requestsToday: 0,
+            lastResetDay: now,
+            status: "active"
+          });
+          data.requestsToday = 0;
+        }
+
+        // 3. Selection Logic (15 req per "rotation" cycle)
+        if (data.requestsThisMinute < 15 && data.requestsToday < 1500) {
+          selectedKey = { id: doc.id, ...data };
+          selectedDoc = doc;
+          break;
         }
       }
 
-      // If all exhausted, fallback to first key (it might reset soon) or return null
-      if (keys.length > 0) {
-        return { ...keys[0], key: this.decrypt(keys[0].key) };
+      // 4. If all keys are at 15 for this minute, reset them all and take the first one
+      if (!selectedKey && querySnapshot.docs.length > 0) {
+        console.log("[KeyRotation] All keys used up for this cycle, resetting...");
+        for (const doc of querySnapshot.docs) {
+          await doc.ref.update({
+            requestsThisMinute: 0,
+            lastResetMinute: now
+          });
+        }
+        const firstDoc = querySnapshot.docs[0];
+        selectedKey = { id: firstDoc.id, ...(firstDoc.data() as ApiKeyData), requestsThisMinute: 0 };
+        selectedDoc = firstDoc;
+      }
+
+      if (selectedKey && selectedDoc) {
+        // Increment usage atomically
+        await selectedDoc.ref.update({
+          requestsThisMinute: (selectedKey.requestsThisMinute || 0) + 1,
+          requestsToday: (selectedKey.requestsToday || 0) + 1,
+          updatedAt: now
+        });
+
+        return { ...selectedKey, key: this.decrypt(selectedKey.key) };
       }
 
       return null;
@@ -75,33 +115,27 @@ export class KeyRotationService {
   }
 
   async incrementUsage(keyId: string) {
-    const docRef = this.db.collection("apiKeys").doc(keyId);
-    const docSnap = await docRef.get();
-    if (!docSnap.exists) return;
-
-    const data = docSnap.data();
-    const newMinuteCount = (data.requestsThisMinute || 0) + 1;
-    const newDayCount = (data.requestsToday || 0) + 1;
-    
-    const updateData: any = {
-      requestsThisMinute: newMinuteCount,
-      requestsToday: newDayCount,
-      updatedAt: new Date() // admin.firestore.Timestamp or Date works
-    };
-
-    if (newMinuteCount >= 15 || newDayCount >= 1500) {
-      updateData.status = "exhausted";
+    // Usage is mostly handled in getCurrentKey, but keeping this for extra telemetry
+    try {
+      const docRef = this.db.collection("apiKeys").doc(keyId);
+      await docRef.update({
+        updatedAt: new Date()
+      });
+    } catch (e) {
+      console.error("Usage increment update failed:", e);
     }
-
-    await docRef.update(updateData);
   }
 
   async markExhausted(keyId: string) {
-    const docRef = this.db.collection("apiKeys").doc(keyId);
-    await docRef.update({
-      status: "exhausted",
-      updatedAt: new Date()
-    });
+    try {
+      const docRef = this.db.collection("apiKeys").doc(keyId);
+      await docRef.update({
+        status: "exhausted",
+        updatedAt: new Date()
+      });
+    } catch (e) {
+      console.error("Mark exhausted failed:", e);
+    }
   }
 
   private shouldResetMinute(key: ApiKeyData, now: Date): boolean {
@@ -116,54 +150,20 @@ export class KeyRotationService {
     return now.getDate() !== lastReset.getDate() || now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
   }
 
-  async resetKeyMinute(keyId: string) {
-    const docRef = this.db.collection("apiKeys").doc(keyId);
-    await docRef.update({
-      requestsThisMinute: 0,
-      lastResetMinute: new Date(),
-      status: "active"
-    });
-  }
-
-  async resetKeyDay(keyId: string) {
-    const docRef = this.db.collection("apiKeys").doc(keyId);
-    await docRef.update({
-      requestsToday: 0,
-      lastResetDay: new Date(),
-      status: "active"
-    });
-  }
-
   async resetAllKeys() {
     try {
       const keysRef = this.db.collection("apiKeys");
       const querySnapshot = await keysRef.get();
       const now = new Date();
       for (const d of querySnapshot.docs) {
-        const data = d.data();
-        const lastMin = data.lastResetMinute?.toDate ? data.lastResetMinute.toDate() : (data.lastResetMinute ? new Date(data.lastResetMinute) : null);
-        const lastDay = data.lastResetDay?.toDate ? data.lastResetDay.toDate() : (data.lastResetDay ? new Date(data.lastResetDay) : null);
-        
-        const update: any = {};
-        if (!lastMin || (now.getTime() - lastMin.getTime() > 60000)) {
-          update.requestsThisMinute = 0;
-          update.lastResetMinute = now;
-          update.status = "active";
-        }
-        if (!lastDay || (now.getDate() !== lastDay.getDate() || now.getMonth() !== lastDay.getMonth() || now.getFullYear() !== lastDay.getFullYear())) {
-          update.requestsToday = 0;
-          update.lastResetDay = now;
-          update.status = "active";
-        }
-
-        if (Object.keys(update).length > 0) {
-          console.log(`[KeyRotation] Resetting key: ${d.id}`);
-          await d.ref.update(update);
-        }
+        await d.ref.update({
+          requestsThisMinute: 0,
+          lastResetMinute: now,
+          status: "active"
+        });
       }
     } catch (error: any) {
-      console.error("[KeyRotation] Critical error in resetAllKeys:", error.message, error.stack);
-      throw error;
+      console.error("[KeyRotation] Error resetting keys:", error);
     }
   }
 }

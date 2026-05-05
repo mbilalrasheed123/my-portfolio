@@ -55,15 +55,8 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [kbContent, setKbContent] = useState("");
   const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
   const [currentKeyId, setCurrentKeyId] = useState<string | null>(null);
-  const messageCountRef = useRef(0);
-  
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const savedCount = sessionStorage.getItem('chatbot_message_count');
-    if (savedCount) messageCountRef.current = parseInt(savedCount);
-  }, []);
-
+  
   useEffect(() => {
     const fetchData = async () => {
       const kb = await api.fetchKnowledgeBase(userId, true);
@@ -170,28 +163,26 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage API Key Rotation (Every 15 messages)
-      let apiKey = currentApiKey;
-      let keyId = currentKeyId;
+      // 1. Manage API Key Rotation (Stateless)
+      let apiKey = null;
+      let keyId = null;
 
-      if (!apiKey || messageCountRef.current % 15 === 0) {
-        try {
-          const keyResponse = await fetch('/api/keys/rotate');
-          if (keyResponse.ok) {
-            const keyData = await keyResponse.json();
-            apiKey = keyData.key;
-            keyId = keyData.id;
-            setCurrentApiKey(apiKey);
-            setCurrentKeyId(keyId);
-          }
-        } catch (err) {
-          console.warn("Key rotation service unreachable, checking environment fallback...", err);
+      try {
+        const keyResponse = await fetch('/api/keys/rotate');
+        if (keyResponse.ok) {
+          const keyData = await keyResponse.json();
+          apiKey = keyData.key;
+          keyId = keyData.id;
+          setCurrentApiKey(apiKey);
+          setCurrentKeyId(keyId);
         }
+      } catch (err) {
+        console.warn("Key rotation service unreachable, checking environment fallback...", err);
       }
 
       // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
       if (!apiKey) {
-        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY;
         if (!apiKey) {
           throw new Error('Our AI assistants are currently at capacity. Please try again in a few minutes or contact support.');
         }
@@ -241,10 +232,6 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       if (!response.text) {
         throw new Error("Empty response from AI");
       }
-
-      // Update message count for rotation tracking
-      messageCountRef.current += 1;
-      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
 
       // Success! Update usage tracking
       fetch('/api/keys/usage', {
