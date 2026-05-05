@@ -19,9 +19,6 @@ import Chatbot from "./components/Chatbot";
 
 import { DataProvider, useData } from "./contexts/DataContext";
 import LoadingSpinner from "./components/LoadingSpinner";
-import AnalyticsDispatcher from "./components/AnalyticsDispatcher";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
-import CookieBanner from "./components/CookieBanner";
 
 function PortfolioContent({ userId }: { userId?: string }) {
   const { loading, error } = useData();
@@ -91,7 +88,6 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <AnalyticsDispatcher />
         <Routes>
           <Route path="/" element={<Portfolio />} />
           <Route path="/u/:userId" element={<Portfolio />} />
@@ -119,11 +115,6 @@ export default function App() {
                 <Navbar />
                 <Settings />
               </div>
-            </PageWrapper>
-          } />
-          <Route path="/admin/analytics" element={
-            <PageWrapper>
-              <AnalyticsDashboard />
             </PageWrapper>
           } />
         </Routes>

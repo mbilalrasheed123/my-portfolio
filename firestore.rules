@@ -129,21 +129,5 @@ service cloud.firestore {
       allow create, delete: if isAdmin(); // Only admin can add/remove keys
       allow update: if true; // Server needs to update usage counters (requestsThisMinute, requestsToday)
     }
-
-    // Analytics (Public write, Admin read)
-    match /analytics/{eventId} {
-      allow write: if true;
-      allow read: if isAdmin();
-    }
-
-    match /sessions/{sessionId} {
-      allow write: if true;
-      allow read: if isAdmin();
-    }
-
-    match /dailyStats/{date} {
-      allow write: if false; // Only server/cloud functions (via Admin SDK)
-      allow read: if isAdmin();
-    }
   }
 }

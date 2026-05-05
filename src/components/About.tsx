@@ -2,8 +2,6 @@ import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { useData } from "../contexts/DataContext";
 import { Reveal } from "./Reveal";
-import { useSectionTracking } from "../hooks/useSectionTracking";
-import { trackClick } from "../lib/analytics";
 
 interface AboutProps {
   userId?: string;
@@ -11,12 +9,11 @@ interface AboutProps {
 
 export default function About({ userId }: AboutProps) {
   const { settings } = useData();
-  const sectionRef = useSectionTracking("about");
 
   if (!settings) return null;
 
   return (
-    <section ref={sectionRef} id="about" className="py-24 bg-black">
+    <section id="about" className="py-24 bg-black">
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
           <motion.div
@@ -81,11 +78,7 @@ export default function About({ userId }: AboutProps) {
                 className="mt-12"
                 whileHover={{ x: 10 }}
               >
-                <a 
-                  href="#contact" 
-                  onClick={() => trackClick('about-conversation-link')}
-                  className="inline-flex items-center gap-4 text-white font-display uppercase tracking-widest text-sm group"
-                >
+                <a href="#contact" className="inline-flex items-center gap-4 text-white font-display uppercase tracking-widest text-sm group">
                   Start a conversation <ArrowRight size={20} className="text-accent group-hover:translate-x-2 transition-transform" />
                 </a>
               </motion.div>

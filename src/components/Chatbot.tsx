@@ -4,8 +4,6 @@ import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2, History, Trash
 import Markdown from "react-markdown";
 import { auth, onAuthStateChanged } from "../firebase";
 import { api } from "../lib/api";
-import { trackClick } from "../lib/analytics";
-import { handleAnalyticsQuery } from "../lib/chatbot-analytics";
 
 import { GoogleGenAI } from "@google/genai";
 
@@ -53,16 +51,9 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
   const [kbContent, setKbContent] = useState("");
-  const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
-  const [currentKeyId, setCurrentKeyId] = useState<string | null>(null);
-  const messageCountRef = useRef(0);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const savedCount = sessionStorage.getItem('chatbot_message_count');
-    if (savedCount) messageCountRef.current = parseInt(savedCount);
-  }, []);
-  
+
   useEffect(() => {
     const fetchData = async () => {
       const kb = await api.fetchKnowledgeBase(userId, true);
@@ -155,11 +146,10 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
+    // Ensure session exists
     if (!session) {
       await createNewSession();
     }
-
-    trackClick('chatbot-send-message');
 
     const userMsg: Message = { role: "user", text: input.trim(), timestamp: new Date().toISOString() };
     const newMessages = [...messages, userMsg];
@@ -169,140 +159,90 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage API Key Rotation (Every 15 messages)
-      let apiKey = currentApiKey;
-      let keyId = currentKeyId;
-
-      if (!apiKey || messageCountRef.current % 15 === 0) {
-        try {
-          const keyResponse = await fetch('/api/keys/rotate');
-          if (keyResponse.ok) {
-            const keyData = await keyResponse.json();
-            if (keyData && keyData.key) {
-              apiKey = keyData.key;
-              keyId = keyData.id;
-              setCurrentApiKey(apiKey);
-              setCurrentKeyId(keyId);
-              console.log("[Chatbot] Successfully rotated API key.");
-            }
-          } else {
-            const errorText = await keyResponse.text();
-            console.warn(`[Chatbot] Key rotation service failed: ${errorText}`);
-          }
-        } catch (err) {
-          console.warn("[Chatbot] Key rotation service unreachable, checking fallback...", err);
-        }
-      }
-
-      // Fallback to direct environment key if rotation fails
-      if (!apiKey) {
-        apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY || (window as any).__GEMINI_API_KEY__;
-        if (!apiKey) {
-          const errorMsg: Message = { 
-            role: "model", 
-            text: "My apologies, but I'm currently unable to connect to the AI service. Please try again in a few minutes.", 
-            timestamp: new Date().toISOString() 
-          };
-          setMessages(prev => [...prev, errorMsg]);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // 2. Intelligence Queries (Admin)
-      const messageLower = input.toLowerCase();
-      const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'page', 'device', 'click', 'report', 'stats', 'popular', 'intelligence'];
-      const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
-      
-      if (isAnalyticsQuery && auth.currentUser?.email === 'muhammadbilalrasheed78@gmail.com') {
-        const analyticsResponse = await handleAnalyticsQuery(auth.currentUser?.email || undefined, input);
-        const modelMsg: Message = { role: "model", text: analyticsResponse, timestamp: new Date().toISOString() };
-        const finalMessages = [...newMessages, modelMsg];
-        setMessages(finalMessages);
-        saveCurrentSession(finalMessages);
-        setIsLoading(false);
-        return;
-      }
-
-      // 3. Normal Chat Implementation
       const name = settings.name || "Bilal";
       const personalContext = `NAME: ${name}
 ABOUT: ${settings.aboutText || "Professional Developer."}
 CONTEXT: ${kbContent || "No additional personal knowledge base entries provided."}`;
 
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const contents = messages.map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }]
-      }));
-      contents.push({
-        role: "user",
-        parts: [{ text: input.trim() }]
-      });
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: contents,
-        config: {
-          systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
-          responseMimeType: "application/json",
-        }
-      });
-
-      if (!response.text) {
-        throw new Error("Empty response from AI");
+      // 1. Get a key from the rotation service
+      const keyResponse = await fetch('/api/keys/rotate');
+      if (!keyResponse.ok) {
+        throw new Error('All assistants are busy. Please try again soon.');
       }
+      const { id: keyId, key: apiKey } = await keyResponse.json();
 
-      // Increment count and persist
-      messageCountRef.current += 1;
-      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
-
-      // Success! Update usage tracking
-      fetch('/api/keys/usage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: keyId })
-      }).catch(err => console.error("Failed to report usage:", err));
-
-      let modelData;
       try {
-        modelData = JSON.parse(response.text.trim());
-      } catch (e) {
-        modelData = { reply: response.text, isLeadDetected: false };
-      }
+        // 2. Initialize Gemini
+        const ai = new GoogleGenAI({ apiKey });
+        
+        // 3. Prepare History for @google/genai
+        const contents = messages.map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
+        contents.push({
+          role: "user",
+          parts: [{ text: input.trim() }]
+        });
 
-      const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
-      const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
-      
-      const finalMessages = [...newMessages, modelMsg];
-      setMessages(finalMessages);
-      saveCurrentSession(finalMessages);
+        // 4. Generate Content
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: contents,
+          config: {
+            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
+            responseMimeType: "application/json",
+          }
+        });
 
-      if (modelData.isLeadDetected && modelData.leadInfo) {
-        trackClick('chatbot-lead-detected');
-        api.saveLead({
-          ...modelData.leadInfo,
-          userId: userId || 'guest',
-          chatId: session?.id || 'none'
-        }).catch(err => console.error("Lead saving failed:", err));
+        if (!response.text) {
+          throw new Error("Empty response from AI");
+        }
+
+        // Successful call! Increment usage
+        fetch('/api/keys/usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: keyId })
+        }).catch(err => console.error("Failed to report usage:", err));
+
+        let modelData;
+        try {
+          modelData = JSON.parse(response.text.trim());
+        } catch (e) {
+          // Fallback for non-JSON response
+          modelData = { reply: response.text, isLeadDetected: false };
+        }
+
+        const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
+        const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
+        
+        const finalMessages = [...newMessages, modelMsg];
+        setMessages(finalMessages);
+        saveCurrentSession(finalMessages);
+
+        // handle lead detection
+        if (modelData.isLeadDetected && modelData.leadInfo) {
+          api.saveLead({
+            ...modelData.leadInfo,
+            userId: userId || 'guest',
+            chatId: session?.id || 'none'
+          }).catch(err => console.error("Lead saving failed:", err));
+        }
+      } catch (innerError: any) {
+        // If it's a quota error, mark it exhausted
+        if (innerError.message?.includes("429") || innerError.message?.includes("quota") || innerError.status === 429) {
+          fetch('/api/keys/exhausted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: keyId })
+          }).catch(err => console.error("Failed to report exhausted key:", err));
+        }
+        throw innerError;
       }
 
     } catch (error: any) {
       console.error("Chatbot error:", error);
-      
-      // Mark key exhausted if it's a quota issue
-      if (error.message?.includes("429") || error.message?.includes("quota") || error.status === 429) {
-        const keyIdToMark = currentKeyId;
-        if (keyIdToMark && keyIdToMark !== 'env_key') {
-          fetch('/api/keys/exhausted', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: keyIdToMark })
-          }).catch(err => console.error("Failed to report exhausted key:", err));
-        }
-      }
-
       const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -500,10 +440,7 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            onClick={() => {
-              setIsOpen(true);
-              trackClick('chatbot-open');
-            }}
+            onClick={() => setIsOpen(true)}
             className="w-16 h-16 rounded-full bg-accent text-white shadow-2xl flex items-center justify-center hover:shadow-accent/40 transition-all border-4 border-black group"
           >
             <Bot size={32} className="group-hover:rotate-12 transition-transform" />

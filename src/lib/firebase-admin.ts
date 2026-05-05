@@ -6,39 +6,30 @@ const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 const databaseId = process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)";
 
-let adminApp: admin.app.App | null = null;
+let adminApp: admin.app.App;
 
-try {
-  if (!admin.apps.length) {
-    if (projectId && clientEmail && privateKey) {
-      // Explicit service account
-      console.log(`[FirebaseAdmin] Attempting Service Account Init. ProjectID=${projectId}`);
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey: privateKey.replace(/\\n/g, '\n'),
-        }),
-        projectId
-      });
-    } else {
-      // Application Default Credentials (ADC)
-      console.warn(`[FirebaseAdmin] Service Account env vars missing. Falling back to ADC.`);
-      adminApp = admin.initializeApp({
-        projectId: projectId || undefined,
-      });
-    }
+if (!admin.apps.length) {
+  if (projectId && clientEmail && privateKey) {
+    // Explicit service account
+    adminApp = admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey: privateKey.replace(/\\n/g, '\n'),
+      }),
+      projectId
+    });
+    console.log(`[FirebaseAdmin] Initialized with Service Account: ${projectId}`);
   } else {
-    adminApp = admin.app();
+    // Application Default Credentials (ADC) - works in AI Studio if provisioned
+    adminApp = admin.initializeApp({
+      projectId: projectId || undefined,
+    });
+    console.log(`[FirebaseAdmin] Initialized with ADC: ${projectId || 'default'}`);
   }
-} catch (error) {
-  console.error("[FirebaseAdmin] Initialization failure:", error);
+} else {
+  adminApp = admin.app();
 }
 
-// Export adminDb with a safe check
-export const adminDb = adminApp ? getFirestore(adminApp, databaseId === "(default)" ? undefined : databaseId) : null;
-if (!adminDb) {
-    console.error("[FirebaseAdmin] adminDb failed to initialize. Firestore operations will fail.");
-}
-
+export const adminDb = getFirestore(adminApp, databaseId === "(default)" ? undefined : databaseId);
 export default admin;

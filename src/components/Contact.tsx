@@ -3,15 +3,12 @@ import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { auth } from "../firebase";
-import { useSectionTracking } from "../hooks/useSectionTracking";
-import { trackClick } from "../lib/analytics";
 
 interface ContactProps {
   userId?: string;
 }
 
 export default function Contact({ userId }: ContactProps) {
-  const sectionRef = useSectionTracking("contact");
   const [settings, setSettings] = useState<any>({
     email: "portfolio@example.com",
     phone: "+00 000 0000000",
@@ -59,7 +56,6 @@ export default function Contact({ userId }: ContactProps) {
     setStatus("idle");
 
     try {
-      trackClick('contact-form-submit');
       await api.post("contactMessages", {
         userName: formData.name,
         userEmail: formData.email,
@@ -91,7 +87,7 @@ export default function Contact({ userId }: ContactProps) {
   };
 
   return (
-    <section ref={sectionRef} id="contact" className="py-24 bg-black border-t border-line">
+    <section id="contact" className="py-24 bg-black border-t border-line">
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
           <div>
@@ -110,7 +106,6 @@ export default function Contact({ userId }: ContactProps) {
                   <span className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">{item.label}</span>
                   <a 
                     href={item.href} 
-                    onClick={() => trackClick('contact-info-link', { type: item.label })}
                     className="text-2xl md:text-3xl font-light hover:text-accent transition-colors"
                   >
                     {item.value}

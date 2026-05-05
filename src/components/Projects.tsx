@@ -3,8 +3,6 @@ import { useData } from "../contexts/DataContext";
 import FeaturedProjects from "./FeaturedProjects";
 import ProjectGrid from "./ProjectGrid";
 import ProjectPreviewModal from "./ProjectPreviewModal";
-import { useSectionTracking } from "../hooks/useSectionTracking";
-import { trackClick } from "../lib/analytics";
 
 interface Project {
   id: string;
@@ -28,10 +26,8 @@ export default function Projects({ userId }: ProjectProps) {
   const { projects } = useData();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const sectionRef = useSectionTracking("projects");
 
   const handleViewProject = (project: Project) => {
-    trackClick('view-project', { projectId: project.id, projectTitle: project.title, method: project.showInIframe ? 'iframe' : 'external' });
     if (project.showInIframe) {
       setSelectedProject(project);
       setIsModalOpen(true);
@@ -45,7 +41,7 @@ export default function Projects({ userId }: ProjectProps) {
   }
 
   return (
-    <div id="projects" ref={sectionRef}>
+    <div id="projects">
       {/* 1. Featured Carousel (Hero Section for Projects) */}
       <FeaturedProjects 
         projects={projects.filter(p => p.featured)} 

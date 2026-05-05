@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, User, LogOut, MessageSquare, Settings, AlertTriangle, Activity } from "lucide-react";
+import { Menu, X, User, LogOut, MessageSquare, Settings, AlertTriangle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { auth, onAuthStateChanged, signOut, sendEmailVerification } from "../firebase";
 import { useData } from "../contexts/DataContext";
@@ -64,7 +64,6 @@ export default function Navbar({ userId }: NavbarProps) {
   };
 
   const isHomePage = location.pathname === "/";
-  const isAdmin = user?.email === "muhammadbilalrasheed78@gmail.com";
 
   const brandName = settings?.logoText || (settings?.name?.split(' ')[0] || "Bilal");
   const logoType = settings?.logoType;
@@ -149,11 +148,6 @@ export default function Navbar({ userId }: NavbarProps) {
                 <Link to="/queries" className="flex items-center gap-3 px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-secondary hover:text-accent hover:bg-white/5 transition-all">
                   <MessageSquare size={14} /> Queries
                 </Link>
-                {isAdmin && (
-                  <Link to="/admin/analytics" className="flex items-center gap-3 px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-secondary hover:text-accent hover:bg-white/5 transition-all">
-                    <Activity size={14} /> Intelligence
-                  </Link>
-                )}
                 <Link to="/settings" className="flex items-center gap-3 px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-secondary hover:text-accent hover:bg-white/5 transition-all">
                   <Settings size={14} /> Settings
                 </Link>
@@ -237,15 +231,6 @@ export default function Navbar({ userId }: NavbarProps) {
                       >
                         Queries
                       </Link>
-                      {isAdmin && (
-                        <Link
-                          to="/admin/analytics"
-                          className="text-2xl font-display uppercase tracking-widest text-secondary hover:text-white transition-colors"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Intelligence
-                        </Link>
-                      )}
                       <Link
                         to="/settings"
                         className="text-2xl font-display uppercase tracking-widest text-secondary hover:text-white transition-colors"
