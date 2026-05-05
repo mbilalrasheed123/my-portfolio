@@ -55,7 +55,13 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [kbContent, setKbContent] = useState("");
   const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
   const [currentKeyId, setCurrentKeyId] = useState<string | null>(null);
+  const messageCountRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const savedCount = sessionStorage.getItem('chatbot_message_count');
+    if (savedCount) messageCountRef.current = parseInt(savedCount);
+  }, []);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -163,40 +169,38 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage API Key Rotation (Stateless)
-      let apiKey = null;
-      let keyId = null;
+      // 1. Manage API Key Rotation (Every 15 messages)
+      let apiKey = currentApiKey;
+      let keyId = currentKeyId;
 
-      try {
-        const keyResponse = await fetch('/api/keys/rotate');
-        if (keyResponse.ok) {
-          const keyData = await keyResponse.json();
-          if (keyData && keyData.key) {
-            apiKey = keyData.key;
-            keyId = keyData.id;
-            setCurrentApiKey(apiKey);
-            setCurrentKeyId(keyId);
-            console.log("[Chatbot] Successfully retrieved API key via rotation service.");
+      if (!apiKey || messageCountRef.current % 15 === 0) {
+        try {
+          const keyResponse = await fetch('/api/keys/rotate');
+          if (keyResponse.ok) {
+            const keyData = await keyResponse.json();
+            if (keyData && keyData.key) {
+              apiKey = keyData.key;
+              keyId = keyData.id;
+              setCurrentApiKey(apiKey);
+              setCurrentKeyId(keyId);
+              console.log("[Chatbot] Successfully rotated API key.");
+            }
           } else {
-            console.warn("[Chatbot] Key rotation service returned empty key data.");
+            const errorText = await keyResponse.text();
+            console.warn(`[Chatbot] Key rotation service failed: ${errorText}`);
           }
-        } else {
-          const errorText = await keyResponse.text();
-          console.warn(`[Chatbot] Key rotation service failed with status ${keyResponse.status}: ${errorText}`);
+        } catch (err) {
+          console.warn("[Chatbot] Key rotation service unreachable, checking fallback...", err);
         }
-      } catch (err) {
-        console.warn("[Chatbot] Key rotation service unreachable or returned invalid JSON:", err);
       }
 
-      // Fallback to direct environment key if rotation fails (VITE_GEMINI_API_KEY)
+      // Fallback to direct environment key if rotation fails
       if (!apiKey) {
         apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY || (window as any).__GEMINI_API_KEY__;
         if (!apiKey) {
-          const configMsg = "API configuration missing. Please ensure GEMINI_API_KEY is set in your Vercel Environment Variables or active keys are added to the Firestore 'apiKeys' collection.";
-          console.error(`[Chatbot] ${configMsg}`);
           const errorMsg: Message = { 
             role: "model", 
-            text: "My apologies, but I'm currently unable to connect to the AI service. This is usually due to a configuration issue (Missing API Key). If you are the owner, please check the console for details.", 
+            text: "My apologies, but I'm currently unable to connect to the AI service. Please try again in a few minutes.", 
             timestamp: new Date().toISOString() 
           };
           setMessages(prev => [...prev, errorMsg]);
@@ -249,6 +253,10 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       if (!response.text) {
         throw new Error("Empty response from AI");
       }
+
+      // Increment count and persist
+      messageCountRef.current += 1;
+      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
 
       // Success! Update usage tracking
       fetch('/api/keys/usage', {

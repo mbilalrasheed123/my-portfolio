@@ -56,33 +56,42 @@ app.get("/api/keys/rotate", async (req, res) => {
   
   try {
     console.log("[Server] Calling keyRotation.getCurrentKey()...");
-    let keyData = await keyRotation.getCurrentKey();
+    let keyData = null;
+    try {
+      keyData = await keyRotation.getCurrentKey();
+    } catch (dbError) {
+      console.error("[Server] Firestore key rotation failed:", dbError);
+    }
     
     if (keyData && keyData.key) {
       console.log(`[Server] Returning key from Firestore: ${keyData.id}`);
       return res.json({ id: keyData.id, key: keyData.key });
     }
 
-    console.log("[Server] KeyRotation returned null, trying fallback...");
+    console.log("[Server] KeyRotation (Firestore) unavailable or empty, trying env fallback...");
 
-    // Fallback to environment keys if no keys in DB
+    // Fallback to environment keys
     const envKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (envKey) {
-      console.log(`[Server] Falling back to environment variable. Key length: ${envKey.length}`);
+      console.log(`[Server] Falling back to environment variable.`);
       return res.json({ id: "env_key", key: envKey });
     }
 
     console.warn("[Server] No active keys available in DB or Environment.");
     return res.status(404).json({ 
       error: "No active keys available", 
-      details: "Firestore 'apiKeys' is empty or keys are inactive, AND GEMINI_API_KEY env var is missing on Vercel."
+      details: "Firestore 'apiKeys' is empty/errored AND GEMINI_API_KEY env var is missing."
     });
   } catch (error: any) {
     console.error("[Server] Critical error in /api/keys/rotate:", error);
+    // Even in a critical error, try one last time to return the env key
+    const finalEnvKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (finalEnvKey) {
+      return res.json({ id: "env_key", key: finalEnvKey });
+    }
     return res.status(500).json({ 
       error: "Internal server error during key retrieval",
-      message: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+      message: error.message
     });
   }
 });
