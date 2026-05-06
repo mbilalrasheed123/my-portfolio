@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
 import { FileUpload } from "./FileUpload";
+import KeyManager from "./KeyManager";
 import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
@@ -11,7 +12,7 @@ const DEFAULT_ADMIN_PASSWORD = "mypass";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys">("projects");
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
@@ -428,6 +429,14 @@ export default function Admin() {
             >
               <SettingsIcon size={14} className="inline mr-2" /> Settings
             </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab("apiKeys")}
+                className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'apiKeys' ? 'bg-[#00ffa3] text-black border-[#00ffa3]/30' : 'border border-line text-secondary hover:text-white'}`}
+              >
+                <RotateCcw size={14} className="inline mr-2" /> Rotation
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="px-6 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest text-secondary hover:bg-red-500/10 hover:text-red-500 transition-all"
@@ -1384,6 +1393,10 @@ export default function Admin() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "apiKeys" && isSuperAdmin && (
+          <KeyManager />
         )}
       </div>
   );

@@ -186,6 +186,28 @@
       },
       "required": ["userId", "sessionId", "eventType", "page", "timestamp"]
     },
+    "ApiKey": {
+      "title": "API Key",
+      "description": "Google AI Studio API Key with rotation tracking",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string", "description": "Encrypted AES key" },
+        "quota": {
+          "type": "object",
+          "properties": {
+            "rpmUsed": { "type": "integer" },
+            "rpdUsed": { "type": "integer" },
+            "lastUsed": { "type": "string", "format": "date-time" }
+          }
+        },
+        "status": { "type": "string", "enum": ["active", "exhausted", "disabled"] },
+        "priority": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "key", "status", "priority"]
+    },
     "Session": {
       "title": "Analytics Session",
       "description": "Aggregated user session data",
@@ -319,6 +341,10 @@
     "/dailyStats/{date}": {
       "schema": "DailyStats",
       "description": "Daily performance aggregates"
+    },
+    "/apiKeys/{keyId}": {
+      "schema": "ApiKey",
+      "description": "API Key rotation management"
     }
   }
 }

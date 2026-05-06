@@ -53,6 +53,8 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
   const [kbContent, setKbContent] = useState("");
+  const [currentKey, setCurrentKey] = useState<{ id: string; key: string } | null>(null);
+  const messageCountRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -144,7 +146,28 @@ export default function Chatbot({ userId }: ChatbotProps) {
     }
   };
 
-  const handleSend = async () => {
+  useEffect(() => {
+    // Load count from session storage to persist during refresh
+    const savedCount = sessionStorage.getItem('chatbot_message_count');
+    if (savedCount) messageCountRef.current = parseInt(savedCount);
+  }, []);
+
+  const rotateKey = async () => {
+    try {
+      const res = await fetch("/api/keys/rotate");
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentKey(data);
+        console.log("[Chatbot] API Key rotated:", data.id);
+        return data;
+      }
+    } catch (err) {
+      console.error("[Chatbot] Failed to rotate key:", err);
+    }
+    return null;
+  };
+
+  const handleSend = async (retryCount = 0) => {
     if (!input.trim() || isLoading) return;
 
     if (!session) {
@@ -153,7 +176,8 @@ export default function Chatbot({ userId }: ChatbotProps) {
 
     trackClick('chatbot-send-message');
 
-    const userMsg: Message = { role: "user", text: input.trim(), timestamp: new Date().toISOString() };
+    const userText = input.trim();
+    const userMsg: Message = { role: "user", text: userText, timestamp: new Date().toISOString() };
     const newMessages = [...messages, userMsg];
     
     setInput("");
@@ -161,8 +185,14 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Get API Key from environment
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // 1. Manage Key Rotation (Every 15 messages)
+      let activeKey = currentKey;
+      if (!activeKey || messageCountRef.current % 15 === 0) {
+        activeKey = await rotateKey();
+      }
+
+      const apiKey = activeKey?.key || import.meta.env.VITE_GEMINI_API_KEY;
+
       if (!apiKey) {
         const errorMsg: Message = { 
           role: "model", 
@@ -175,12 +205,12 @@ export default function Chatbot({ userId }: ChatbotProps) {
       }
 
       // 2. Intelligence Queries (Admin)
-      const messageLower = input.toLowerCase();
+      const messageLower = userText.toLowerCase();
       const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'page', 'device', 'click', 'report', 'stats', 'popular', 'intelligence'];
       const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
       
       if (isAnalyticsQuery && auth.currentUser?.email === 'muhammadbilalrasheed78@gmail.com') {
-        const analyticsResponse = await handleAnalyticsQuery(auth.currentUser?.email || undefined, input);
+        const analyticsResponse = await handleAnalyticsQuery(auth.currentUser?.email || undefined, userText);
         const modelMsg: Message = { role: "model", text: analyticsResponse, timestamp: new Date().toISOString() };
         const finalMessages = [...newMessages, modelMsg];
         setMessages(finalMessages);
@@ -203,7 +233,7 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       }));
       contents.push({
         role: "user",
-        parts: [{ text: input.trim() }]
+        parts: [{ text: userText }]
       });
 
       const response = await ai.models.generateContent({
@@ -218,6 +248,10 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       if (!response.text) {
         throw new Error("Empty response from AI");
       }
+
+      // Update message count
+      messageCountRef.current += 1;
+      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
 
       let modelData;
       try {
@@ -245,6 +279,23 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
     } catch (error: any) {
       console.error("Chatbot error:", error);
       
+      // Self-Healing: If 429 Quick Retry with new key
+      if ((error.message?.includes("429") || error.status === 429) && retryCount < 1) {
+        console.log("[Chatbot] 429 detected, rotating and retrying...");
+        if (currentKey?.id && currentKey.id !== 'env_key') {
+          fetch("/api/keys/exhausted", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: currentKey.id })
+          }).catch(e => console.error("Exhausted feedback failed:", e));
+        }
+        await rotateKey();
+        // Recurse once
+        setInput(userText); // Put text back for retry logic if needed, though we use userText variable
+        setIsLoading(false); // Reset loading briefly
+        return handleSend(retryCount + 1);
+      }
+
       const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -417,7 +468,7 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
                             className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 pl-6 pr-14 text-sm focus:outline-none focus:border-[#00ffa3] focus:ring-1 focus:ring-[#00ffa3]/20 transition-all shadow-inner text-white"
                           />
                           <button
-                            onClick={handleSend}
+                            onClick={() => handleSend()}
                             disabled={!input.trim() || isLoading}
                             title="Send Message"
                             className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-[#00ffa3] text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100 shadow-[0_0_15px_rgba(0,255,163,0.3)] z-10"

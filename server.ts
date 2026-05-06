@@ -4,17 +4,82 @@ import path from "path";
 import dotenv from "dotenv";
 import admin, { adminDb } from "./src/lib/firebase-admin.js";
 import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
+import { KeyRotationService } from "./src/lib/KeyRotationService.js";
+import { encryptKey } from "./src/lib/cryptoUtils.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
+// Initialize Key Rotation Service
+const keyRotationSecret = process.env.API_KEY_ENCRYPTION_SECRET || 'gemini-key-rotation-secret-39281';
+const keyRotation = adminDb ? new KeyRotationService(adminDb, keyRotationSecret) : null;
+
 app.use(express.json());
 
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+/**
+ * Key Rotation Endpoint
+ */
+app.get("/api/keys/rotate", async (req, res) => {
+  if (!keyRotation) {
+    return res.status(503).json({ error: "Key rotation service unavailable" });
+  }
+
+  try {
+    const keyData = await keyRotation.getRotatedKey();
+    if (keyData) {
+      res.json(keyData);
+    } else {
+      // Fallback to environment key if no keys in DB
+      const envKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (envKey) {
+        res.json({ id: 'env_key', key: envKey });
+      } else {
+        res.status(404).json({ error: "No active API keys available" });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Failed to rotate key" });
+  }
+});
+
+/**
+ * Mark Key as Exhausted (429 feedback)
+ */
+app.post("/api/keys/exhausted", async (req, res) => {
+  const { id } = req.body;
+  if (!id || id === 'env_key' || !keyRotation) {
+    return res.json({ success: true });
+  }
+
+  try {
+    await keyRotation.markAsExhausted(id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to mark key as exhausted" });
+  }
+});
+
+/**
+ * Encryption Helper for Admin (Server-side Only)
+ */
+app.post("/api/admin/encrypt-key", (req, res) => {
+  const { key } = req.body;
+  // This route should ideally be protected by admin auth middleware
+  if (!key) return res.status(400).json({ error: "Key required" });
+  
+  try {
+    const encrypted = encryptKey(key, keyRotationSecret);
+    res.json({ encrypted });
+  } catch (error) {
+    res.status(500).json({ error: "Encryption failed" });
+  }
 });
 
 // Vercel-style Cron endpoint for aggregation
