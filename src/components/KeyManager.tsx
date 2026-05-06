@@ -85,9 +85,8 @@ export default function KeyManager() {
     }
   };
 
-  const toggleStatus = async (key: ApiKeyDoc) => {
-    const newStatus = key.status === "disabled" ? "active" : "disabled";
-    await updateDoc(doc(db, "apiKeys", key.id), {
+  const updateStatus = async (id: string, newStatus: ApiKeyDoc['status']) => {
+    await updateDoc(doc(db, "apiKeys", id), {
       status: newStatus,
       updatedAt: serverTimestamp()
     });
@@ -281,19 +280,35 @@ export default function KeyManager() {
 
                 <div className="flex flex-col items-end justify-between gap-6">
                   <div className="flex gap-2">
+                    <div className="flex bg-white/5 rounded-xl p-1 gap-1">
+                      <button
+                        onClick={() => updateStatus(key.id, 'active')}
+                        title="Set Active"
+                        className={`p-2 rounded-lg transition-all ${key.status === 'active' ? 'bg-green-500 text-black' : 'hover:bg-white/5 text-zinc-500'}`}
+                      >
+                        <CheckCircle size={14} />
+                      </button>
+                      <button
+                        onClick={() => updateStatus(key.id, 'exhausted')}
+                        title="Set Exhausted"
+                        className={`p-2 rounded-lg transition-all ${key.status === 'exhausted' ? 'bg-orange-500 text-black' : 'hover:bg-white/5 text-zinc-500'}`}
+                      >
+                        <AlertCircle size={14} />
+                      </button>
+                      <button
+                        onClick={() => updateStatus(key.id, 'disabled')}
+                        title="Set Disabled"
+                        className={`p-2 rounded-lg transition-all ${key.status === 'disabled' ? 'bg-red-500 text-black' : 'hover:bg-white/5 text-zinc-500'}`}
+                      >
+                        <Shield size={14} />
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleResetUsage(key.id)}
                       className="p-3 bg-white/5 rounded-xl hover:bg-white/10 text-secondary hover:text-white transition-all"
                       title="Reset Usage"
                     >
                       <RotateCcw size={16} />
-                    </button>
-                    <button
-                      onClick={() => toggleStatus(key)}
-                      className={`p-3 rounded-xl transition-all ${key.status === 'disabled' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}
-                      title={key.status === 'disabled' ? 'Enable' : 'Disable'}
-                    >
-                      <Shield size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(key.id)}
