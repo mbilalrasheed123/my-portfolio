@@ -123,13 +123,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // API Keys (Rotation System)
-    match /apiKeys/{keyId} {
-      allow read: if true; // Server needs to read keys
-      allow create, delete: if isAdmin(); // Only admin can add/remove keys
-      allow update: if true; // Server needs to update usage counters (requestsThisMinute, requestsToday)
-    }
-
     // Analytics (Public write, Admin read)
     match /analytics/{eventId} {
       allow write: if true;

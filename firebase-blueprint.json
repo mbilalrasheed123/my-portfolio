@@ -149,24 +149,6 @@
       },
       "required": ["category", "title", "content"]
     },
-    "ApiKey": {
-      "title": "API Key",
-      "description": "Metadata for Gemini API key rotation",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "key": { "type": "string", "description": "Encrypted API key" },
-        "requestsThisMinute": { "type": "integer" },
-        "requestsToday": { "type": "integer" },
-        "lastResetMinute": { "type": "string", "format": "date-time" },
-        "lastResetDay": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "exhausted"] },
-        "priority": { "type": "integer" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["name", "key", "priority"]
-    },
     "AnalyticsEvent": {
       "title": "Analytics Event",
       "description": "Granular user interaction event",
@@ -325,10 +307,6 @@
     "/knowledgeBase/{entryId}": {
       "schema": "KnowledgeEntry",
       "description": "Bilal's personalized context for AI"
-    },
-    "/apiKeys/{keyId}": {
-      "schema": "ApiKey",
-      "description": "Google AI Studio API keys with rotation metadata"
     },
     "/analytics/{eventId}": {
       "schema": "AnalyticsEvent",

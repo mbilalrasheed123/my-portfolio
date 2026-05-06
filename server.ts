@@ -3,22 +3,12 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
 import admin, { adminDb } from "./src/lib/firebase-admin.js";
-import { KeyRotationService } from "./src/lib/KeyRotationService.js";
 import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
-
-// Initialize Services
-let keyRotation: KeyRotationService | null = null;
-try {
-  keyRotation = new KeyRotationService(adminDb, process.env.API_KEY_ENCRYPTION_SECRET || "default-secret-change-me");
-  console.log("[Server] KeyRotationService initialized.");
-} catch (e) {
-  console.error("[Server] Failed to initialize KeyRotationService:", e);
-}
 
 app.use(express.json());
 
@@ -40,83 +30,6 @@ app.get("/api/cron/aggregate-analytics", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "Aggregation failed" });
   }
-});
-
-// Key Rotation Endpoints (For Frontend Use)
-app.get("/api/keys/rotate", async (req, res) => {
-  console.log(`[Server] Received key rotation request. URL: ${req.url}`);
-  
-  if (!keyRotation) {
-    console.error("[Server] KeyRotationService is null/undefined.");
-    return res.status(503).json({ 
-      error: "Key Rotation service unavailable", 
-      details: "Service failed to initialize during server startup."
-    });
-  }
-  
-  try {
-    console.log("[Server] Calling keyRotation.getCurrentKey()...");
-    let keyData = null;
-    try {
-      keyData = await keyRotation.getCurrentKey();
-    } catch (dbError) {
-      console.error("[Server] Firestore key rotation failed:", dbError);
-    }
-    
-    if (keyData && keyData.key) {
-      console.log(`[Server] Returning key from Firestore: ${keyData.id}`);
-      return res.json({ id: keyData.id, key: keyData.key });
-    }
-
-    console.log("[Server] KeyRotation (Firestore) unavailable or empty, trying env fallback...");
-
-    // Fallback to environment keys
-    const envKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    if (envKey) {
-      console.log(`[Server] Falling back to environment variable.`);
-      return res.json({ id: "env_key", key: envKey });
-    }
-
-    console.warn("[Server] No active keys available in DB or Environment.");
-    return res.status(404).json({ 
-      error: "No active keys available", 
-      details: "Firestore 'apiKeys' is empty/errored AND GEMINI_API_KEY env var is missing."
-    });
-  } catch (error: any) {
-    console.error("[Server] Critical error in /api/keys/rotate:", error);
-    // Even in a critical error, try one last time to return the env key
-    const finalEnvKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    if (finalEnvKey) {
-      return res.json({ id: "env_key", key: finalEnvKey });
-    }
-    return res.status(500).json({ 
-      error: "Internal server error during key retrieval",
-      message: error.message
-    });
-  }
-});
-
-app.post("/api/keys/usage", async (req, res) => {
-  const { id } = req.body;
-  if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-  await keyRotation.incrementUsage(id);
-  res.json({ success: true });
-});
-
-app.post("/api/keys/exhausted", async (req, res) => {
-  const { id } = req.body;
-  if (!id || id === "env_key" || !keyRotation) return res.json({ success: true });
-  await keyRotation.markExhausted(id);
-  res.json({ success: true });
-});
-
-// Key Encryption Helper (For Admin)
-app.post("/api/admin/encrypt-key", (req, res) => {
-  const { key } = req.body;
-  if (!key) return res.status(400).json({ error: "Key required" });
-  if (!keyRotation) return res.status(503).json({ error: "Encryption service unavailable" });
-  const encrypted = keyRotation.encrypt(key);
-  res.json({ encrypted });
 });
 
 app.post("/api/send-email", async (req, res) => {

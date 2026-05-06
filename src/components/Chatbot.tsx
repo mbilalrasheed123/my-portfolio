@@ -53,15 +53,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
   const [kbContent, setKbContent] = useState("");
-  const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
-  const [currentKeyId, setCurrentKeyId] = useState<string | null>(null);
-  const messageCountRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const savedCount = sessionStorage.getItem('chatbot_message_count');
-    if (savedCount) messageCountRef.current = parseInt(savedCount);
-  }, []);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -169,44 +161,17 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage API Key Rotation (Every 15 messages)
-      let apiKey = currentApiKey;
-      let keyId = currentKeyId;
-
-      if (!apiKey || messageCountRef.current % 15 === 0) {
-        try {
-          const keyResponse = await fetch('/api/keys/rotate');
-          if (keyResponse.ok) {
-            const keyData = await keyResponse.json();
-            if (keyData && keyData.key) {
-              apiKey = keyData.key;
-              keyId = keyData.id;
-              setCurrentApiKey(apiKey);
-              setCurrentKeyId(keyId);
-              console.log("[Chatbot] Successfully rotated API key.");
-            }
-          } else {
-            const errorText = await keyResponse.text();
-            console.warn(`[Chatbot] Key rotation service failed: ${errorText}`);
-          }
-        } catch (err) {
-          console.warn("[Chatbot] Key rotation service unreachable, checking fallback...", err);
-        }
-      }
-
-      // Fallback to direct environment key if rotation fails
+      // 1. Get API Key from environment
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       if (!apiKey) {
-        apiKey = currentApiKey || import.meta.env.VITE_GEMINI_API_KEY || (window as any).__GEMINI_API_KEY__;
-        if (!apiKey) {
-          const errorMsg: Message = { 
-            role: "model", 
-            text: "My apologies, but I'm currently unable to connect to the AI service. Please try again in a few minutes.", 
-            timestamp: new Date().toISOString() 
-          };
-          setMessages(prev => [...prev, errorMsg]);
-          setIsLoading(false);
-          return;
-        }
+        const errorMsg: Message = { 
+          role: "model", 
+          text: "My apologies, but I'm currently unable to connect to the AI service. Please try again in a few minutes.", 
+          timestamp: new Date().toISOString() 
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        setIsLoading(false);
+        return;
       }
 
       // 2. Intelligence Queries (Admin)
@@ -254,17 +219,6 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
         throw new Error("Empty response from AI");
       }
 
-      // Increment count and persist
-      messageCountRef.current += 1;
-      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
-
-      // Success! Update usage tracking
-      fetch('/api/keys/usage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: keyId })
-      }).catch(err => console.error("Failed to report usage:", err));
-
       let modelData;
       try {
         modelData = JSON.parse(response.text.trim());
@@ -291,18 +245,6 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
     } catch (error: any) {
       console.error("Chatbot error:", error);
       
-      // Mark key exhausted if it's a quota issue
-      if (error.message?.includes("429") || error.message?.includes("quota") || error.status === 429) {
-        const keyIdToMark = currentKeyId;
-        if (keyIdToMark && keyIdToMark !== 'env_key') {
-          fetch('/api/keys/exhausted', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: keyIdToMark })
-          }).catch(err => console.error("Failed to report exhausted key:", err));
-        }
-      }
-
       const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
