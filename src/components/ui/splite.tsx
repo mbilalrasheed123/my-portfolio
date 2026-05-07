@@ -1,7 +1,7 @@
 'use client'
 
-import React, { Suspense, lazy } from 'react'
-const Spline = lazy(() => import('@splinetool/react-spline'))
+import React, { useState } from 'react'
+import Spline from '@splinetool/react-spline'
 
 interface SplineSceneProps {
   scene: string
@@ -9,18 +9,19 @@ interface SplineSceneProps {
 }
 
 export function SplineScene({ scene, className }: SplineSceneProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
   return (
-    <Suspense 
-      fallback={
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      }
-    >
+    <div className={`w-full h-full relative transition-opacity duration-1000 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${className || ''}`}>
       <Spline
         scene={scene}
-        className={className}
+        onLoad={() => setIsLoaded(true)}
       />
-    </Suspense>
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+    </div>
   )
 }

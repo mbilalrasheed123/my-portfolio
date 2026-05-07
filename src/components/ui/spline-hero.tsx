@@ -24,7 +24,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
       <SpotlightIbelick size={400} />
 
       {/* Full screen interactive Spline background - Shifted to position robot on the right */}
-      <div className="absolute inset-0 z-0 pointer-events-auto translate-x-0 md:translate-x-[20%] lg:translate-x-[25%] scale-110 md:scale-100">
+      <div className="absolute inset-0 z-0 pointer-events-auto translate-x-0 md:translate-x-[20%] lg:translate-x-[25%] scale-110 md:scale-100 will-change-transform">
         <SplineScene 
           scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
           className="w-full h-full"
@@ -51,7 +51,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
           <motion.h1
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             className="text-4xl md:text-8xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 uppercase font-display whitespace-pre-line leading-none"
           >
             {title || "Interactive\n3D Project"}
@@ -60,7 +60,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
           <motion.p
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
             className="text-base md:text-xl text-gray-400 max-w-xl leading-relaxed"
           >
             {subtitle || "Bring your UI to life with beautiful 3D scenes. Create immersive experiences that capture attention and enhance your design."}
