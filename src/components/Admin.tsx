@@ -37,21 +37,22 @@ export default function Admin() {
   }, []);
 
   const isSuperAdmin = user?.email === ADMIN_EMAIL;
+  const targetId = isSuperAdmin ? "global" : (user?.uid || "");
 
   const fetchData = async () => {
     if (!user) return;
     try {
       const fetchActions = [
-        api.get("projects", user.uid),
+        api.get("projects", targetId),
         // If super admin, edit global settings so they reflect on homepage
-        api.getSettings(isSuperAdmin ? "global" : user.uid),
+        api.getSettings(targetId),
         // Super admins see all queries and leads, normal users see only theirs
-        api.get("contactMessages", isSuperAdmin ? undefined : user.uid),
-        api.get("certificates", user.uid),
+        api.get("contactMessages", isSuperAdmin ? undefined : targetId),
+        api.get("certificates", targetId),
         isSuperAdmin ? api.fetchUsers() : Promise.resolve([]),
-        api.get("leads", isSuperAdmin ? undefined : user.uid),
-        api.fetchChatSessions(isSuperAdmin ? undefined : user.uid),
-        api.fetchKnowledgeBase(user.uid)
+        api.get("leads", isSuperAdmin ? undefined : targetId),
+        api.fetchChatSessions(isSuperAdmin ? undefined : targetId),
+        api.fetchKnowledgeBase(targetId)
       ];
       
       const [p, s, q, c, u, l, cs, kb] = await Promise.all(fetchActions);
@@ -130,7 +131,7 @@ export default function Admin() {
       delete projectData.image;
 
       if (isEditing === "new") {
-        await api.post("projects", projectData, user.uid);
+        await api.post("projects", projectData, targetId);
       } else if (isEditing) {
         await api.put("projects", isEditing, projectData);
       }
@@ -147,11 +148,8 @@ export default function Admin() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await api.saveSettings(settings, user.uid);
-      // Also save to global if super admin so it reflects on homepage
-      if (isSuperAdmin) {
-        await api.saveSettings(settings, "global");
-      }
+      await api.saveSettings(settings, targetId);
+      // Removed redundant double-save since targetId already handles it
       alert("Success: About Me / Profile information updated!");
       fetchData();
     } catch (error) {
@@ -201,7 +199,7 @@ export default function Admin() {
       };
 
       if (isEditing === "new_cert") {
-        await api.post("certificates", certData, user.uid);
+        await api.post("certificates", certData, targetId);
       } else if (isEditing) {
         await api.put("certificates", isEditing, certData);
       }
@@ -293,7 +291,7 @@ export default function Admin() {
         isEnabled: formData.isEnabled ?? true
       };
 
-      await api.saveKnowledgeEntry(data, user.uid);
+      await api.saveKnowledgeEntry(data, targetId);
       setIsEditing(null);
       setFormData({});
       fetchData();
@@ -434,7 +432,7 @@ export default function Admin() {
         </div>
 
         {activeTab === "projects" && (
-          <AdminProjectManager userId={user.uid} />
+          <AdminProjectManager userId={targetId} />
         )}
 
         {activeTab === "about" && (

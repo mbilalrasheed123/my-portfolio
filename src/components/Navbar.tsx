@@ -34,13 +34,15 @@ export default function Navbar({ userId }: NavbarProps) {
     };
   }, []);
 
+  const isGlobal = !userId || userId === "global";
+  
   const activeNavLinks = [
-    { name: "Home", href: userId ? `/u/${userId}#home` : "/#home" },
-    { name: "About", href: userId ? `/u/${userId}#about` : "/#about" },
-    { name: "Skills", href: userId ? `/u/${userId}#skills` : "/#skills" },
-    { name: "Projects", href: userId ? `/u/${userId}#projects` : "/#projects" },
-    { name: "Certificates", href: userId ? `/u/${userId}#certificates` : "/#certificates" },
-    { name: "Contact", href: userId ? `/u/${userId}#contact` : "/#contact" },
+    { name: "Home", href: isGlobal ? "/#home" : `/u/${userId}#home` },
+    { name: "About", href: isGlobal ? "/#about" : `/u/${userId}#about` },
+    { name: "Skills", href: isGlobal ? "/#skills" : `/u/${userId}#skills` },
+    { name: "Projects", href: isGlobal ? "/#projects" : `/u/${userId}#projects` },
+    { name: "Certificates", href: isGlobal ? "/#certificates" : `/u/${userId}#certificates` },
+    { name: "Contact", href: isGlobal ? "/#contact" : `/u/${userId}#contact` },
   ];
 
   const handleLogout = async () => {

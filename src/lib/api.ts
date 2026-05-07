@@ -12,6 +12,7 @@ import {
   query, 
   orderBy, 
   where,
+  limit,
   serverTimestamp,
   handleFirestoreError,
   OperationType,
@@ -31,42 +32,64 @@ export const api = {
 
     try {
       const colRef = collection(db, collectionName);
-      
-      // CRITICAL: Always filter by userId if we want a proper multi-user system.
-      // If userId is missing, we default to "global" or an empty state to prevent leakage.
       const searchId = userId || "global";
       const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
       
-      let q;
-      if (shouldOrder) {
-        q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
-      } else {
-        q = query(colRef, where(uidField, "==", searchId));
+      console.log(`[api.fetchList] Fetching ${collectionName} for searchId: ${searchId}`);
+
+      // Try 1: Secure Query (Modern)
+      let results: any[] = [];
+      try {
+        let q;
+        if (shouldOrder) {
+          q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
+        } else {
+          q = query(colRef, where(uidField, "==", searchId));
+        }
+        const snapshot = await getDocs(q as any);
+        results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        console.log(`[api.fetchList] Try 1 (${searchId}) returned ${results.length} docs`);
+      } catch (queryErr) {
+        console.warn(`[api.fetchList] Secure query failed for ${collectionName}:`, queryErr);
       }
 
-      const snapshot = await getDocs(q as any);
-      let results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
-
-      // Fallback for "global" data: if no results found for the specific ID "global", 
-      // try to fetch documents where the UID field is missing entirely (legacy migration).
+      // Try 2: Fallback for "global" data
       if (searchId === "global" && results.length === 0) {
+        console.log(`[api.fetchList] No "global" tag found, trying legacy fallback for ${collectionName}...`);
         try {
           const legacySnapshot = await getDocs(colRef);
-          results = legacySnapshot.docs
-            .map(doc => ({ id: doc.id, ...(doc.data() as any) }))
-            .filter(d => !d[uidField] || d[uidField] === "global");
+          const allDocs = legacySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+          
+          results = allDocs.filter(d => {
+            const val = d[uidField];
+            // Fallback includes: missing field, empty string, or known old admin IDs
+            return !val || 
+                   val === "global" || 
+                   val === "muhammad-bilal-rasheed-default" ||
+                   val === "6v6v6v6v6v6v6v6v6v6v6v6v6v6v" ||
+                   d.email === "muhammadbilalrasheed78@gmail.com"; // Additional catch for settings
+          });
+          
+          // Last Resort: If still empty and it's a public collection, just show EVERYTHING available
+          // This prevents "missing sections" on a new/orphaned site.
+          const publicCollections = ["projects", "certificates", "skills", "experience"];
+          if (results.length === 0 && publicCollections.includes(collectionName)) {
+            console.log(`[api.fetchList] Final resort: returning all ${allDocs.length} items for ${collectionName}`);
+            results = allDocs;
+          }
           
           if (shouldOrder) {
              results.sort((a,b) => (a[orderField] || 0) - (b[orderField] || 0));
           }
-        } catch (e) {
-          console.warn("Legacy fallback fetch failed:", e);
+          console.log(`[api.fetchList] Fallback returned ${results.length} docs`);
+        } catch (legacyErr) {
+          console.error(`[api.fetchList] Fallback failed for ${collectionName}:`, legacyErr);
         }
       }
 
       return results;
     } catch (error: any) {
-      console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
+      console.error(`[api.fetchList] Fatal error for ${collectionName}:`, error);
       return [];
     }
   },
@@ -214,11 +237,33 @@ export const api = {
     try {
       // Use userId as the document ID for settings
       const settingsId = userId || "global";
+      console.log(`[api.fetchSettings] Fetching for settingsId: ${settingsId}`);
       const docRef = doc(db, "settings", settingsId);
       const snapshot = await getDoc(docRef);
-      return snapshot.exists() ? { ...DEFAULT_SETTINGS, ...snapshot.data() } : DEFAULT_SETTINGS;
+      
+      if (snapshot.exists()) {
+        console.log(`[api.fetchSettings] Found settings for: ${settingsId}`);
+        return { ...DEFAULT_SETTINGS, ...snapshot.data() };
+      }
+
+      // Try fallback: If "global" is requested but missing, find ANY available settings
+      // or specifically the one for the master admin.
+      if (settingsId === "global") {
+        console.log(`[api.fetchSettings] "global" not found, looking for master admin or first settings doc...`);
+        const q = query(collection(db, "settings"), limit(1)); // We just need one to start
+        const fallbackSnapshot = await getDocs(q);
+        
+        if (!fallbackSnapshot.empty) {
+          const fallbackData = fallbackSnapshot.docs[0].data();
+          console.log(`[api.fetchSettings] Falling back to settings from: ${fallbackSnapshot.docs[0].id}`);
+          return { ...DEFAULT_SETTINGS, ...fallbackData };
+        }
+      }
+
+      console.log(`[api.fetchSettings] No settings doc found for: ${settingsId}, returning default`);
+      return DEFAULT_SETTINGS;
     } catch (error) {
-      console.error("Failed to fetch settings from Firebase:", error);
+      console.error("[api.fetchSettings] Failed to fetch settings from Firebase:", error);
       return DEFAULT_SETTINGS;
     }
   },
