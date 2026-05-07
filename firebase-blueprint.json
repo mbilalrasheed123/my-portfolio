@@ -94,6 +94,11 @@
         "logoAlt": { "type": "string" },
         "heroStyle": { "type": "string", "enum": ["default", "particles", "aether", "spline"] },
         "heroDesignLoop": { "type": "boolean" },
+        "heroLoopOrder": { 
+          "type": "array", 
+          "items": { "type": "string", "enum": ["default", "particles", "aether", "spline"] },
+          "description": "The sequence of hero designs to cycle through on refresh"
+        },
         "mobileHeroStyle": { "type": "string", "enum": ["sameAsDesktop", "default", "particles", "aether", "spline"] },
         "updatedAt": { "type": "string", "format": "date-time" }
       }

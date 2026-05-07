@@ -35,10 +35,9 @@ export const api = {
       // CRITICAL: Always filter by userId if we want a proper multi-user system.
       // If userId is missing, we default to "global" or an empty state to prevent leakage.
       const searchId = userId || "global";
-      
       const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
-      let q;
       
+      let q;
       if (shouldOrder) {
         q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
       } else {
@@ -46,7 +45,26 @@ export const api = {
       }
 
       const snapshot = await getDocs(q as any);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+      let results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
+
+      // Fallback for "global" data: if no results found for the specific ID "global", 
+      // try to fetch documents where the UID field is missing entirely (legacy migration).
+      if (searchId === "global" && results.length === 0) {
+        try {
+          const legacySnapshot = await getDocs(colRef);
+          results = legacySnapshot.docs
+            .map(doc => ({ id: doc.id, ...(doc.data() as any) }))
+            .filter(d => !d[uidField] || d[uidField] === "global");
+          
+          if (shouldOrder) {
+             results.sort((a,b) => (a[orderField] || 0) - (b[orderField] || 0));
+          }
+        } catch (e) {
+          console.warn("Legacy fallback fetch failed:", e);
+        }
+      }
+
+      return results;
     } catch (error: any) {
       console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
       return [];

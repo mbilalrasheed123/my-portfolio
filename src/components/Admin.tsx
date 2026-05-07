@@ -541,6 +541,57 @@ export default function Admin() {
                       <p className="text-[8px] font-mono text-secondary/60 uppercase">Lock hero design for mobile users</p>
                     </div>
                   </div>
+
+                  {settings.heroDesignLoop && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 pt-4 border-t border-line/50">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Loop Sequence Priority</label>
+                      <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-white/5 border border-line rounded-xl">
+                        {(settings.heroLoopOrder || []).map((style: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-accent/20 border border-accent/30 rounded-lg text-[8px] font-mono text-accent uppercase">
+                            <span>{idx + 1}. {style}</span>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const newOrder = [...(settings.heroLoopOrder || [])];
+                                newOrder.splice(idx, 1);
+                                setSettings({...settings, heroLoopOrder: newOrder});
+                              }}
+                              className="text-secondary/60 hover:text-red-500"
+                            >✕</button>
+                          </div>
+                        ))}
+                        {(!settings.heroLoopOrder || settings.heroLoopOrder.length === 0) && (
+                          <span className="text-[8px] font-mono text-secondary/40 uppercase self-center ml-2 italic">No sequence set (will be random)</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {['default', 'particles', 'aether', 'spline'].map(style => (
+                          <button
+                            key={style}
+                            type="button"
+                            disabled={(settings.heroLoopOrder || []).includes(style)}
+                            onClick={() => setSettings({...settings, heroLoopOrder: [...(settings.heroLoopOrder || []), style]})}
+                            className={`px-3 py-1.5 rounded-lg border font-mono text-[8px] uppercase transition-all ${
+                              (settings.heroLoopOrder || []).includes(style) 
+                              ? 'opacity-20 cursor-not-allowed border-line' 
+                              : 'border-line text-secondary hover:border-accent hover:text-white hover:bg-accent/5'
+                            }`}
+                          >
+                            + {style}
+                          </button>
+                        ))}
+                        {(settings.heroLoopOrder || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSettings({...settings, heroLoopOrder: []})}
+                            className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-500/60 font-mono text-[8px] uppercase hover:bg-red-500/10 hover:text-red-500 transition-all ml-auto"
+                          >
+                            Reset Order
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -1094,6 +1145,57 @@ export default function Admin() {
                       <p className="text-[8px] font-mono text-secondary/60 uppercase">Lock hero design for mobile users</p>
                     </div>
                   </div>
+
+                  {settings.heroDesignLoop && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 pt-4 border-t border-line/50">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Loop Sequence Priority</label>
+                      <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-white/5 border border-line rounded-xl">
+                        {(settings.heroLoopOrder || []).map((style: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-accent/20 border border-accent/30 rounded-lg text-[8px] font-mono text-accent uppercase">
+                            <span>{idx + 1}. {style}</span>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const newOrder = [...(settings.heroLoopOrder || [])];
+                                newOrder.splice(idx, 1);
+                                setSettings({...settings, heroLoopOrder: newOrder});
+                              }}
+                              className="text-secondary/60 hover:text-red-500"
+                            >✕</button>
+                          </div>
+                        ))}
+                        {(!settings.heroLoopOrder || settings.heroLoopOrder.length === 0) && (
+                          <span className="text-[8px] font-mono text-secondary/40 uppercase self-center ml-2 italic">No sequence set (will be random)</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {['default', 'particles', 'aether', 'spline'].map(style => (
+                          <button
+                            key={style}
+                            type="button"
+                            disabled={(settings.heroLoopOrder || []).includes(style)}
+                            onClick={() => setSettings({...settings, heroLoopOrder: [...(settings.heroLoopOrder || []), style]})}
+                            className={`px-3 py-1.5 rounded-lg border font-mono text-[8px] uppercase transition-all ${
+                              (settings.heroLoopOrder || []).includes(style) 
+                              ? 'opacity-20 cursor-not-allowed border-line' 
+                              : 'border-line text-secondary hover:border-accent hover:text-white hover:bg-accent/5'
+                            }`}
+                          >
+                            + {style}
+                          </button>
+                        ))}
+                        {(settings.heroLoopOrder || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSettings({...settings, heroLoopOrder: []})}
+                            className="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-500/60 font-mono text-[8px] uppercase hover:bg-red-500/10 hover:text-red-500 transition-all ml-auto"
+                          >
+                            Reset Order
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">Desktop / Manual Hero Style</label>

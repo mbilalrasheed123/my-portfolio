@@ -52,7 +52,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl md:text-8xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 uppercase font-display whitespace-pre-line leading-none"
+            className="text-4xl md:text-8xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 whitespace-pre-line leading-none"
           >
             {title || "Interactive\n3D Project"}
           </motion.h1>

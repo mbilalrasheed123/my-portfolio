@@ -44,11 +44,17 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
       // 2. Check for design loop
       if (settings.heroDesignLoop) {
-        const styles = ['default', 'particles', 'aether', 'spline'];
-        // We want it to be random but stable for this session (page refresh)
-        // Using Math.random() once on mount/settings load is enough for "every page refresh"
-        const randomIndex = Math.floor(Math.random() * styles.length);
-        return styles[randomIndex];
+        const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
+          ? settings.heroLoopOrder
+          : ['default', 'particles', 'aether', 'spline'];
+        
+        const storageKey = `hero_loop_index_${userId || 'global'}`;
+        const currentIndex = parseInt(localStorage.getItem(storageKey) || '-1');
+        const nextIndex = (currentIndex + 1) % order.length;
+        
+        // Save the index for the NEXT refresh
+        localStorage.setItem(storageKey, nextIndex.toString());
+        return order[nextIndex];
       }
 
       // 3. Fallback to manual selection
@@ -56,7 +62,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
     };
 
     setActiveHeroStyle(determineHeroStyle());
-  }, [settings]);
+  }, [settings, userId]);
 
   if (loading || !activeHeroStyle) {
     return <LoadingSpinner />;
@@ -112,12 +118,16 @@ function PortfolioContent({ userId }: { userId?: string }) {
   );
 }
 
+// The main portfolio ID that everyone sees by default on the landing page
+const DEFAULT_PORTFOLIO_ID = "global"; 
+
 function Portfolio() {
   const { userId } = useParams<{ userId: string }>();
   const { user, loading: authLoading } = useAuth();
   
-  // If no userId in URL, use the logged-in user's ID.
-  const targetUserId = userId || user?.uid || undefined; 
+  // 1. If we are on a specific user's URL (/u/xyz), use that ID.
+  // 2. Otherwise, use DEFAULT_PORTFOLIO_ID so the site shows the main content.
+  const targetUserId = userId || DEFAULT_PORTFOLIO_ID; 
 
   if (authLoading) return <LoadingSpinner />;
 
@@ -129,7 +139,7 @@ function Portfolio() {
 }
 
 function AdminRoute() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   
   if (loading) return <LoadingSpinner />;
   
@@ -142,10 +152,14 @@ function AdminRoute() {
     );
   }
 
+  // The Super Admin edits the "global" site data. 
+  // Regular users edit their own unique UID-based data.
+  const targetId = isAdmin ? "global" : user.uid;
+
   return (
-    <DataProvider userId={user.uid}>
+    <DataProvider userId={targetId}>
       <div className="min-h-screen bg-black text-white">
-        <Navbar userId={user.uid} />
+        <Navbar userId={targetId} />
         <div className="pt-24 pb-12">
           <Admin />
         </div>
@@ -155,11 +169,13 @@ function AdminRoute() {
 }
 
 function MultiUserPageWrapper({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   if (loading) return <LoadingSpinner />;
   
+  const targetId = isAdmin ? "global" : user?.uid;
+
   return (
-    <DataProvider userId={user?.uid}>
+    <DataProvider userId={targetId}>
       {children}
     </DataProvider>
   );

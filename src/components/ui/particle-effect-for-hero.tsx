@@ -300,7 +300,7 @@ const HeroContent: React.FC<{ heroTitle?: string; heroSubtitle?: string; heroTyp
                     </div>
                 )}
                 
-                <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-transparent font-display uppercase tracking-tighter break-words whitespace-pre-line leading-none">
+                <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-transparent tracking-tight break-words whitespace-pre-line leading-none">
                     {heroTitle || "Zero\nGravity"}
                 </h1>
                 

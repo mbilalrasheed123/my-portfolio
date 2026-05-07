@@ -59,7 +59,7 @@ export default function Hero({ userId }: HeroProps) {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="max-w-4xl bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-4xl font-bold leading-tight text-transparent sm:text-7xl sm:leading-tight md:text-8xl md:leading-tight font-display uppercase break-words"
+          className="max-w-4xl bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-4xl font-bold leading-tight text-transparent sm:text-7xl sm:leading-tight md:text-8xl md:leading-tight tracking-tight break-words"
         >
           {settings.name}
         </motion.h1>
