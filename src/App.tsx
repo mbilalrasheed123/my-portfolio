@@ -7,6 +7,9 @@ import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-
 import ErrorBoundary from "./components/ErrorBoundary";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
+import ParticleHero from "./components/ui/particle-effect-for-hero";
+import AetherFlowHero from "./components/ui/aether-flow-hero";
+import SplineHero from "./components/ui/spline-hero";
 import About from "./components/About";
 import Skills from "./components/Skills";
 import Projects from "./components/Projects";
@@ -24,7 +27,7 @@ import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import CookieBanner from "./components/CookieBanner";
 
 function PortfolioContent({ userId }: { userId?: string }) {
-  const { loading, error } = useData();
+  const { loading, error, settings } = useData();
 
   if (loading) {
     return <LoadingSpinner />;
@@ -45,11 +48,23 @@ function PortfolioContent({ userId }: { userId?: string }) {
     );
   }
 
+  const isParticleHero = settings?.heroStyle === 'particles';
+  const isAetherHero = settings?.heroStyle === 'aether';
+  const isSplineHero = settings?.heroStyle === 'spline';
+
   return (
     <div className="min-h-screen selection:bg-accent/30 bg-black text-white">
       <Navbar userId={userId} />
       <main>
-        <Hero userId={userId} />
+        {isSplineHero ? (
+          <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+        ) : isAetherHero ? (
+          <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+        ) : isParticleHero ? (
+          <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+        ) : (
+          <Hero userId={userId} />
+        )}
         <About userId={userId} />
         <Skills userId={userId} />
         <Projects userId={userId} />

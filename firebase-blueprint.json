@@ -92,6 +92,7 @@
         "logoText": { "type": "string" },
         "logoUrl": { "type": "string" },
         "logoAlt": { "type": "string" },
+        "heroStyle": { "type": "string", "enum": ["default", "particles", "aether", "spline"] },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },

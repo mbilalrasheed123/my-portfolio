@@ -535,6 +535,40 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Hero Design Style</label>
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'default' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${(!settings.heroStyle || settings.heroStyle === 'default') ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Default Design
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'particles' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'particles' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Particle Tech
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'aether' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'aether' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Aether Flow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'spline' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'spline' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Spline 3D
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">About Title</label>
                   <input
                     className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
@@ -1020,6 +1054,39 @@ export default function Admin() {
                     value={settings.subtitle || ""}
                     onChange={e => setSettings({ ...settings, subtitle: e.target.value })}
                   />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="font-mono text-[10px] uppercase text-secondary">Hero Design Style</label>
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'default' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${(!settings.heroStyle || settings.heroStyle === 'default') ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Default Design
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'particles' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'particles' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Particle Tech
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'aether' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'aether' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Aether Flow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'spline' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'spline' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Spline 3D
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">About Text</label>
