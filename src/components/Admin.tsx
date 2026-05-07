@@ -313,33 +313,10 @@ export default function Admin() {
     }
   };
 
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6">
-        {user && user.email !== ADMIN_EMAIL && (
-          <div className="mb-8 p-6 glass border border-red-500/30 rounded-2xl max-w-md text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-xl font-display uppercase mb-2">Unauthorized Access</h3>
-            <p className="text-secondary font-mono text-[10px] uppercase tracking-widest leading-relaxed">
-              The account <strong>{user.email}</strong> is not authorized to access the admin panel. 
-              Please sign in with the administrator account.
-            </p>
-            <button 
-              onClick={handleLogout}
-              className="mt-6 px-8 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
-            >
-              Sign Out & Try Again
-            </button>
-          </div>
-        )}
-        
-        {(!user || user.email !== ADMIN_EMAIL) && (
-          <Auth loginOnly={true} onSuccess={(u) => {
-            if (u.email === ADMIN_EMAIL) {
-              setUser(u);
-            }
-          }} />
-        )}
+        <Auth loginOnly={false} onSuccess={(u) => setUser(u)} />
       </div>
     );
   }

@@ -30,43 +30,25 @@ export const api = {
     const shouldOrder = collectionsWithOrder.includes(collectionName);
 
     try {
-      let q;
       const colRef = collection(db, collectionName);
       
-      if (userId) {
-        const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
-        if (shouldOrder) {
-          q = query(colRef, where(uidField, "==", userId), orderBy(orderField, "asc"));
-        } else {
-          q = query(colRef, where(uidField, "==", userId));
-        }
+      // CRITICAL: Always filter by userId if we want a proper multi-user system.
+      // If userId is missing, we default to "global" or an empty state to prevent leakage.
+      const searchId = userId || "global";
+      
+      const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
+      let q;
+      
+      if (shouldOrder) {
+        q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
       } else {
-        if (shouldOrder) {
-          q = query(colRef, orderBy(orderField, "asc"));
-        } else {
-          q = colRef;
-        }
+        q = query(colRef, where(uidField, "==", searchId));
       }
 
       const snapshot = await getDocs(q as any);
       return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
     } catch (error: any) {
-      const isPermissionError = error?.message?.includes("permissions") || error?.code === "permission-denied";
-      // Don't log warning for expected permission denials from guests
-      if (!isPermissionError) {
-        console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
-      }
-      
-      // Fallback only if NOT a permission error (e.g. index missing) or if isSuperAdmin might want global
-      if (!isPermissionError) {
-        try {
-          const snapshot = await getDocs(collection(db, collectionName));
-          return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as any[];
-        } catch (innerError) {
-          console.error(`Fatal fetch failure for ${collectionName}:`, innerError);
-          return [];
-        }
-      }
+      console.warn(`Failed to fetch ${collectionName} for user ${userId}:`, error);
       return [];
     }
   },

@@ -21,6 +21,7 @@ import Settings from "./components/Settings";
 import Certificates from "./components/Certificates";
 import Chatbot from "./components/Chatbot";
 
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider, useData } from "./contexts/DataContext";
 import LoadingSpinner from "./components/LoadingSpinner";
 import AnalyticsDispatcher from "./components/AnalyticsDispatcher";
@@ -113,7 +114,12 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
 function Portfolio() {
   const { userId } = useParams<{ userId: string }>();
-  const targetUserId = userId || undefined; 
+  const { user, loading: authLoading } = useAuth();
+  
+  // If no userId in URL, use the logged-in user's ID.
+  const targetUserId = userId || user?.uid || undefined; 
+
+  if (authLoading) return <LoadingSpinner />;
 
   return (
     <DataProvider userId={targetUserId}>
@@ -122,9 +128,38 @@ function Portfolio() {
   );
 }
 
-function PageWrapper({ children }: { children: React.ReactNode }) {
+function AdminRoute() {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <LoadingSpinner />;
+  
+  // If not logged in, Admin component shows Auth UI
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <Admin />
+      </div>
+    );
+  }
+
   return (
-    <DataProvider>
+    <DataProvider userId={user.uid}>
+      <div className="min-h-screen bg-black text-white">
+        <Navbar userId={user.uid} />
+        <div className="pt-24 pb-12">
+          <Admin />
+        </div>
+      </div>
+    </DataProvider>
+  );
+}
+
+function MultiUserPageWrapper({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  
+  return (
+    <DataProvider userId={user?.uid}>
       {children}
     </DataProvider>
   );
@@ -133,44 +168,37 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <ErrorBoundary>
-      <Router>
-        <AnalyticsDispatcher />
-        <Routes>
-          <Route path="/" element={<Portfolio />} />
-          <Route path="/u/:userId" element={<Portfolio />} />
-          <Route path="/admin" element={
-            <PageWrapper>
-              <div className="min-h-screen bg-black text-white">
-                <Navbar />
-                <div className="pt-24 pb-12">
-                  <Admin />
+      <AuthProvider>
+        <Router>
+          <AnalyticsDispatcher />
+          <Routes>
+            <Route path="/" element={<Portfolio />} />
+            <Route path="/u/:userId" element={<Portfolio />} />
+            <Route path="/admin" element={<AdminRoute />} />
+            <Route path="/queries" element={
+              <MultiUserPageWrapper>
+                <div className="min-h-screen bg-black text-white pt-24">
+                  <Navbar />
+                  <UserQueries />
                 </div>
-              </div>
-            </PageWrapper>
-          } />
-          <Route path="/queries" element={
-            <PageWrapper>
-              <div className="min-h-screen bg-black text-white pt-24">
-                <Navbar />
-                <UserQueries />
-              </div>
-            </PageWrapper>
-          } />
-          <Route path="/settings" element={
-            <PageWrapper>
-              <div className="min-h-screen bg-black text-white pt-24">
-                <Navbar />
-                <Settings />
-              </div>
-            </PageWrapper>
-          } />
-          <Route path="/admin/analytics" element={
-            <PageWrapper>
-              <AnalyticsDashboard />
-            </PageWrapper>
-          } />
-        </Routes>
-      </Router>
+              </MultiUserPageWrapper>
+            } />
+            <Route path="/settings" element={
+              <MultiUserPageWrapper>
+                <div className="min-h-screen bg-black text-white pt-24">
+                  <Navbar />
+                  <Settings />
+                </div>
+              </MultiUserPageWrapper>
+            } />
+            <Route path="/admin/analytics" element={
+              <MultiUserPageWrapper>
+                <AnalyticsDashboard />
+              </MultiUserPageWrapper>
+            } />
+          </Routes>
+        </Router>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

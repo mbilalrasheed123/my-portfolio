@@ -24,11 +24,15 @@ export function DataProvider({ children, userId }: { children: React.ReactNode, 
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    // Only set loading true if we don't have settings yet (to avoid flicker on manual refresh if needed)
-    // But since the requirement is to show fresh data after fetch, we set it true.
     setLoading(true);
     setError(null);
     try {
+      // If no userId is provided, we should either show nothing or a default portfolio.
+      // Let's assume the Super Admin's data is the default for the landing page.
+      const SUPER_ADMIN_ID = "6v6v6v6v6v6v6v6v6v6v6v6v6v6v"; // Placeholder or actual UID
+      // Actually, let's just use whatever userId is passed. 
+      // If it's missing, we fetch nothing or a "global" state if intended.
+      
       console.log(`[DataProvider] Fetching data for userId: ${userId || 'global'}`);
       
       const [p, s, sk, c, e] = await Promise.all([
