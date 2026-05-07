@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import React from "react";
 import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Navbar from "./components/Navbar";
@@ -28,8 +29,35 @@ import CookieBanner from "./components/CookieBanner";
 
 function PortfolioContent({ userId }: { userId?: string }) {
   const { loading, error, settings } = useData();
+  const [activeHeroStyle, setActiveHeroStyle] = React.useState<string | null>(null);
 
-  if (loading) {
+  React.useEffect(() => {
+    if (!settings) return;
+
+    const determineHeroStyle = () => {
+      // 1. Check for mobile lock
+      const isMobile = window.innerWidth < 768;
+      if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
+        return settings.mobileHeroStyle;
+      }
+
+      // 2. Check for design loop
+      if (settings.heroDesignLoop) {
+        const styles = ['default', 'particles', 'aether', 'spline'];
+        // We want it to be random but stable for this session (page refresh)
+        // Using Math.random() once on mount/settings load is enough for "every page refresh"
+        const randomIndex = Math.floor(Math.random() * styles.length);
+        return styles[randomIndex];
+      }
+
+      // 3. Fallback to manual selection
+      return settings.heroStyle || 'default';
+    };
+
+    setActiveHeroStyle(determineHeroStyle());
+  }, [settings]);
+
+  if (loading || !activeHeroStyle) {
     return <LoadingSpinner />;
   }
 
@@ -48,9 +76,9 @@ function PortfolioContent({ userId }: { userId?: string }) {
     );
   }
 
-  const isParticleHero = settings?.heroStyle === 'particles';
-  const isAetherHero = settings?.heroStyle === 'aether';
-  const isSplineHero = settings?.heroStyle === 'spline';
+  const isParticleHero = activeHeroStyle === 'particles';
+  const isAetherHero = activeHeroStyle === 'aether';
+  const isSplineHero = activeHeroStyle === 'spline';
 
   return (
     <div className="min-h-screen selection:bg-accent/30 bg-black text-white">

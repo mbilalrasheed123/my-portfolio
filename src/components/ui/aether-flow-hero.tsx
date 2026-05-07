@@ -210,7 +210,7 @@ const AetherFlowHero: React.FC<AetherFlowHeroProps> = ({ title, subtitle, type }
                     variants={fadeUpVariants}
                     initial="hidden"
                     animate="visible"
-                    className="text-5xl md:text-8xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 whitespace-pre-line"
+                    className="text-4xl md:text-8xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 whitespace-pre-line leading-tight"
                 >
                     {title || "Aether Flow"}
                 </motion.h1>
@@ -220,7 +220,7 @@ const AetherFlowHero: React.FC<AetherFlowHeroProps> = ({ title, subtitle, type }
                     variants={fadeUpVariants}
                     initial="hidden"
                     animate="visible"
-                    className="max-w-2xl mx-auto text-lg text-gray-400 mb-10 leading-relaxed"
+                    className="max-w-2xl mx-auto text-base md:text-lg text-gray-400 mb-10 leading-relaxed px-4"
                 >
                     {subtitle || "An intelligent, adaptive framework for creating fluid digital experiences that feel alive and respond to user interaction in real-time."}
                 </motion.p>

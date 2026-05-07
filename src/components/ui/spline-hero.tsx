@@ -15,7 +15,7 @@ interface SplineHeroProps {
 
 export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col items-center justify-center" id="home">
+    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col items-center justify-center pt-20" id="home">
       <SpotlightAceternity
         className="-top-40 left-0 md:left-60 md:-top-20"
         fill="white"
@@ -23,9 +23,17 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
       
       <SpotlightIbelick size={400} />
 
-      <div className="container relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 px-6">
+      {/* Full screen interactive Spline background - Shifted to position robot on the right */}
+      <div className="absolute inset-0 z-0 pointer-events-auto translate-x-0 md:translate-x-[20%] lg:translate-x-[25%] scale-110 md:scale-100">
+        <SplineScene 
+          scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+          className="w-full h-full"
+        />
+      </div>
+
+      <div className="container relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 px-6 pointer-events-none">
         {/* Left content */}
-        <div className="flex-1 text-center md:text-left space-y-8">
+        <div className="flex-1 text-center md:text-left space-y-8 pointer-events-auto">
           {type && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -44,7 +52,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-5xl md:text-8xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 uppercase font-display whitespace-pre-line"
+            className="text-4xl md:text-8xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400 uppercase font-display whitespace-pre-line leading-none"
           >
             {title || "Interactive\n3D Project"}
           </motion.h1>
@@ -53,7 +61,7 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg md:text-xl text-gray-400 max-w-xl leading-relaxed"
+            className="text-base md:text-xl text-gray-400 max-w-xl leading-relaxed"
           >
             {subtitle || "Bring your UI to life with beautiful 3D scenes. Create immersive experiences that capture attention and enhance your design."}
           </motion.p>
@@ -74,13 +82,8 @@ export default function SplineHero({ title, subtitle, type }: SplineHeroProps) {
           </motion.div>
         </div>
 
-        {/* Right content - Spline */}
-        <div className="flex-1 w-full h-[400px] md:h-[600px] relative pointer-events-auto z-20">
-          <SplineScene 
-            scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-            className="w-full h-full"
-          />
-        </div>
+        {/* Right content spacer (Robot will likely appear in center/right of full screen spline) */}
+        <div className="flex-1 w-full h-[300px] md:h-[500px]"></div>
       </div>
 
       {/* Scroll Indicator */}

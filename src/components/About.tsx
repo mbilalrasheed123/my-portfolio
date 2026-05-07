@@ -30,7 +30,7 @@ export default function About({ userId }: AboutProps) {
               <img
                 src={settings.aboutImage || `https://picsum.photos/seed/${userId || 'default'}/1200/1600`}
                 alt="Profile"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
             </div>

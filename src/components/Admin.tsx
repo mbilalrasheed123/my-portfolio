@@ -534,8 +534,40 @@ export default function Admin() {
                   />
                 </div>
 
+                <div className="space-y-4 md:col-span-2">
+                  <div className="flex flex-col md:flex-row gap-8">
+                    <div className="flex-1 space-y-4">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Design Loop Control</label>
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, heroDesignLoop: !settings.heroDesignLoop })}
+                        className={`w-full py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroDesignLoop ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-line text-secondary hover:text-white'}`}
+                      >
+                        {settings.heroDesignLoop ? 'Design Loop: ON' : 'Design Loop: OFF'}
+                      </button>
+                      <p className="text-[8px] font-mono text-secondary/60 uppercase">Switch design version upon every page refresh</p>
+                    </div>
+
+                    <div className="flex-1 space-y-4">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Mobile-Specific Allocation</label>
+                      <select
+                        className="w-full bg-white/5 border border-line rounded-lg px-4 py-3 outline-none focus:border-accent text-[10px] uppercase font-mono tracking-widest text-white appearance-none cursor-pointer"
+                        value={settings.mobileHeroStyle || "sameAsDesktop"}
+                        onChange={e => setSettings({ ...settings, mobileHeroStyle: e.target.value })}
+                      >
+                        <option value="sameAsDesktop">Same as Desktop</option>
+                        <option value="default">Default (Stars)</option>
+                        <option value="particles">Particles (Interactive)</option>
+                        <option value="aether">Aether (Flow)</option>
+                        <option value="spline">Spline (3D Robot)</option>
+                      </select>
+                      <p className="text-[8px] font-mono text-secondary/60 uppercase">Lock hero design for mobile users</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2 md:col-span-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">Hero Design Style</label>
+                  <label className="font-mono text-[10px] uppercase text-secondary">Desktop / Manual Hero Style</label>
                   <div className="flex flex-wrap gap-4">
                     <button
                       type="button"
@@ -1055,8 +1087,39 @@ export default function Admin() {
                     onChange={e => setSettings({ ...settings, subtitle: e.target.value })}
                   />
                 </div>
+                <div className="space-y-4 md:col-span-2">
+                  <div className="flex flex-col md:flex-row gap-8">
+                    <div className="flex-1 space-y-4">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Design Loop Control</label>
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, heroDesignLoop: !settings.heroDesignLoop })}
+                        className={`w-full py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroDesignLoop ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-line text-secondary hover:text-white'}`}
+                      >
+                        {settings.heroDesignLoop ? 'Design Loop: ON' : 'Design Loop: OFF'}
+                      </button>
+                      <p className="text-[8px] font-mono text-secondary/60 uppercase">Switch design version upon every page refresh</p>
+                    </div>
+
+                    <div className="flex-1 space-y-4">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Mobile-Specific Allocation</label>
+                      <select
+                        className="w-full bg-white/5 border border-line rounded-lg px-4 py-3 outline-none focus:border-accent text-[10px] uppercase font-mono tracking-widest text-white appearance-none cursor-pointer"
+                        value={settings.mobileHeroStyle || "sameAsDesktop"}
+                        onChange={e => setSettings({ ...settings, mobileHeroStyle: e.target.value })}
+                      >
+                        <option value="sameAsDesktop">Same as Desktop</option>
+                        <option value="default">Default (Stars)</option>
+                        <option value="particles">Particles (Interactive)</option>
+                        <option value="aether">Aether (Flow)</option>
+                        <option value="spline">Spline (3D Robot)</option>
+                      </select>
+                      <p className="text-[8px] font-mono text-secondary/60 uppercase">Lock hero design for mobile users</p>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">Hero Design Style</label>
+                  <label className="font-mono text-[10px] uppercase text-secondary">Desktop / Manual Hero Style</label>
                   <div className="flex flex-wrap gap-4">
                     <button
                       type="button"

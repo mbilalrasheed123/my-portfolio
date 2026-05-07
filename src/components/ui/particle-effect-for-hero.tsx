@@ -300,15 +300,15 @@ const HeroContent: React.FC<{ heroTitle?: string; heroSubtitle?: string; heroTyp
                     </div>
                 )}
                 
-                <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-transparent font-display uppercase tracking-tighter break-words whitespace-pre-line">
+                <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-transparent font-display uppercase tracking-tighter break-words whitespace-pre-line leading-none">
                     {heroTitle || "Zero\nGravity"}
                 </h1>
                 
-                <p className="max-w-xl mx-auto text-base leading-relaxed md:text-lg md:leading-relaxed text-white/60 font-light">
+                <p className="max-w-xl mx-auto text-sm md:text-lg leading-relaxed text-white/60 font-light px-4">
                     {heroSubtitle || "Experience the fluidity of data. A WebGL-inspired particle simulation running entirely on 2D Canvas for maximum compatibility and performance."}
                 </p>
 
-                <div className="pt-8 pointer-events-auto">
+                <div className="pt-4 md:pt-8 pointer-events-auto">
                     <button 
                       onClick={() => document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' })}
                       className="group relative inline-flex items-center gap-3 px-8 py-4 bg-white text-black rounded-full font-bold tracking-wide overflow-hidden transition-transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
