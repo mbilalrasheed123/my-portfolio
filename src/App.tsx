@@ -33,42 +33,49 @@ function PortfolioContent({ userId }: { userId?: string }) {
   const [activeHeroStyle, setActiveHeroStyle] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!settings || activeHeroStyle) return;
+    if (!settings) return;
 
-    // Use a stable detection that only runs once or when settings change significantly
-    const isMobile = window.innerWidth < 1024 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // 1. Check for mobile lock
-    if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
-      setActiveHeroStyle(settings.mobileHeroStyle);
-      return;
-    }
-
-    // 2. Check for design loop
-    if (settings.heroDesignLoop) {
-      const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
-        ? settings.heroLoopOrder
-        : ['default', 'particles', 'aether', 'spline'];
+    const determineHeroStyle = () => {
+      // 1. Mobile Detection (Robust check)
+      const isMobile = window.innerWidth < 1024 || 
+                      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      const sessionKey = `hero_session_style_${userId || 'global'}`;
-      let style = sessionStorage.getItem(sessionKey);
-      
-      if (!style) {
-        const storageKey = `hero_loop_index_${userId || 'global'}`;
-        const currentIndex = parseInt(localStorage.getItem(storageKey) || '-1');
-        const nextIndex = (currentIndex + 1) % order.length;
-        
-        style = order[nextIndex];
-        localStorage.setItem(storageKey, nextIndex.toString());
-        sessionStorage.setItem(sessionKey, style);
+      // 2. Priority 1: Mobile-Specific Lock
+      if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
+        return settings.mobileHeroStyle;
       }
-      
-      setActiveHeroStyle(style);
-      return;
-    }
 
-    // 3. Fallback to manual selection
-    setActiveHeroStyle(settings.heroStyle || 'default');
+      // 3. Priority 2: Design Loop (if enabled)
+      if (settings.heroDesignLoop) {
+        const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
+          ? settings.heroLoopOrder
+          : ['default', 'particles', 'aether', 'spline'];
+        
+        // Use session storage to keep style consistent for the SESSION
+        const sessionKey = `hero_session_style_${userId || 'global'}`;
+        let style = sessionStorage.getItem(sessionKey);
+        
+        if (!style) {
+          const storageKey = `hero_loop_index_${userId || 'global'}`;
+          const currentIndex = parseInt(localStorage.getItem(storageKey) || '-1');
+          const nextIndex = (currentIndex + 1) % order.length;
+          
+          style = order[nextIndex];
+          localStorage.setItem(storageKey, nextIndex.toString());
+          sessionStorage.setItem(sessionKey, style);
+        }
+        
+        return style;
+      }
+
+      // 4. Priority 3: Manual Desktop Selection
+      return settings.heroStyle || 'default';
+    };
+
+    const newStyle = determineHeroStyle();
+    if (newStyle !== activeHeroStyle) {
+      setActiveHeroStyle(newStyle);
+    }
   }, [settings, userId, activeHeroStyle]);
 
   // Handle Resize for Hero stability
