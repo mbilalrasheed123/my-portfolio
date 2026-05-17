@@ -9,6 +9,7 @@ interface Project {
   description: string;
   category: string;
   technologies: string[];
+  tags?: string[];
   thumbnailUrl: string;
   liveUrl: string;
   githubUrl?: string;
@@ -29,6 +30,7 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
   
   const [formData, setFormData] = useState<Partial<Project>>({
     technologies: [],
+    tags: [],
     showInIframe: true,
     showOpenInNewTab: true,
     featured: false,
@@ -61,6 +63,7 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
       description: "",
       category: "",
       technologies: [],
+      tags: [],
       thumbnailUrl: "",
       liveUrl: "",
       githubUrl: "",
@@ -208,6 +211,19 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
                     onKeyDown={handleTechAdd}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-mono text-[10px] uppercase text-secondary">Tags (Comma separated)</label>
+                <input
+                  placeholder="e.g. AI, Creative, Experimental"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[#00ffa3] transition-colors"
+                  value={formData.tags?.join(", ") || ""}
+                  onChange={e => {
+                    const tags = e.target.value.split(",").map(t => t.trim()).filter(Boolean);
+                    setFormData({ ...formData, tags });
+                  }}
+                />
               </div>
             </div>
 
