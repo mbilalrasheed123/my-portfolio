@@ -5,10 +5,12 @@ import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
 import { FileUpload } from "./FileUpload";
 import KeyManager from "./KeyManager";
-import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "../firebase";
+import { auth, storage, ref, uploadBytes, getDownloadURL, deleteObject, onAuthStateChanged, signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider, db, collection, onSnapshot, query, where } from "../firebase";
 
 const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
 const DEFAULT_ADMIN_PASSWORD = "mypass";
+
+import ChatHistoryManager from "./ChatHistoryManager";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
@@ -112,6 +114,25 @@ export default function Admin() {
 
   useEffect(() => {
     fetchData();
+
+    // Set up real-time listener for chat sessions
+    if (user) {
+      const q = isSuperAdmin 
+        ? collection(db, "chatSessions") 
+        : query(collection(db, "chatSessions"), where("userId", "==", user.uid));
+        
+      const unsubscribe = onSnapshot(q, (snapshot: any) => {
+        const sessions = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        setChatSessions(sessions.sort((a: any, b: any) => {
+          const getT = (ts: any) => {
+            const time = ts?.toDate ? ts.toDate().getTime() : (typeof ts === 'string' ? new Date(ts).getTime() : 0);
+            return time;
+          };
+          return getT(b.createdAt || b.lastUpdated || b.lastActivity) - getT(a.createdAt || a.lastUpdated || a.lastActivity);
+        }));
+      });
+      return () => unsubscribe();
+    }
   }, [user]);
 
   const handleLogout = async () => {
@@ -1393,38 +1414,20 @@ export default function Admin() {
 
         {activeTab === "chatHistory" && (
           <div className="space-y-8">
-            <h2 className="text-3xl font-display uppercase">Chat History</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {chatSessions.map((s) => (
-                <div key={s.id} className="glass p-6 rounded-2xl border-line flex flex-col h-[400px]">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h4 className="text-sm font-display uppercase">{s.userName}</h4>
-                      <span className="text-[10px] font-mono text-secondary uppercase">
-                        {s.isGuest ? "Guest" : "Registered User"}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-accent uppercase">
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-                    {s.messages.map((m: any, idx: number) => (
-                      <div key={idx} className={`p-2 rounded-lg text-[10px] ${m.role === 'user' ? 'bg-accent/10 border border-accent/20 ml-4' : 'bg-white/5 border border-line mr-4'}`}>
-                        <div className="font-mono uppercase opacity-50 mb-1">{m.role}</div>
-                        <div className="text-secondary leading-relaxed">{m.text}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-display uppercase">Chat Insights & History</h2>
+              <button 
+                onClick={fetchData}
+                className="px-4 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest text-secondary hover:text-white transition-all"
+              >
+                <RotateCcw size={14} className="inline mr-2" /> Refresh Sessions
+              </button>
             </div>
-            {chatSessions.length === 0 && (
-              <div className="text-center py-20 glass rounded-3xl border border-line">
-                <p className="text-secondary font-mono text-xs uppercase">No chat sessions found</p>
-              </div>
-            )}
+            
+            <ChatHistoryManager 
+              initialSessions={chatSessions} 
+              onRefresh={fetchData} 
+            />
           </div>
         )}
 

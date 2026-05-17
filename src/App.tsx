@@ -33,36 +33,53 @@ function PortfolioContent({ userId }: { userId?: string }) {
   const [activeHeroStyle, setActiveHeroStyle] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!settings) return;
+    if (!settings || activeHeroStyle) return;
 
-    const determineHeroStyle = () => {
-      // 1. Check for mobile lock
-      const isMobile = window.innerWidth < 768;
-      if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
-        return settings.mobileHeroStyle;
-      }
+    // Use a stable detection that only runs once or when settings change significantly
+    const isMobile = window.innerWidth < 1024 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // 1. Check for mobile lock
+    if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
+      setActiveHeroStyle(settings.mobileHeroStyle);
+      return;
+    }
 
-      // 2. Check for design loop
-      if (settings.heroDesignLoop) {
-        const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
-          ? settings.heroLoopOrder
-          : ['default', 'particles', 'aether', 'spline'];
-        
+    // 2. Check for design loop
+    if (settings.heroDesignLoop) {
+      const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
+        ? settings.heroLoopOrder
+        : ['default', 'particles', 'aether', 'spline'];
+      
+      const sessionKey = `hero_session_style_${userId || 'global'}`;
+      let style = sessionStorage.getItem(sessionKey);
+      
+      if (!style) {
         const storageKey = `hero_loop_index_${userId || 'global'}`;
         const currentIndex = parseInt(localStorage.getItem(storageKey) || '-1');
         const nextIndex = (currentIndex + 1) % order.length;
         
-        // Save the index for the NEXT refresh
+        style = order[nextIndex];
         localStorage.setItem(storageKey, nextIndex.toString());
-        return order[nextIndex];
+        sessionStorage.setItem(sessionKey, style);
       }
+      
+      setActiveHeroStyle(style);
+      return;
+    }
 
-      // 3. Fallback to manual selection
-      return settings.heroStyle || 'default';
+    // 3. Fallback to manual selection
+    setActiveHeroStyle(settings.heroStyle || 'default');
+  }, [settings, userId, activeHeroStyle]);
+
+  // Handle Resize for Hero stability
+  React.useEffect(() => {
+    const handleResize = () => {
+      // If we're already on a locked mobile hero, don't flicker back and forth too easily 
+      // unless it's a major change
     };
-
-    setActiveHeroStyle(determineHeroStyle());
-  }, [settings, userId]);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (loading || !activeHeroStyle) {
     return <LoadingSpinner />;
