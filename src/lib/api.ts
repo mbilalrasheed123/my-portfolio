@@ -33,55 +33,83 @@ export const api = {
     try {
       const colRef = collection(db, collectionName);
       const searchId = userId || "global";
+      const masterUserIds = [
+        "global", 
+        "muhammad-bilal-rasheed-default", 
+        "6v6v6v6v6v6v6v6v6v6v6v6v6v6v",
+        "muhammad-bilal-rasheed",
+        "ChawipBei1fxQIQqe7k0",
+        "JELMOVP0a4CjM3zNYDMs",
+        "QRdHJwS9Kg039SqGtbJy",
+        "b0duY6KaDfHjYjI6H9RL",
+        "cPRxJLMJgEeBL0qmJp0G",
+        "kq8L2QmTovazGU7FqDt6",
+        "lhxfRn9aK7MVi31NVa5w",
+        "tO0l5FmPRqlx36ddIhWi"
+      ];
+      
+      const isGlobalOrMaster = searchId === "global" || masterUserIds.includes(searchId);
       const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
+      const publicCollections = ["projects", "certificates", "skills", "experience"];
+      const isPublicPortfolioCollection = publicCollections.includes(collectionName);
       
       console.log(`[api.fetchList] Fetching ${collectionName} for searchId: ${searchId}`);
 
-      // Try 1: Secure Query (Modern)
       let results: any[] = [];
-      try {
-        let q;
-        if (shouldOrder) {
-          q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
-        } else {
-          q = query(colRef, where(uidField, "==", searchId));
+      
+      // Try 1: Secure Query (Modern) - Only run if not a global portfolio request
+      // If it's a global request for projects/skills, we skip Try 1 to avoid restricted filtering
+      if (!isGlobalOrMaster || !isPublicPortfolioCollection) {
+        try {
+          let q;
+          if (shouldOrder) {
+            q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
+          } else {
+            q = query(colRef, where(uidField, "==", searchId));
+          }
+          const snapshot = await getDocs(q as any);
+          results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+          console.log(`[api.fetchList] Try 1 (${searchId}) returned ${results.length} docs`);
+        } catch (queryErr) {
+          console.warn(`[api.fetchList] Secure query failed for ${collectionName}:`, queryErr);
         }
-        const snapshot = await getDocs(q as any);
-        results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
-        console.log(`[api.fetchList] Try 1 (${searchId}) returned ${results.length} docs`);
-      } catch (queryErr) {
-        console.warn(`[api.fetchList] Secure query failed for ${collectionName}:`, queryErr);
       }
 
-      // Try 2: Fallback for "global" data
-      if (searchId === "global" && results.length === 0) {
-        console.log(`[api.fetchList] No "global" tag found, trying legacy fallback for ${collectionName}...`);
+      // Try 2: Enhanced Fallback/Inclusive check for Admin/Global/Portfolio deployments
+      if (isGlobalOrMaster || results.length === 0) {
+        console.log(`[api.fetchList] Running inclusive fallback for ${collectionName}...`);
         try {
           const legacySnapshot = await getDocs(colRef);
           const allDocs = legacySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
           
-          results = allDocs.filter(d => {
-            const val = d[uidField];
-            // Fallback includes: missing field, empty string, or known old admin IDs
-            return !val || 
-                   val === "global" || 
-                   val === "muhammad-bilal-rasheed-default" ||
-                   val === "6v6v6v6v6v6v6v6v6v6v6v6v6v6v" ||
-                   d.email === "muhammadbilalrasheed78@gmail.com"; // Additional catch for settings
-          });
-          
-          // Last Resort: If still empty and it's a public collection, just show EVERYTHING available
-          // This prevents "missing sections" on a new/orphaned site.
-          const publicCollections = ["projects", "certificates", "skills", "experience"];
-          if (results.length === 0 && publicCollections.includes(collectionName)) {
-            console.log(`[api.fetchList] Final resort: returning all ${allDocs.length} items for ${collectionName}`);
+          if (isPublicPortfolioCollection && isGlobalOrMaster) {
+            // For portfolio data in global/master mode, return EVERYTHING
             results = allDocs;
+          } else {
+            // Filter by known IDs or missing IDs
+            const legacyResults = allDocs.filter(d => {
+              const uId = d.userId;
+              const uUid = d.userUid;
+              
+              const isLegacyAdmin = !uId && !uUid || 
+                     masterUserIds.includes(uId) || 
+                     masterUserIds.includes(uUid);
+              
+              return isLegacyAdmin || d.email === "muhammadbilalrasheed78@gmail.com";
+            });
+            
+            // Merge results
+            const existingIds = new Set(results.map(r => r.id));
+            legacyResults.forEach(item => {
+              if (!existingIds.has(item.id)) {
+                results.push(item);
+              }
+            });
           }
           
           if (shouldOrder) {
              results.sort((a,b) => (a[orderField] || 0) - (b[orderField] || 0));
           }
-          console.log(`[api.fetchList] Fallback returned ${results.length} docs`);
         } catch (legacyErr) {
           console.error(`[api.fetchList] Fallback failed for ${collectionName}:`, legacyErr);
         }

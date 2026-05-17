@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Github, ExternalLink, ArrowUpRight, Filter, X } from "lucide-react";
+import { Github, ExternalLink, ArrowUpRight, Filter, X, Search, ArrowUpDown } from "lucide-react";
 
 interface Project {
   id: string;
@@ -13,6 +13,8 @@ interface Project {
   githubUrl?: string;
   featured: boolean;
   order: number;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 interface ProjectGridProps {
@@ -23,6 +25,8 @@ interface ProjectGridProps {
 export default function ProjectGrid({ projects, onViewProject }: ProjectGridProps) {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [activeTech, setActiveTech] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"order" | "newest" | "oldest" | "updated">("order");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Get unique categories and technologies
@@ -43,20 +47,56 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
 
   // Sort and Filter projects
   const filteredProjects = useMemo(() => {
-    return projects
+    let filtered = projects
       .filter(p => {
         const catMatch = activeCategory === "All" || p.category === activeCategory;
         const techMatch = activeTech === "All" || (p.technologies && p.technologies.includes(activeTech));
-        return catMatch && techMatch;
-      })
-      .sort((a, b) => {
-        // Featured stay at top regardless of alphabetical order if we want, 
-        // but often filters look better if they just follow the order
-        if (a.featured && !b.featured) return -1;
-        if (!a.featured && b.featured) return 1;
-        return (a.order || 0) - (b.order || 0);
+        const searchMatch = !searchQuery || 
+          p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        return catMatch && techMatch && searchMatch;
       });
-  }, [projects, activeCategory, activeTech]);
+
+    // Handle Sorting
+    return filtered.sort((a, b) => {
+      // Primary Sort by Feature status
+      if (a.featured && !b.featured) return -1;
+      if (!a.featured && b.featured) return 1;
+
+      // Secondary Sort based on selection
+      if (sortBy === "order") {
+        return (a.order || 0) - (b.order || 0);
+      }
+      
+      const getTimestamp = (proj: Project, field: "createdAt" | "updatedAt") => {
+        const ts = proj[field];
+        if (!ts) return 0;
+        if (ts.seconds) return ts.seconds;
+        return new Date(ts).getTime();
+      };
+
+      if (sortBy === "newest") {
+        return getTimestamp(b, "createdAt") - getTimestamp(a, "createdAt");
+      }
+      if (sortBy === "oldest") {
+        return getTimestamp(a, "createdAt") - getTimestamp(b, "createdAt");
+      }
+      if (sortBy === "updated") {
+        return getTimestamp(b, "updatedAt") - getTimestamp(a, "updatedAt");
+      }
+
+      return (a.order || 0) - (b.order || 0);
+    });
+  }, [projects, activeCategory, activeTech, searchQuery, sortBy]);
+
+  const handleResetFilters = () => {
+    setActiveCategory("All");
+    setActiveTech("All");
+    setSearchQuery("");
+    setSortBy("order");
+    setIsFilterOpen(false);
+  };
 
   return (
     <section className="bg-black py-24 px-4" id="all-projects">
@@ -68,27 +108,52 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
               All Projects
             </h2>
           </div>
-          <div className="flex flex-col gap-4">
-            <p className="text-secondary text-sm max-w-sm font-light">
+          <div className="flex flex-col gap-6 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="relative w-full sm:w-64">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <input 
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-9 pr-4 text-[10px] font-mono text-white outline-none focus:border-[#00ffa3]/50 transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button 
+                  onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  className={`flex items-center gap-2 px-4 py-2 border rounded-full font-mono text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
+                    isFilterOpen || activeCategory !== "All" || activeTech !== "All"
+                    ? "border-[#00ffa3] text-[#00ffa3] bg-[#00ffa3]/5"
+                    : "border-white/10 text-secondary hover:border-white/30"
+                  }`}
+                >
+                  <Filter size={14} />
+                  Filter
+                  {(activeCategory !== "All" || activeTech !== "All") && (
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[#00ffa3] text-black text-[8px] font-bold">
+                      !
+                    </span>
+                  )}
+                </button>
+
+                {(activeCategory !== "All" || activeTech !== "All" || searchQuery !== "" || sortBy !== "order") && (
+                  <button 
+                    onClick={handleResetFilters}
+                    className="flex items-center gap-2 px-4 py-2 border border-red-500/30 text-red-400 bg-red-500/5 rounded-full font-mono text-[10px] uppercase tracking-wider transition-all hover:bg-red-500/10"
+                  >
+                    <X size={14} />
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <p className="text-secondary text-sm max-w-sm font-light hidden md:block">
               A comprehensive list of works ranging from full-stack applications to small experimental prototypes.
             </p>
-            
-            <button 
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`flex items-center gap-2 self-start md:self-end px-4 py-2 border rounded-full font-mono text-[10px] uppercase tracking-wider transition-all ${
-                isFilterOpen || activeCategory !== "All" || activeTech !== "All"
-                ? "border-[#00ffa3] text-[#00ffa3] bg-[#00ffa3]/5"
-                : "border-white/10 text-secondary hover:border-white/30"
-              }`}
-            >
-              <Filter size={14} />
-              Filter Projects
-              {(activeCategory !== "All" || activeTech !== "All") && (
-                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[#00ffa3] text-black text-[8px] font-bold">
-                  !
-                </span>
-              )}
-            </button>
           </div>
         </div>
 
@@ -102,6 +167,33 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
               className="overflow-hidden mb-12"
             >
               <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-8 space-y-8">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] uppercase text-white/40 tracking-widest">Sort By</span>
+                    <ArrowUpDown size={12} className="text-white/20" />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: "order", label: "Priority" },
+                      { id: "newest", label: "Newest First" },
+                      { id: "oldest", label: "Oldest First" },
+                      { id: "updated", label: "Recently Updated" }
+                    ].map(option => (
+                      <button
+                        key={option.id}
+                        onClick={() => setSortBy(option.id as any)}
+                        className={`px-4 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all border ${
+                          sortBy === option.id
+                          ? "bg-white text-black border-white"
+                          : "bg-white/5 border-white/5 text-secondary hover:border-white/20"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-[10px] uppercase text-white/40 tracking-widest">By Category</span>

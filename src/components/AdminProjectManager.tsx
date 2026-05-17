@@ -44,7 +44,6 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
   }, [userId]);
 
   const fetchProjects = async () => {
-    if (!userId) return;
     setIsLoading(true);
     const data = await api.fetchProjects(userId);
     setProjects(data);
@@ -83,6 +82,47 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
     e.preventDefault();
     setIsLoading(true);
     try {
+      const newOrder = formData.order || 0;
+      const isNew = !formData.id;
+      const oldProject = isNew ? null : projects.find(p => p.id === formData.id);
+      const oldOrder = oldProject ? oldProject.order : -1;
+
+      // Handle Priority Reordering
+      if (isNew || newOrder !== oldOrder) {
+        const updates: Promise<any>[] = [];
+        
+        if (isNew) {
+          // If NEW project: shift everything >= newOrder DOWN by 1
+          projects.forEach(p => {
+            if (p.order >= newOrder) {
+              updates.push(api.put("projects", p.id, { order: p.order + 1 }));
+            }
+          });
+        } else {
+          // If EDITING project:
+          if (newOrder < oldOrder) {
+            // Moving UP (forward): increment items in range [newOrder, oldOrder - 1]
+            projects.forEach(p => {
+              if (p.id !== formData.id && p.order >= newOrder && p.order < oldOrder) {
+                updates.push(api.put("projects", p.id, { order: p.order + 1 }));
+              }
+            });
+          } else {
+            // Moving DOWN (backward): decrement items in range [oldOrder + 1, newOrder]
+            projects.forEach(p => {
+              if (p.id !== formData.id && p.order > oldOrder && p.order <= newOrder) {
+                updates.push(api.put("projects", p.id, { order: p.order - 1 }));
+              }
+            });
+          }
+        }
+
+        if (updates.length > 0) {
+          console.log(`[Reordering] Performing ${updates.length} background updates for priority consistency...`);
+          await Promise.all(updates);
+        }
+      }
+
       await api.saveProject(formData, userId);
       setIsEditing(null);
       setFormData({});
