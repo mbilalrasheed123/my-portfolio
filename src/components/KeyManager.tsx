@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Shield, AlertCircle, CheckCircle, Clock, RefreshCcw, Lock, Key as KeyIcon, Eye, EyeOff, BarChart3, Bot, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Shield, AlertCircle, CheckCircle, Clock, RefreshCcw, Lock, Key as KeyIcon, Eye, EyeOff, BarChart3, Bot, RotateCcw, MessageSquare, Zap, TrendingDown, Activity } from "lucide-react";
 import { db } from "../firebase";
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, getDocs } from "firebase/firestore";
 import { motion, AnimatePresence } from "motion/react";
 
 interface ApiKeyDoc {
@@ -43,6 +43,44 @@ export default function KeyManager() {
 
     return () => unsubscribe();
   }, []);
+
+  // Fetch aggregate stats for keys
+  const [keyStats, setKeyStats] = useState<Record<string, { count: number, errorCount: number, avgLatency: number }>>({});
+  
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const q = query(collection(db, "chatMessages"), orderBy("timestamp", "desc"));
+        const snapshot = await getDocs(q);
+        const stats: Record<string, { count: number, errorCount: number, avgLatency: number, latencySum: number }> = {};
+        
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const keyId = data.apiKeyUsed || 'unknown';
+          if (!stats[keyId]) stats[keyId] = { count: 0, errorCount: 0, avgLatency: 0, latencySum: 0 };
+          
+          stats[keyId].count++;
+          if (data.status === 'failed') stats[keyId].errorCount++;
+          if (data.responseTime) {
+            stats[keyId].latencySum += data.responseTime;
+          }
+        });
+        
+        const finalStats: Record<string, any> = {};
+        Object.entries(stats).forEach(([id, s]) => {
+          finalStats[id] = {
+            count: s.count,
+            errorCount: s.errorCount,
+            avgLatency: s.count > 0 ? Math.round(s.latencySum / (s.count - s.errorCount || 1)) : 0
+          };
+        });
+        setKeyStats(finalStats);
+      } catch (err) {
+        console.error("Stats fetch failed:", err);
+      }
+    };
+    fetchStats();
+  }, [keys]);
 
   const handleAddKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,6 +185,46 @@ export default function KeyManager() {
         </button>
       </div>
 
+      {/* Key Usage Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        {keys.slice(0, 3).map((key, i) => {
+          const stats = keyStats[key.id] || { count: 0, errorCount: 0, avgLatency: 0 };
+          const successRate = stats.count > 0 ? Math.round(((stats.count - stats.errorCount) / stats.count) * 100) : 100;
+          
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              key={`stat-${key.id}`}
+              className="p-6 bg-white/5 border border-white/10 rounded-2xl"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-2 rounded-lg ${key.status === 'active' ? 'bg-[#00ffa3]/10 text-[#00ffa3]' : 'bg-red-500/10 text-red-500'}`}>
+                  <Zap size={16} />
+                </div>
+                <span className="text-[10px] font-mono text-secondary uppercase px-2 py-1 bg-white/5 rounded">Key 0{i+1}</span>
+              </div>
+              <h4 className="text-sm font-sans font-bold text-white mb-1 uppercase truncate">{key.name}</h4>
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="text-2xl font-display text-white">{stats.count}</span>
+                <span className="text-[10px] font-mono text-secondary uppercase">Messages</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                <div>
+                  <p className="text-[9px] font-mono text-secondary uppercase mb-1">Health</p>
+                  <p className={`text-xs font-bold ${successRate > 90 ? 'text-[#00ffa3]' : 'text-orange-500'}`}>{successRate}%</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-mono text-secondary uppercase mb-1">Status</p>
+                  <p className="text-xs font-bold text-white uppercase">{key.status}</p>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -221,6 +299,7 @@ export default function KeyManager() {
           const rpmPercent = Math.min((rpmUsed / 15) * 100, 100);
           const rpdPercent = Math.min((rpdUsed / 1500) * 100, 100);
           const lastUsed = quota.lastUsed ? (quota.lastUsed as any).toDate?.().toLocaleString() : null;
+          const stats = keyStats[key.id] || { count: 0, errorCount: 0, avgLatency: 0 };
 
           return (
             <motion.div
@@ -236,6 +315,21 @@ export default function KeyManager() {
                     <span className="font-mono text-[9px] text-zinc-500 uppercase">Priority: {key.priority}</span>
                   </div>
                   
+                  <div className="flex flex-wrap gap-4 mb-6">
+                    <div className="flex items-center gap-2 font-mono text-[10px] text-secondary bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+                      <MessageSquare size={12} className="text-accent" />
+                      <span className="text-white">{stats.count}</span> MESSAGES
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[10px] text-secondary bg-zinc-900/50 px-3 py-1.5 rounded-lg border border-white/5">
+                      <Activity size={12} className="text-blue-500" />
+                      <span className="text-white">{stats.avgLatency}ms</span> AVG LATENCY
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[10px] text-secondary bg-red-500/5 px-3 py-1.5 rounded-lg border border-red-500/10">
+                      <TrendingDown size={12} className="text-red-500" />
+                      <span className="text-red-500">{stats.errorCount}</span> ERRORS
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3 font-mono text-[11px] text-secondary mb-6 bg-white/5 p-3 rounded-xl">
                     <KeyIcon size={14} className="text-[#00ffa3]" />
                     <span className="truncate max-w-[200px]">{showRawKeys[key.id] ? "Decryption happens on server only" : "••••••••••••••••••••••••"}</span>

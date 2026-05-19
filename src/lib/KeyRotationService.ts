@@ -26,7 +26,7 @@ export class KeyRotationService {
   /**
    * Selection Logic: Serverless optimized with on-the-fly resets.
    */
-  async getRotatedKey(): Promise<{ id: string; key: string } | null> {
+  async getRotatedKey(): Promise<{ id: string; key: string; name: string; remaining: { rpm: number; rpd: number } } | null> {
     try {
       const keysRef = this.db.collection('apiKeys');
       // Fetch all active keys
@@ -50,22 +50,21 @@ export class KeyRotationService {
         
         // Defensive check: ensure quota exists
         if (!data.quota || !data.quota.lastUsed) {
-          // Initialize/Reset if missing
-          const defaultLastUsed = new Date(0); // Epoch start
-          const currentRpm = 0;
-          const currentRpd = 0;
-          
+          const res = {
+            id: doc.id,
+            key: decryptKey(data.key, this.secret),
+            name: data.name || 'API Key',
+            remaining: { rpm: 14, rpd: 1499 }
+          };
+
           await doc.ref.update({
-            'quota.rpmUsed': FieldValue.increment(1),
-            'quota.rpdUsed': FieldValue.increment(1),
+            'quota.rpmUsed': 1,
+            'quota.rpdUsed': 1,
             'quota.lastUsed': FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
           });
 
-          return {
-            id: doc.id,
-            key: decryptKey(data.key, this.secret)
-          };
+          return res;
         }
 
         const lastUsedDate = data.quota.lastUsed.toDate().getTime();
@@ -100,7 +99,12 @@ export class KeyRotationService {
 
           return {
             id: doc.id,
-            key: decryptKey(data.key, this.secret)
+            key: decryptKey(data.key, this.secret),
+            name: data.name || 'API Key',
+            remaining: {
+              rpm: 15 - currentRpm - 1,
+              rpd: 1500 - currentRpd - 1
+            }
           };
         }
       }

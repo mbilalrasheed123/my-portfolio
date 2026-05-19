@@ -53,10 +53,17 @@ export default function Chatbot({ userId }: ChatbotProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [pastSessions, setPastSessions] = useState<ChatSession[]>([]);
   const [kbContent, setKbContent] = useState("");
-  const [currentKey, setCurrentKey] = useState<{ id: string; key: string } | null>(null);
-  const messageCountRef = useRef(0);
+  const [currentKey, setCurrentKey] = useState<{ id: string; key: string; name: string } | null>(null);
+  const [chatState, setChatState] = useState<{
+    messageCount: number;
+    messagesPerKey: Record<string, number>;
+  }>({
+    messageCount: 0,
+    messagesPerKey: {}
+  });
+  const [chatError, setChatError] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
     const fetchData = async () => {
       const kb = await api.fetchKnowledgeBase(userId, true);
@@ -139,26 +146,20 @@ export default function Chatbot({ userId }: ChatbotProps) {
     if (user) {
       await api.saveChatSession(updated);
     } else {
-      // For guests, we save a single current session or a list in localStorage
       const guestSessions = [updated];
       localStorage.setItem("guest_chat_history", JSON.stringify(guestSessions));
       setPastSessions(guestSessions);
     }
   };
 
-  useEffect(() => {
-    // Load count from session storage to persist during refresh
-    const savedCount = sessionStorage.getItem('chatbot_message_count');
-    if (savedCount) messageCountRef.current = parseInt(savedCount);
-  }, []);
-
   const rotateKey = async () => {
     try {
+      console.log("[Chatbot] Requesting key rotation...");
       const res = await fetch("/api/keys/rotate");
       if (res.ok) {
         const data = await res.json();
         setCurrentKey(data);
-        console.log("[Chatbot] API Key rotated:", data.id);
+        console.log(`[Chatbot] Rotated to key: ${data.name} (${data.id})`);
         return data;
       }
     } catch (err) {
@@ -167,16 +168,61 @@ export default function Chatbot({ userId }: ChatbotProps) {
     return null;
   };
 
-  const handleSend = async (retryCount = 0) => {
-    if (!input.trim() || isLoading) return;
+  const generateWithFallback = async (prompt: string, contents: any[], context: string, activeKey: any) => {
+    const maxRetries = 3;
+    let keyToUse = activeKey?.key || import.meta.env.VITE_GEMINI_API_KEY;
 
-    if (!session) {
-      await createNewSession();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[Chatbot] Generation Attempt ${attempt}/${maxRetries}`);
+        
+        const ai = new GoogleGenAI({ apiKey: keyToUse });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: contents,
+          config: {
+            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + context,
+            responseMimeType: "application/json",
+          }
+        });
+
+        if (!response.text) throw new Error("Empty response from AI");
+        return response.text;
+      } catch (error: any) {
+        console.error(`[Chatbot] Attempt ${attempt} failed:`, error.message);
+        
+        const isRetryable = error.message?.includes('503') || 
+                          error.message?.includes('UNAVAILABLE') || 
+                          error.message?.includes('429') ||
+                          error.status === 429;
+
+        if (isRetryable && attempt < maxRetries) {
+          const waitTime = 1000 * Math.pow(2, attempt);
+          console.log(`[Chatbot] Service unstable, waiting ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          
+          if (error.message?.includes('429')) {
+             console.log("[Chatbot] 429 detected during generation, attempting key rotation...");
+             const newKey = await rotateKey();
+             if (newKey) keyToUse = newKey.key;
+          }
+          continue;
+        }
+        throw error;
+      }
     }
+    throw new Error('All retry attempts failed');
+  };
 
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+    if (!session) await createNewSession();
+
+    setChatError(null);
     trackClick('chatbot-send-message');
 
     const userText = input.trim();
+    const startTime = Date.now();
     const userMsg: Message = { role: "user", text: userText, timestamp: new Date().toISOString() };
     const newMessages = [...messages, userMsg];
     
@@ -185,28 +231,29 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage Key Rotation (Every 15 messages)
+      // 1. Manage Key Rotation & Tracking
       let activeKey = currentKey;
-      if (!activeKey || messageCountRef.current % 15 === 0) {
+      let nextCount = chatState.messageCount + 1;
+      
+      if (!activeKey || nextCount % 15 === 0) {
         activeKey = await rotateKey();
       }
 
-      const apiKey = activeKey?.key || import.meta.env.VITE_GEMINI_API_KEY;
+      const keyId = activeKey?.id || 'env_key';
+      const keyName = activeKey?.name || 'Default Key';
+      
+      const newMessagesPerKey = { ...chatState.messagesPerKey };
+      newMessagesPerKey[keyId] = (newMessagesPerKey[keyId] || 0) + 1;
+      
+      const newState = {
+        messageCount: nextCount,
+        messagesPerKey: newMessagesPerKey
+      };
+      setChatState(newState);
 
-      if (!apiKey) {
-        const errorMsg: Message = { 
-          role: "model", 
-          text: "My apologies, but I'm currently unable to connect to the AI service. Please try again in a few minutes.", 
-          timestamp: new Date().toISOString() 
-        };
-        setMessages(prev => [...prev, errorMsg]);
-        setIsLoading(false);
-        return;
-      }
-
-      // 2. Intelligence Queries (Admin)
+      // 2. Intelligence Queries
       const messageLower = userText.toLowerCase();
-      const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'page', 'device', 'click', 'report', 'stats', 'popular', 'intelligence'];
+      const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'report', 'stats', 'intelligence'];
       const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
       
       if (isAnalyticsQuery && auth.currentUser?.email === 'muhammadbilalrasheed78@gmail.com') {
@@ -223,10 +270,8 @@ export default function Chatbot({ userId }: ChatbotProps) {
       const name = settings.name || "Bilal";
       const personalContext = `NAME: ${name}
 ABOUT: ${settings.aboutText || "Professional Developer."}
-CONTEXT: ${kbContent || "No additional personal knowledge base entries provided."}`;
+CONTEXT: ${kbContent || "No additional knowledge entries."}`;
 
-      const ai = new GoogleGenAI({ apiKey });
-      
       const contents = messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
@@ -236,28 +281,14 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
         parts: [{ text: userText }]
       });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: contents,
-        config: {
-          systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + personalContext,
-          responseMimeType: "application/json",
-        }
-      });
-
-      if (!response.text) {
-        throw new Error("Empty response from AI");
-      }
-
-      // Update message count
-      messageCountRef.current += 1;
-      sessionStorage.setItem('chatbot_message_count', messageCountRef.current.toString());
+      const responseText = await generateWithFallback(userText, contents, personalContext, activeKey);
+      const responseTime = Date.now() - startTime;
 
       let modelData;
       try {
-        modelData = JSON.parse(response.text.trim());
+        modelData = JSON.parse(responseText.trim());
       } catch (e) {
-        modelData = { reply: response.text, isLeadDetected: false };
+        modelData = { reply: responseText, isLeadDetected: false };
       }
 
       const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
@@ -266,6 +297,18 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       const finalMessages = [...newMessages, modelMsg];
       setMessages(finalMessages);
       saveCurrentSession(finalMessages);
+
+      api.saveChatMessage({
+        sessionId: session?.id || 'none',
+        userMessage: userText,
+        botResponse: modelText,
+        apiKeyUsed: keyId,
+        apiKeyName: keyName,
+        messageNumberOverall: nextCount,
+        messageNumberForKey: newMessagesPerKey[keyId],
+        responseTime: responseTime,
+        status: 'success'
+      }).catch(err => console.error("Logging failed:", err));
 
       if (modelData.isLeadDetected && modelData.leadInfo) {
         trackClick('chatbot-lead-detected');
@@ -277,27 +320,25 @@ CONTEXT: ${kbContent || "No additional personal knowledge base entries provided.
       }
 
     } catch (error: any) {
-      console.error("Chatbot error:", error);
+      console.error("Chatbot fatal error:", error);
+      setChatError(error);
       
-      // Self-Healing: If 429 Quick Retry with new key
-      if ((error.message?.includes("429") || error.status === 429) && retryCount < 1) {
-        console.log("[Chatbot] 429 detected, rotating and retrying...");
-        if (currentKey?.id && currentKey.id !== 'env_key') {
-          fetch("/api/keys/exhausted", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: currentKey.id })
-          }).catch(e => console.error("Exhausted feedback failed:", e));
-        }
-        await rotateKey();
-        // Recurse once
-        setInput(userText); // Put text back for retry logic if needed, though we use userText variable
-        setIsLoading(false); // Reset loading briefly
-        return handleSend(retryCount + 1);
-      }
+      const isApiUnavailable = error.message?.includes('503') || error.message?.includes('unavailable');
+      const errorText = isApiUnavailable
+        ? "🤖 AI is busy right now (high demand). Please try again in a moment."
+        : "⚠️ I encountered an unexpected error. Please try again.";
 
-      const errorMsg: Message = { role: "model", text: "I'm a bit busy right now. Could you please try again in a moment?", timestamp: new Date().toISOString() };
+      const errorMsg: Message = { role: "model", text: errorText, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
+
+      api.saveChatMessage({
+        userMessage: userText,
+        botResponse: "[ERROR]",
+        status: 'failed',
+        errorMessage: error.message,
+        timestamp: new Date()
+      }).catch(e => console.error("Error log failed:", e));
+
     } finally {
       setIsLoading(false);
     }

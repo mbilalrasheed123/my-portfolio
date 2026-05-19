@@ -543,6 +543,19 @@ export const api = {
     return this.delete("knowledgeBase", id);
   },
 
+  async saveChatMessage(data: any) {
+    try {
+      const docRef = doc(collection(db, "chatMessages"));
+      await setDoc(docRef, {
+        ...data,
+        timestamp: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error("Failed to save chat message log:", error);
+    }
+  },
+
   async notify(data: any) {
     console.log("Notification requested (Simulated):", data);
     return { status: "simulated" };
