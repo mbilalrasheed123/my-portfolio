@@ -137,6 +137,11 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    match /chatMessages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
     match /sessions/{sessionId} {
       allow write: if true;
       allow read: if isAdmin();

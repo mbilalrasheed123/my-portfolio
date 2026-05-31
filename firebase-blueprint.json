@@ -216,6 +216,24 @@
       },
       "required": ["name", "key", "status", "priority"]
     },
+    "ChatMessage": {
+      "title": "Chat Message Log",
+      "description": "Log of a single chat message exchanged with the AI chatbot, used for rotating key stats",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "userMessage": { "type": "string" },
+        "botResponse": { "type": "string" },
+        "apiKeyUsed": { "type": "string" },
+        "apiKeyName": { "type": "string" },
+        "messageNumberOverall": { "type": "integer" },
+        "messageNumberForKey": { "type": "integer" },
+        "responseTime": { "type": "number" },
+        "status": { "type": "string" },
+        "errorMessage": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
     "Session": {
       "title": "Analytics Session",
       "description": "Aggregated user session data",
@@ -341,6 +359,10 @@
     "/analytics/{eventId}": {
       "schema": "AnalyticsEvent",
       "description": "Granular engagement tracking"
+    },
+    "/chatMessages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Granular logging of chat transactions for key API service level indicator monitoring"
     },
     "/sessions/{sessionId}": {
       "schema": "Session",
