@@ -89,6 +89,40 @@ function PortfolioContent({ userId }: { userId?: string }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Scroll Reveal Observer
+  React.useEffect(() => {
+    if (loading || !activeHeroStyle) return;
+
+    // Use a small delay to make sure DOM is fully printed
+    const timer = setTimeout(() => {
+      const elements = document.querySelectorAll(
+        '.reveal, .reveal-left, .reveal-right, .reveal-scale, .heading-wrapper'
+      );
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+            }
+          });
+        },
+        {
+          threshold: 0.1,
+          rootMargin: '0px 0px -50px 0px'
+        }
+      );
+
+      elements.forEach((el) => observer.observe(el));
+
+      return () => {
+        elements.forEach((el) => observer.unobserve(el));
+      };
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [loading, activeHeroStyle, settings]);
+
   if (loading || !activeHeroStyle) {
     return <LoadingSpinner />;
   }

@@ -95,9 +95,10 @@ export default function Contact({ userId }: ContactProps) {
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
           <div>
-            <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block">Get in Touch</span>
-            <h2 className="text-5xl md:text-8xl font-display uppercase leading-none mb-12">
-              Let's Create<br />Together
+            <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block reveal">Get in Touch</span>
+            <h2 className="text-5xl md:text-8xl font-display uppercase leading-none mb-12 heading-wrapper">
+              <span className="heading-inner">Let's Create</span>
+              <span className="heading-inner">Together</span>
             </h2>
             
             <div className="space-y-12">
@@ -121,7 +122,7 @@ export default function Contact({ userId }: ContactProps) {
           </div>
 
           <div className="flex flex-col justify-end">
-            <form className="space-y-8" onSubmit={handleSubmit}>
+            <form className="space-y-8 stagger-children reveal" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="border-b border-line pb-4 group focus-within:border-white transition-colors relative">
                   <label className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Name</label>

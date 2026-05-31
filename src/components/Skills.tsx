@@ -38,9 +38,10 @@ export default function Skills({ userId }: SkillsProps) {
   return (
     <section id="skills" className="py-24 bg-black border-y border-line overflow-hidden">
       <div className="container mx-auto px-6 mb-16">
-        <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block">Expertise</span>
-        <h2 className="text-5xl md:text-7xl font-display uppercase leading-none">
-          Technical<br />Stack
+        <span className="font-mono text-xs uppercase tracking-widest text-accent mb-4 block reveal">Expertise</span>
+        <h2 className="text-5xl md:text-7xl font-display uppercase leading-none heading-wrapper">
+          <span className="heading-inner">Technical</span>
+          <span className="heading-inner">Stack</span>
         </h2>
       </div>
 

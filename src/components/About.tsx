@@ -24,7 +24,7 @@ export default function About({ userId }: AboutProps) {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="relative order-2 lg:order-1"
+            className="relative order-2 lg:order-1 reveal-left"
           >
             <div className="aspect-[3/4] rounded-2xl overflow-hidden border border-line animate-float bg-white/5">
               <img
@@ -34,7 +34,7 @@ export default function About({ userId }: AboutProps) {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="absolute -bottom-10 -right-10 hidden md:block">
+            <div className="absolute -bottom-10 -right-10 hidden md:block reveal-scale">
               <div className="glass p-8 rounded-2xl border border-line">
                 <span className="font-display text-4xl block mb-2">{settings.experienceYears}</span>
                 <span className="font-mono text-[10px] uppercase tracking-widest text-secondary">Experience Level</span>
@@ -42,7 +42,7 @@ export default function About({ userId }: AboutProps) {
             </div>
           </motion.div>
 
-          <div className="order-1 lg:order-2">
+          <div className="order-1 lg:order-2 reveal-right">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -66,7 +66,7 @@ export default function About({ userId }: AboutProps) {
                 </Reveal>
               </div>
 
-              <div className="mt-12 grid grid-cols-2 gap-8 border-t border-line pt-12">
+              <div className="mt-12 grid grid-cols-2 gap-8 border-t border-line pt-12 reveal stagger-children">
                 <div>
                   <span className="font-mono text-[10px] uppercase tracking-widest text-secondary block mb-2">Education</span>
                   <p className="text-white font-medium">{settings.education}</p>

@@ -103,9 +103,9 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
           <div className="space-y-4">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#00ffa3]">Explore Everything</span>
-            <h2 className="text-4xl md:text-6xl font-display font-medium text-white uppercase tracking-tight">
-              All Projects
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#00ffa3] reveal">Explore Everything</span>
+            <h2 className="text-4xl md:text-6xl font-display font-medium text-white uppercase tracking-tight heading-wrapper">
+              <span className="heading-inner">All Projects</span>
             </h2>
           </div>
           <div className="flex flex-col gap-6 w-full md:w-auto">
@@ -251,7 +251,7 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
         </AnimatePresence>
 
         {filteredProjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10 stagger-children">
             <AnimatePresence mode="popLayout">
               {filteredProjects.map((project, i) => (
                 <motion.div
@@ -265,7 +265,7 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
                     delay: (i % 3) * 0.1,
                     ease: [0.22, 1, 0.36, 1]
                   }}
-                  className="group"
+                  className="group reveal-scale"
                 >
                   <div 
                     className="bg-[#0a0a0a] border border-white/5 rounded-3xl overflow-hidden h-full flex flex-col hover:border-[#00ffa3]/30 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer"

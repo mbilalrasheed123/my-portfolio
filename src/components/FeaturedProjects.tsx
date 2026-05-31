@@ -52,13 +52,10 @@ export default function FeaturedProjects({ projects, onViewProject }: FeaturedPr
     <section className="bg-black py-24 px-4 overflow-hidden" id="featured">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
-          <motion.h2 
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            className="text-4xl md:text-7xl font-display font-black text-white uppercase tracking-tighter"
-          >
-            Featured<br /><span className="text-secondary">Projects</span>
-          </motion.h2>
+          <h2 className="text-4xl md:text-7xl font-display font-black text-white uppercase tracking-tighter heading-wrapper">
+            <span className="heading-inner">Featured</span>
+            <span className="heading-inner text-secondary">Projects</span>
+          </h2>
           
           <div className="hidden md:flex gap-4 mb-4">
             <button 

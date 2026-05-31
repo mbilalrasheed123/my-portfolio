@@ -82,9 +82,9 @@ export default function Certificates({ userId }: CertificatesProps) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="text-4xl md:text-7xl font-display uppercase leading-none"
+              className="text-4xl md:text-7xl font-display uppercase leading-none heading-wrapper"
             >
-              Certificates
+              <span className="heading-inner">Certificates</span>
             </motion.h2>
           </Reveal>
         </div>
@@ -105,7 +105,7 @@ export default function Certificates({ userId }: CertificatesProps) {
               className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
             >
               {/* Left Side: Image */}
-              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group bg-white/5">
+              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group bg-white/5 reveal-left">
                 {currentCert.image ? (
                   <img 
                     src={currentCert.image} 
@@ -122,7 +122,7 @@ export default function Certificates({ userId }: CertificatesProps) {
               </div>
 
               {/* Right Side: Content */}
-              <div className="flex flex-col justify-center relative h-full">
+              <div className="flex flex-col justify-center relative h-full reveal-right">
                 <div className="mb-8">
                   <div className="flex items-center gap-2 text-accent mb-4">
                     <Award size={20} />
