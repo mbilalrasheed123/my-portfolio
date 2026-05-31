@@ -20,6 +20,7 @@ import UserQueries from "./components/UserQueries";
 import Settings from "./components/Settings";
 import Certificates from "./components/Certificates";
 import Chatbot from "./components/Chatbot";
+import Testimonials from "./components/Testimonials";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider, useData } from "./contexts/DataContext";
@@ -128,6 +129,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
         <Skills userId={userId} />
         <Projects userId={userId} />
         <Certificates userId={userId} />
+        <Testimonials />
         <Contact userId={userId} />
       </main>
       <Chatbot userId={userId} />

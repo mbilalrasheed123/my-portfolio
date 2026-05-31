@@ -119,33 +119,50 @@ export default function Chatbot({ userId }: ChatbotProps) {
 
   const createNewSession = async () => {
     const name = settings.name || "the developer";
+    
+    // Generate a unique identifier for the guest
+    let guestId = localStorage.getItem("chatbot_guest_id");
+    if (!guestId) {
+      guestId = `guest_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+      localStorage.setItem("chatbot_guest_id", guestId);
+    }
+
     const newSession: ChatSession = {
-      userId: user?.uid || "guest",
-      userName: user?.displayName || "Guest",
+      userId: user?.uid || guestId,
+      userName: user?.displayName || `Guest ${guestId.substring(6, 11).toUpperCase()}`,
       isGuest: !user,
       messages: [{ role: "model", text: `Hello! Welcome to ${name}'s portfolio. I’m here to help you explore their work and expertise. How can I assist you today?`, timestamp: new Date().toISOString() }],
       createdAt: new Date().toISOString()
     };
     
-    if (user) {
-      const id = await api.saveChatSession(newSession);
+    const id = await api.saveChatSession(newSession);
+    if (id) {
       newSession.id = id;
     }
     
     setSession(newSession);
     setMessages(newSession.messages);
     setShowHistory(false);
+
+    if (!user) {
+      const guestSessions = [newSession];
+      localStorage.setItem("guest_chat_history", JSON.stringify(guestSessions));
+      setPastSessions(guestSessions);
+    }
+
+    return newSession;
   };
 
-  const saveCurrentSession = async (updatedMessages: Message[]) => {
-    if (!session) return;
+  const saveCurrentSession = async (updatedMessages: Message[], targetSession?: ChatSession) => {
+    const s = targetSession || session;
+    if (!s) return;
     
-    const updated = { ...session, messages: updatedMessages };
+    const updated = { ...s, messages: updatedMessages };
     setSession(updated);
 
-    if (user) {
-      await api.saveChatSession(updated);
-    } else {
+    await api.saveChatSession(updated);
+
+    if (!user) {
       const guestSessions = [updated];
       localStorage.setItem("guest_chat_history", JSON.stringify(guestSessions));
       setPastSessions(guestSessions);
@@ -216,7 +233,14 @@ export default function Chatbot({ userId }: ChatbotProps) {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
-    if (!session) await createNewSession();
+    
+    let activeSession = session;
+    let currentMessages = messages;
+
+    if (!activeSession) {
+      activeSession = await createNewSession();
+      currentMessages = activeSession.messages;
+    }
 
     setChatError(null);
     trackClick('chatbot-send-message');
@@ -224,7 +248,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
     const userText = input.trim();
     const startTime = Date.now();
     const userMsg: Message = { role: "user", text: userText, timestamp: new Date().toISOString() };
-    const newMessages = [...messages, userMsg];
+    const newMessages = [...currentMessages, userMsg];
     
     setInput("");
     setMessages(newMessages);
@@ -261,7 +285,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
         const modelMsg: Message = { role: "model", text: analyticsResponse, timestamp: new Date().toISOString() };
         const finalMessages = [...newMessages, modelMsg];
         setMessages(finalMessages);
-        saveCurrentSession(finalMessages);
+        await saveCurrentSession(finalMessages, activeSession);
         setIsLoading(false);
         return;
       }
@@ -272,14 +296,10 @@ export default function Chatbot({ userId }: ChatbotProps) {
 ABOUT: ${settings.aboutText || "Professional Developer."}
 CONTEXT: ${kbContent || "No additional knowledge entries."}`;
 
-      const contents = messages.map(m => ({
+      const contents = newMessages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
       }));
-      contents.push({
-        role: "user",
-        parts: [{ text: userText }]
-      });
 
       const responseText = await generateWithFallback(userText, contents, personalContext, activeKey);
       const responseTime = Date.now() - startTime;
@@ -296,10 +316,10 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
       
       const finalMessages = [...newMessages, modelMsg];
       setMessages(finalMessages);
-      saveCurrentSession(finalMessages);
+      await saveCurrentSession(finalMessages, activeSession);
 
       api.saveChatMessage({
-        sessionId: session?.id || 'none',
+        sessionId: activeSession?.id || 'none',
         userMessage: userText,
         botResponse: modelText,
         apiKeyUsed: keyId,
@@ -315,7 +335,7 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
         api.saveLead({
           ...modelData.leadInfo,
           userId: userId || 'guest',
-          chatId: session?.id || 'none'
+          chatId: activeSession?.id || 'none'
         }).catch(err => console.error("Lead saving failed:", err));
       }
 
