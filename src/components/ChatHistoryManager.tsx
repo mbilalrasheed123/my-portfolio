@@ -395,7 +395,6 @@ export default function ChatHistoryManager({ initialSessions, onRefresh }: ChatH
                   key={session.id}
                   onClick={() => {
                     setSelectedSessionId(session.id);
-                    setIsModalOpen(true);
                   }}
                   className={`p-4 cursor-pointer transition-all hover:bg-white/5 relative group ${selectedSessionId === session.id ? 'bg-accent/5 after:absolute after:left-0 after:top-0 after:bottom-0 after:w-1 after:bg-accent' : ''}`}
                 >
@@ -564,101 +563,6 @@ export default function ChatHistoryManager({ initialSessions, onRefresh }: ChatH
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Full Screen Chat Detail Popup */}
-      <AnimatePresence>
-        {isModalOpen && selectedSession && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl h-[90vh] bg-[#0a0a0a] border border-line rounded-[2rem] overflow-hidden flex flex-col shadow-[0_30px_100px_rgba(0,0,0,1)]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 md:p-8 border-b border-line flex items-center justify-between bg-white/[0.02]">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
-                    <User size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl md:text-2xl font-display uppercase tracking-tight flex items-center gap-3">
-                      {selectedSession.userName || "Anonymous Guest"}
-                      {selectedSession.isLead && <Flame size={16} className="text-orange-500" fill="currentColor" />}
-                    </h2>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-secondary uppercase tracking-widest mt-1">
-                      <span className="flex items-center gap-1.5"><Mail size={12} /> {selectedSession.userEmail || "No documented email"}</span>
-                      <span className="flex items-center gap-1.5"><Calendar size={12} /> {formatDate(selectedSession.lastActivity)}</span>
-                      <span className="flex items-center gap-1.5"><MessageCircle size={12} /> {selectedSession.messageCount} messages</span>
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-10 h-10 rounded-full border border-line flex items-center justify-center hover:bg-white/10 transition-all text-secondary hover:text-white"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Modal Messages Feed */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 scrollbar-thin">
-                {selectedSession.messages.map((msg, i) => {
-                  const isBot = msg.role === 'bot' || msg.role === 'model';
-                  const content = msg.content || msg.text || "";
-                  
-                  return (
-                    <div key={i} className={`flex flex-col ${!isBot ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`} style={{ animationDelay: `${i * 0.05}s` }}>
-                      <div className="flex items-center gap-2 mb-2 text-[10px] font-mono text-secondary uppercase tracking-widest">
-                        {isBot ? <><Bot size={12} className="text-accent" /> <span>AI Agent</span></> : <><User size={12} /> <span>Customer</span></>}
-                        <span className="opacity-30 tracking-tighter ml-2">
-                          {formatDate(msg.timestamp)} • {formatTime(msg.timestamp)}
-                        </span>
-                      </div>
-                      <div className={`max-w-[85%] md:max-w-[70%] p-6 rounded-3xl text-sm md:text-base leading-relaxed ${isBot ? 'bg-white/5 border border-line rounded-tl-none font-light' : 'bg-accent text-white rounded-tr-none font-medium shadow-[0_10px_40px_-10px_rgba(33,150,243,0.4)]'}`}>
-                        {content}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Modal Footer Actions */}
-              <div className="p-6 md:p-8 bg-black border-t border-line flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => handleMarkLead(selectedSession.id, selectedSession.isLead || false)}
-                    className={`px-8 py-3 rounded-full font-mono text-[11px] uppercase tracking-widest flex items-center gap-2.5 transition-all border ${selectedSession.isLead ? 'bg-orange-500/20 border-orange-500/30 text-orange-400' : 'bg-white/5 border-line text-secondary hover:text-white'}`}
-                  >
-                    <Star size={16} className={selectedSession.isLead ? "fill-current" : ""} />
-                    {selectedSession.isLead ? "Verified Lead" : "Tag as Lead"}
-                  </button>
-                  <button 
-                    onClick={() => exportChat(selectedSession)}
-                    className="px-8 py-3 bg-white/5 border border-line text-secondary hover:text-white rounded-full font-mono text-[11px] uppercase tracking-widest flex items-center gap-2.5 transition-all"
-                  >
-                    <Download size={16} /> Export Logs
-                  </button>
-                </div>
-                <button 
-                  onClick={() => handleDelete(selectedSession.id)}
-                  className="px-8 py-3 bg-red-500/5 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-full font-mono text-[11px] uppercase tracking-widest flex items-center gap-2.5 transition-all"
-                >
-                  <Trash2 size={16} /> Purge History
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

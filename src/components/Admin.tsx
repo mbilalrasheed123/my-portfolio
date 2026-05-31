@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
@@ -14,7 +14,7 @@ import ChatHistoryManager from "./ChatHistoryManager";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("projects");
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
@@ -23,6 +23,7 @@ export default function Admin() {
   const [leads, setLeads] = useState<any[]>([]);
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
+  const [testimonials, setTestimonials] = useState<any[]>([]);
   const [kbFilter, setKbFilter] = useState({ category: "all", status: "all" });
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
@@ -54,10 +55,11 @@ export default function Admin() {
         isSuperAdmin ? api.fetchUsers() : Promise.resolve([]),
         api.get("leads", isSuperAdmin ? undefined : targetId),
         api.fetchChatSessions(isSuperAdmin ? undefined : targetId),
-        api.fetchKnowledgeBase(targetId)
+        api.fetchKnowledgeBase(targetId),
+        api.get("testimonials", targetId)
       ];
       
-      const [p, s, q, c, u, l, cs, kb] = await Promise.all(fetchActions);
+      const [p, s, q, c, u, l, cs, kb, t] = await Promise.all(fetchActions);
       
       if (Array.isArray(p)) setProjects(p.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
       if (s) setSettings(s);
@@ -107,6 +109,7 @@ export default function Admin() {
         };
         return getTime(b.createdAt) - getTime(a.createdAt);
       }));
+      if (Array.isArray(t)) setTestimonials(t.sort((a: any, b: any) => (a.order || 0) - (b.order || 0)));
     } catch (error) {
       console.error("Failed to fetch data:", error);
     }
@@ -240,6 +243,40 @@ export default function Admin() {
         fetchData();
       } catch (error) {
         console.error("Failed to delete certificate:", error);
+      }
+    }
+  };
+
+  const handleSaveTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const testimonialData = {
+        ...formData,
+        rating: Number(formData.rating) || 5,
+        order: Number(formData.order) || 0
+      };
+
+      if (isEditing === "new_testimonial") {
+        await api.post("testimonials", testimonialData, targetId);
+      } else if (isEditing) {
+        await api.put("testimonials", isEditing, testimonialData);
+      }
+
+      setIsEditing(null);
+      setFormData({});
+      fetchData();
+    } catch (error) {
+      console.error("Failed to save testimonial:", error);
+    }
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (window.confirm("Delete this testimonial?")) {
+      try {
+        await api.delete("testimonials", id);
+        fetchData();
+      } catch (error) {
+        console.error("Failed to delete testimonial:", error);
       }
     }
   };
@@ -418,6 +455,12 @@ export default function Admin() {
               className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'knowledgeBase' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
             >
               <Users size={14} className="inline mr-2" /> Knowledge Base
+            </button>
+            <button
+              onClick={() => setActiveTab("testimonials")}
+              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'testimonials' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
+            >
+              <Star size={14} className="inline mr-2" /> Testimonials
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -1600,6 +1643,159 @@ export default function Admin() {
             {knowledgeBase.length === 0 && (
               <div className="text-center py-20 glass rounded-3xl border border-line">
                 <p className="text-secondary font-mono text-xs uppercase">Your Knowledge Base is empty</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "testimonials" && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-display uppercase">Manage Testimonials</h2>
+              <button
+                onClick={() => { setIsEditing("new_testimonial"); setFormData({ rating: 5, order: testimonials.length }); }}
+                className="px-6 py-2 bg-accent text-white rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2"
+              >
+                <Plus size={14} /> Add Testimonial
+              </button>
+            </div>
+
+            {(isEditing === "new_testimonial" || (isEditing && activeTab === "testimonials")) && (
+              <div className="glass p-8 rounded-2xl border-accent/30">
+                <form onSubmit={handleSaveTestimonial} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Client Name</label>
+                    <input
+                      required
+                      placeholder="e.g., Jane Doe"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.name || ""}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Client Role / Company</label>
+                    <input
+                      required
+                      placeholder="e.g., CEO, TechCorp"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.role || ""}
+                      onChange={e => setFormData({ ...formData, role: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Avatar URL (Optional)</label>
+                    <input
+                      placeholder="https://images.unsplash.com/... or leave empty for default avatar"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.avatar || ""}
+                      onChange={e => setFormData({ ...formData, avatar: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Testimonial Text</label>
+                    <textarea
+                      required
+                      rows={4}
+                      placeholder="Write feedback..."
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.text || ""}
+                      onChange={e => setFormData({ ...formData, text: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Rating Stars (1 - 5)</label>
+                    <select
+                      className="w-full bg-[#0a0a0a] border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.rating || 5}
+                      onChange={e => setFormData({ ...formData, rating: Number(e.target.value) })}
+                    >
+                      <option value={5}>5 Stars</option>
+                      <option value={4}>4 Stars</option>
+                      <option value={3}>3 Stars</option>
+                      <option value={2}>2 Stars</option>
+                      <option value={1}>1 Star</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary">Display Order</label>
+                    <input
+                      type="number"
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent text-white"
+                      value={formData.order ?? ""}
+                      onChange={e => setFormData({ ...formData, order: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex justify-end gap-4 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => { setIsEditing(null); setFormData({}); }}
+                      className="px-6 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-8 py-2 bg-white text-black rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <Save size={14} /> Save Testimonial
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {testimonials.map((t) => (
+                <div key={t.id} className="glass rounded-2xl overflow-hidden border-line group relative p-6 flex flex-col justify-between h-full bg-white/[0.01]">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={t.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
+                          alt="" 
+                          className="w-10 h-10 rounded-full object-cover border border-white/10" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <h4 className="text-sm font-medium text-white">{t.name}</h4>
+                          <p className="text-[10px] font-mono text-secondary uppercase tracking-wider">{t.role}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setIsEditing(t.id); setFormData(t); }}
+                          className="p-1.5 bg-white text-black rounded-lg hover:scale-110 transition-transform"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTestimonial(t.id)}
+                          className="p-1.5 bg-red-500 text-white rounded-lg hover:scale-110 transition-transform"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-secondary text-xs italic leading-relaxed">"{t.text}"</p>
+                    <div className="flex items-center gap-0.5 pt-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          size={12}
+                          className={i < (t.rating ?? 5) ? "fill-amber-400 text-amber-400" : "text-white/10"}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {testimonials.length === 0 && (
+              <div className="text-center py-20 glass rounded-3xl border border-line">
+                <p className="text-secondary font-mono text-xs uppercase">No testimonials added yet</p>
+                <p className="text-secondary/55 text-[10px] mt-2">Displaying site default testimonials</p>
               </div>
             )}
           </div>

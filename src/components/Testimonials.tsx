@@ -1,35 +1,62 @@
 import React from "react";
 import { motion } from "motion/react";
+import { Star } from "lucide-react";
+import { api } from "../lib/api";
 
 interface Testimonial {
+  id?: string;
   name: string;
   role: string;
   avatar: string;
   text: string;
+  rating?: number;
 }
 
-const testimonials: Testimonial[] = [
+const defaultTestimonials: Testimonial[] = [
   {
     name: "Sarah Johnson",
     role: "Small Business Owner",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200&h=200",
-    text: "Since integrating this solution into our workflow, we've experienced a significant improvement in efficiency and collaboration."
+    text: "Since integrating this solution into our workflow, we've experienced a significant improvement in efficiency and collaboration.",
+    rating: 5
   },
   {
     name: "David Patel",
     role: "Project Manager",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200",
-    text: "I've tested numerous options in this category, but one stands out for its intuitive design and comprehensive functionality."
+    text: "I've tested numerous options in this category, but one stands out for its intuitive design and comprehensive functionality.",
+    rating: 5
   },
   {
     name: "Emily Carter",
     role: "Operations Manager",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200",
-    text: "The tool we've adopted has surpassed our expectations, providing invaluable insights and support as our business continues to grow."
+    text: "The tool we've adopted has surpassed our expectations, providing invaluable insights and support as our business continues to grow.",
+    rating: 5
   }
 ];
 
 export default function Testimonials() {
+  const [dbTestimonials, setDbTestimonials] = React.useState<Testimonial[]>([]);
+
+  React.useEffect(() => {
+    const loadTestimonials = async () => {
+      try {
+        const fetched = await api.fetchList("testimonials");
+        if (fetched && fetched.length > 0) {
+          // Sort testimonals by order if provided, or default order
+          const sorted = fetched.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          setDbTestimonials(sorted);
+        }
+      } catch (error) {
+        console.error("Error loading testimonials:", error);
+      }
+    };
+    loadTestimonials();
+  }, []);
+
+  const testimonialsList = dbTestimonials.length > 0 ? dbTestimonials : defaultTestimonials;
+
   return (
     <section id="testimonials" className="relative py-28 overflow-hidden bg-[#050716]">
       {/* Background radial gradient glow matching the attachment style */}
@@ -69,16 +96,11 @@ export default function Testimonials() {
         </div>
 
         {/* Testimonials Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-4">
-          {testimonials.map((t, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: idx * 0.15, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -5, transition: { duration: 0.3 } }}
-              className="relative p-8 rounded-3xl backdrop-blur-md bg-white/[0.02] border border-white/10 hover:border-white/20 transition-all duration-300 flex flex-col justify-between h-full group"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-4 stagger-children">
+          {testimonialsList.map((t, idx) => (
+            <div
+              key={t.id || idx}
+              className="reveal-scale relative p-8 rounded-3xl backdrop-blur-md bg-white/[0.02] border border-white/10 hover:border-white/35 hover:bg-white/[0.04] shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:shadow-[0_0_40px_rgba(59,130,246,0.2)] transition-all duration-500 flex flex-col justify-between h-full group"
             >
               <div className="space-y-6">
                 {/* Custom Styled Avatar Container */}
@@ -86,7 +108,7 @@ export default function Testimonials() {
                   <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-[10px] scale-90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                   <div className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
                     <img 
-                      src={t.avatar} 
+                      src={t.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
                       alt={t.name} 
                       className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
                       referrerPolicy="no-referrer"
@@ -108,8 +130,19 @@ export default function Testimonials() {
                 <p className="text-white/70 text-sm leading-relaxed font-light">
                   {t.text}
                 </p>
+
+                {/* Star Rating Display */}
+                <div className="flex items-center gap-1 pt-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      size={14}
+                      className={i < (t.rating ?? 5) ? "fill-amber-400 text-amber-400" : "text-white/10"}
+                    />
+                  ))}
+                </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

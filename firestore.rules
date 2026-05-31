@@ -60,6 +60,14 @@ service cloud.firestore {
       ));
     }
 
+    match /testimonials/{testId} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && (
+        (request.method == 'create' && incoming().userId == request.auth.uid) ||
+        (request.method != 'create' && existing().userId == request.auth.uid)
+      ));
+    }
+
     function isValidSetting(data) {
       return data.keys().hasAll(['updatedAt']) &&
              (!data.keys().hasAny(['name']) || data.name is string) &&
