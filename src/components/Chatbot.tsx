@@ -70,7 +70,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
 
   useEffect(() => {
     if (messages.length === 0) {
-      const name = settings.name || "the developer";
+      const name = settings.name || "Bilal";
       setMessages([
         { role: "model", text: `Hello! Welcome to ${name}'s portfolio. I’m here to help you explore their work and expertise. How can I assist you today?`, timestamp: new Date().toISOString() }
       ]);

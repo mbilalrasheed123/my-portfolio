@@ -27,11 +27,32 @@ import imageCompression from "browser-image-compression";
 export const api = {
   // Generic list fetcher with graceful fallback and optional ordering
   async fetchList(collectionName: string, orderField: string = "order", userId?: string) {
-    const collectionsWithOrder = ["projects", "certificates", "skills", "experience"];
+    const collectionsWithOrder = ["projects", "certificates", "skills", "experience", "testimonials"];
     const shouldOrder = collectionsWithOrder.includes(collectionName);
 
     try {
       const colRef = collection(db, collectionName);
+
+      // If an administrator requests general logs/leads/queries/chats/sessions, return all documents.
+      const isQueryingAllAdminData = !userId && [
+        "contactMessages",
+        "leads",
+        "chatSessions",
+        "chatMessages",
+        "sessions",
+        "users"
+      ].includes(collectionName);
+
+      if (isQueryingAllAdminData) {
+        console.log(`[api.fetchList] Admin requested all ${collectionName}. Fetching...`);
+        const snapshot = await getDocs(colRef);
+        const results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        if (shouldOrder) {
+          results.sort((a, b) => (a[orderField] || 0) - (b[orderField] || 0));
+        }
+        return results;
+      }
+
       const searchId = userId || "global";
       const masterUserIds = [
         "global", 
@@ -50,7 +71,7 @@ export const api = {
       
       const isGlobalOrMaster = searchId === "global" || masterUserIds.includes(searchId);
       const uidField = (collectionName === "contactMessages") ? "userUid" : "userId";
-      const publicCollections = ["projects", "certificates", "skills", "experience"];
+      const publicCollections = ["projects", "certificates", "skills", "experience", "testimonials"];
       const isPublicPortfolioCollection = publicCollections.includes(collectionName);
       
       console.log(`[api.fetchList] Fetching ${collectionName} for searchId: ${searchId}`);
@@ -401,6 +422,36 @@ export const api = {
       return { status: "saved" };
     } catch (error) {
       console.error("Failed to save user data:", error);
+    }
+  },
+
+  async getUserProfile(uid: string) {
+    try {
+      const docRef = doc(db, "users", uid);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return snapshot.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+      return null;
+    }
+  },
+
+  async saveUserProfile(uid: string, data: any) {
+    try {
+      const docRef = doc(db, "users", uid);
+      const payload = {
+        ...data,
+        uid: uid, // Ensure uid is always included as immutable identifier
+        lastUpdated: serverTimestamp()
+      };
+      await setDoc(docRef, payload, { merge: true });
+      return { status: "saved" };
+    } catch (error) {
+      console.error("Failed to save user profile:", error);
+      throw error;
     }
   },
 

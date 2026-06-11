@@ -53,14 +53,29 @@ export default function UserQueries() {
     setLoading(true);
 
     try {
+      const name = user.displayName || user.email.split("@")[0];
       await api.post("contactMessages", {
         userUid: user.uid,
-        userName: user.displayName || user.email.split("@")[0],
+        userName: name,
         userEmail: user.email,
         subject,
         message,
         status: "pending"
       });
+
+      // Send email notification to admin
+      api.sendEmail(
+        "muhammadbilalrasheed78@gmail.com",
+        `New Query: ${subject}`,
+        `You have received a new query from ${name} (${user.email}):\n\nSubject: ${subject}\n\nMessage:\n${message}`,
+        `<h3>New Query from Professional Portfolio</h3>
+         <p><strong>Name:</strong> ${name}</p>
+         <p><strong>Email:</strong> ${user.email}</p>
+         <p><strong>Subject:</strong> ${subject}</p>
+         <p><strong>Message:</strong></p>
+         <p>${message}</p>`
+      ).catch(err => console.warn("Admin email notification failed:", err));
+
       setSubject("");
       setMessage("");
       

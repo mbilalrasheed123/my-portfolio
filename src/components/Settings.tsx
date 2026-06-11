@@ -28,10 +28,8 @@ export default function Settings() {
       setUser(u);
       setDisplayName(u.displayName || "");
       setEmail(u.email || "");
-      // Mocking phone as it's not stored in base Auth profile easily without custom claims or database
-      // Let's assume we store it in a 'users' collection too
-      api.get("users").then(users => {
-        const userData = users?.find((curr: any) => curr.email === u.email);
+      // Fetch phone from specific user profile document in 'users' collection to avoid permission issues
+      api.getUserProfile(u.uid).then(userData => {
         if (userData?.phone) setPhone(userData.phone);
       });
     }
@@ -69,22 +67,14 @@ export default function Settings() {
         await updatePassword(auth.currentUser, newPassword);
       }
 
-      // Sync with users collection
-      const users = await api.get("users");
-      const existingUser = users?.find((u: any) => u.email === auth.currentUser?.email);
-      
+      // Sync and save user profile info securely to their own document path (/users/uid)
       const userData = {
         displayName,
         email,
-        phone,
-        lastUpdated: new Date().toISOString()
+        phone
       };
 
-      if (existingUser) {
-        await api.put("users", existingUser.id, userData);
-      } else {
-        await api.post("users", { ...userData, createdAt: new Date().toISOString() });
-      }
+      await api.saveUserProfile(auth.currentUser.uid, userData);
 
       setSuccess("Profile updated successfully!");
       setCurrentPassword("");
