@@ -54,7 +54,7 @@ export default function UserQueries() {
 
     try {
       const name = user.displayName || user.email.split("@")[0];
-      await api.post("contactMessages", {
+      const docRef = await api.post("contactMessages", {
         userUid: user.uid,
         userName: name,
         userEmail: user.email,
@@ -62,6 +62,21 @@ export default function UserQueries() {
         message,
         status: "pending"
       });
+
+      // Trigger background AI automated email reply safely
+      if (docRef && docRef.id) {
+        fetch("/api/queries/auto-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queryId: docRef.id,
+            userEmail: user.email,
+            userName: name,
+            subject: subject,
+            message: message
+          })
+        }).catch(err => console.warn("AI Auto-reply background call failed:", err));
+      }
 
       // Send email notification to admin
       api.sendEmail(

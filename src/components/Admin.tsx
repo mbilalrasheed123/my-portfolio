@@ -791,6 +791,24 @@ export default function Admin() {
                       <p className="text-secondary text-sm leading-relaxed">{q.message}</p>
                     </div>
 
+                    {q.autoReplyText && (
+                      <div className="bg-blue-500/5 p-6 rounded-xl border border-blue-500/20 mb-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 bg-blue-500/10 rounded-bl font-mono text-[9px] text-[#5b8ff3] tracking-widest uppercase">
+                          AI Auto Reply
+                        </div>
+                        <div className="flex items-center gap-2 mb-2 text-[#5b8ff3]">
+                          <Bot size={16} />
+                          <span className="text-[10px] font-mono uppercase tracking-widest font-bold">Automated Response Sent</span>
+                        </div>
+                        <p className="text-secondary text-sm leading-relaxed italic">"{q.autoReplyText}"</p>
+                        {q.autoRepliedAt && (
+                          <p className="text-[10px] font-mono text-secondary/60 uppercase mt-4">
+                            Generated on {typeof q.autoRepliedAt === 'string' ? new Date(q.autoRepliedAt).toLocaleString() : q.autoRepliedAt?.toDate?.()?.toLocaleString() || 'N/A'}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {q.reply ? (
                       <div className="bg-green-500/5 p-6 rounded-xl border border-green-500/20">
                         <div className="flex items-center gap-2 mb-2 text-green-500">
@@ -1357,6 +1375,48 @@ export default function Admin() {
                     value={settings.linkedinUrl || ""}
                     onChange={e => setSettings({ ...settings, linkedinUrl: e.target.value })}
                   />
+                </div>
+
+                {/* AUTOMATED AI EMAIL REPLY OPTIONS */}
+                <div className="col-span-1 md:col-span-2 pt-6 border-t border-line space-y-6">
+                  <h3 className="text-lg font-display uppercase tracking-wider text-white">AI Auto-Reply Configuration</h3>
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/5 p-4 rounded-xl border border-line">
+                    <div>
+                      <h4 className="text-sm font-sans font-medium text-white mb-1">Enable Automated AI Email Replies</h4>
+                      <p className="text-[10px] font-mono text-secondary uppercase">
+                        Automatically draft and send professional responses using Gemini AI when a new inquiry is received.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, enableAutoReply: !settings.enableAutoReply })}
+                      className={`px-4 py-2 rounded-xl border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                        settings.enableAutoReply 
+                          ? 'border-accent bg-accent/20 text-accent font-bold' 
+                          : 'border-line text-secondary hover:text-white'
+                      }`}
+                    >
+                      {settings.enableAutoReply ? 'ENABLED' : 'DISABLED'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="font-mono text-[10px] uppercase text-secondary block">AI Acknowledge Instructions</label>
+                    <textarea
+                      className="w-full bg-white/5 border border-line rounded-lg px-4 py-3 outline-none focus:border-accent text-sm resize-y"
+                      rows={4}
+                      value={settings.autoReplyInstruction === undefined 
+                        ? "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text."
+                        : settings.autoReplyInstruction
+                      }
+                      onChange={e => setSettings({ ...settings, autoReplyInstruction: e.target.value })}
+                      placeholder="E.g. You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry..."
+                    />
+                    <p className="text-[8px] font-mono text-secondary/60 uppercase">
+                      This system instruction instructs the Gemini 2.5-flash-lite model on how to draft the email response sent back to the inquirer.
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end pt-4">

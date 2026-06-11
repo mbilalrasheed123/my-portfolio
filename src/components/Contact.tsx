@@ -60,13 +60,28 @@ export default function Contact({ userId }: ContactProps) {
 
     try {
       trackClick('contact-form-submit');
-      await api.post("contactMessages", {
+      const docRef = await api.post("contactMessages", {
         userName: formData.name,
         userEmail: formData.email,
         subject: `Inquiry from ${formData.name}`,
         message: formData.message,
         status: "pending"
       }, userId);
+
+      // Trigger background AI automated email reply safely
+      if (docRef && docRef.id) {
+        fetch("/api/queries/auto-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queryId: docRef.id,
+            userEmail: formData.email,
+            userName: formData.name,
+            subject: `Inquiry from ${formData.name}`,
+            message: formData.message
+          })
+        }).catch(err => console.warn("AI Auto-reply background call failed:", err));
+      }
 
       // Send email notification to admin
       api.sendEmail(
