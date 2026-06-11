@@ -364,125 +364,116 @@ app.post("/api/queries/auto-reply", async (req, res) => {
     return res.status(400).json({ error: "Missing queryId or userEmail" });
   }
 
-  // Respond immediately so user's browser UI is unaffected/instant!
-  res.json({ success: true, status: "queued" });
-
   if (!adminDb) {
-    console.warn("[Auto-Reply] No Firestore database connection. Skipping background job.");
-    return;
+    console.warn("[Auto-Reply] No Firestore database connection. Skipping auto-reply.");
+    return res.status(500).json({ error: "No Database" });
   }
 
-  // Heavy task handled entirely in a safe background promise
-  (async () => {
-    try {
-      console.log(`[Auto-Reply] Starting query processing for message ${queryId}...`);
+  try {
+    console.log(`[Auto-Reply] Starting query processing for message ${queryId}...`);
 
-      // 1. Fetch settings from Firestore to check if auto-reply feature is enabled and get customization instructions
-      const settingsDoc = await adminDb.collection("settings").doc("global").get().catch(() => null);
-      const settings = (settingsDoc && settingsDoc.exists) ? settingsDoc.data() : {};
+    // 1. Fetch settings from Firestore to check if auto-reply feature is enabled and get customization instructions
+    const settingsDoc = await adminDb.collection("settings").doc("global").get().catch(() => null);
+    const settings = (settingsDoc && settingsDoc.exists) ? settingsDoc.data() : {};
 
-      const enableAutoReply = settings?.enableAutoReply ?? false;
-      if (!enableAutoReply) {
-        console.log(`[Auto-Reply] Auto-reply is disabled in Settings. Skipping AI reply.`);
-        return;
-      }
-
-      // 2. Fetch or rotate the Gemini Key
-      let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-      if (keyRotation) {
-        const activeKey = await keyRotation.getRotatedKey().catch(() => null);
-        if (activeKey) {
-          keyToUse = activeKey.key;
-        }
-      }
-
-      if (!keyToUse) {
-        console.error("[Auto-Reply] Failed to find a valid key for content generation.");
-        return;
-      }
-
-      // 3. Invoke GoogleGenAI Content Generation with custom prompt
-      const ai = new GoogleGenAI({
-        apiKey: keyToUse,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          }
-        }
-      });
-
-      const instruction = settings?.autoReplyInstruction || 
-        "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text.";
-
-      console.log(`[Auto-Reply] Invoking gemini-2.5-flash-lite...`);
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-lite",
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `User Name: ${userName || "Inquirer"}\nUser Email: ${userEmail}\nSubject: ${subject || "No Subject"}\nMessage:\n${message || ""}` }]
-          }
-        ],
-        config: {
-          systemInstruction: instruction
-        }
-      }).catch(err => {
-        console.error("[Auto-Reply] Gemini generation failed:", err);
-        return null;
-      });
-
-      if (!response || !response.text) {
-        console.warn("[Auto-Reply] Empty response obtained from Gemini.");
-        return;
-      }
-
-      const replyText = response.text.trim();
-      console.log(`[Auto-Reply] Generated draft acknowledging user inquiry (${replyText.length} chars).`);
-
-      // 4. Send email directly to User's email
-      const replySubject = `Re: [Automated Reply] Your Inquiry to Bilal Rasheed`;
-      const htmlBody = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1a202c; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-          <div style="padding-bottom: 20px; border-bottom: 2px solid #edf2f7; margin-bottom: 25px;">
-            <h2 style="color: #2b6cb0; margin: 0; font-size: 22px;">Message Acknowledged</h2>
-            <p style="color: #718096; margin: 5px 0 0 0; font-size: 13px;">Automated Assistance from Muhammad Bilal Rasheed's Portfolio</p>
-          </div>
-          
-          <p style="font-size: 15px; line-height: 1.6; margin-top: 0;">Hello ${userName || "there"},</p>
-          <p style="font-size: 15px; line-height: 1.6; color: #4a5568;">Thank you for getting in touch. Here is an automated acknowledgment and a quick helpful thought based on your message detail:</p>
-          
-          <div style="background-color: #f7fafc; border-left: 4px solid #3182ce; padding: 20px; border-radius: 6px; margin: 25px 0; font-size: 14px; line-height: 1.6; font-style: italic; white-space: pre-wrap; color: #2d3748;">
-${replyText}
-          </div>
-          
-          <p style="font-size: 15px; line-height: 1.6; color: #4a5568;">Bilal will review your inquiry and connect with you shortly.</p>
-          
-          <div style="border-top: 2px solid #edf2f7; margin-top: 30px; padding-top: 20px; font-size: 11px; color: #a0aec0; text-align: center; line-height: 1.4;">
-            <p style="margin: 0;">This email was sent automatically to acknowledge receipt of your message.</p>
-            <p style="margin: 4px 0 0 0;">Muhammad Bilal Rasheed • Developer Portfolio</p>
-          </div>
-        </div>
-      `;
-
-      console.log(`[Auto-Reply] Dispatching email...`);
-      const sent = await sendMailHelper(userEmail, replySubject, replyText, htmlBody);
-
-      // 5. Update the query document inside Firestore messages collection
-      const autoReplyStatus = sent ? "sent" : "logged";
-      await adminDb.collection("contactMessages").doc(queryId).update({
-        autoReplyText: replyText,
-        autoRepliedAt: admin.firestore.FieldValue.serverTimestamp(),
-        autoReplyStatus: autoReplyStatus
-      }).then(() => {
-        console.log(`[Auto-Reply] Securely updated contactMessages document with ID ${queryId}.`);
-      }).catch(err => {
-        console.error("[Auto-Reply] Failed to update contactMessages document with result:", err);
-      });
-
-    } catch (asyncErr) {
-      console.error("[Auto-Reply] Unknown error during background processing:", asyncErr);
+    const enableAutoReply = settings?.enableAutoReply ?? false;
+    if (!enableAutoReply) {
+      console.log(`[Auto-Reply] Auto-reply is disabled in Settings. Skipping AI reply.`);
+      return res.json({ success: true, message: "Auto-reply is disabled" });
     }
-  })();
+
+    // 2. Fetch or rotate the Gemini Key
+    let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (keyRotation) {
+      const activeKey = await keyRotation.getRotatedKey().catch(() => null);
+      if (activeKey) {
+        keyToUse = activeKey.key;
+      }
+    }
+
+    if (!keyToUse) {
+      console.error("[Auto-Reply] Failed to find a valid key for content generation.");
+      return res.status(500).json({ error: "No Gemini Key Configured" });
+    }
+
+    // 3. Invoke GoogleGenAI Content Generation with custom prompt
+    const ai = new GoogleGenAI({
+      apiKey: keyToUse,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        }
+      }
+    });
+
+    const instruction = settings?.autoReplyInstruction || 
+      "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text.";
+
+    console.log(`[Auto-Reply] Invoking gemini-2.5-flash-lite...`);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `User Name: ${userName || "Inquirer"}\nUser Email: ${userEmail}\nSubject: ${subject || "No Subject"}\nMessage:\n${message || ""}` }]
+        }
+      ],
+      config: {
+        systemInstruction: instruction
+      }
+    });
+
+    if (!response || !response.text) {
+      console.warn("[Auto-Reply] Empty response obtained from Gemini.");
+      return res.status(500).json({ error: "Empty response from Gemini" });
+    }
+
+    const replyText = response.text.trim();
+    console.log(`[Auto-Reply] Generated draft acknowledging user inquiry (${replyText.length} chars).`);
+
+    // 4. Send email directly to User's email
+    const replySubject = `Re: [Automated Reply] Your Inquiry to Bilal Rasheed`;
+    const htmlBody = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1a202c; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+        <div style="padding-bottom: 20px; border-bottom: 2px solid #edf2f7; margin-bottom: 25px;">
+          <h2 style="color: #2b6cb0; margin: 0; font-size: 22px;">Message Acknowledged</h2>
+          <p style="color: #718096; margin: 5px 0 0 0; font-size: 13px;">Automated Assistance from Muhammad Bilal Rasheed's Portfolio</p>
+        </div>
+        
+        <p style="font-size: 15px; line-height: 1.6; margin-top: 0;">Hello ${userName || "there"},</p>
+        <p style="font-size: 15px; line-height: 1.6; color: #4a5568;">Thank you for getting in touch. Here is an automated acknowledgment and a quick helpful thought based on your message detail:</p>
+        
+        <div style="background-color: #f7fafc; border-left: 4px solid #3182ce; padding: 20px; border-radius: 6px; margin: 25px 0; font-size: 14px; line-height: 1.6; font-style: italic; white-space: pre-wrap; color: #2d3748;">
+${replyText}
+        </div>
+        
+        <p style="font-size: 15px; line-height: 1.6; color: #4a5568;">Bilal will review your inquiry and connect with you shortly.</p>
+        
+        <div style="border-top: 2px solid #edf2f7; margin-top: 30px; padding-top: 20px; font-size: 11px; color: #a0aec0; text-align: center; line-height: 1.4;">
+          <p style="margin: 0;">This email was sent automatically to acknowledge receipt of your message.</p>
+          <p style="margin: 4px 0 0 0;">Muhammad Bilal Rasheed • Developer Portfolio</p>
+        </div>
+      </div>
+    `;
+
+    console.log(`[Auto-Reply] Dispatching email...`);
+    const sent = await sendMailHelper(userEmail, replySubject, replyText, htmlBody);
+
+    // 5. Update the query document inside Firestore messages collection
+    const autoReplyStatus = sent ? "sent" : "logged";
+    await adminDb.collection("contactMessages").doc(queryId).update({
+      autoReplyText: replyText,
+      autoRepliedAt: admin.firestore.FieldValue.serverTimestamp(),
+      autoReplyStatus: autoReplyStatus
+    });
+
+    console.log(`[Auto-Reply] Securely updated contactMessages document with ID ${queryId} status: ${autoReplyStatus}`);
+    return res.json({ success: true, message: "Auto-reply sent successfully", replyText, emailStatus: autoReplyStatus });
+
+  } catch (error: any) {
+    console.error("[Auto-Reply] Error processing AI reply:", error);
+    return res.status(500).json({ error: error?.message || "Internal error during auto-reply generation" });
+  }
 });
 
 // Vite middleware for development
