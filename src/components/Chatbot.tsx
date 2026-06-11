@@ -7,21 +7,6 @@ import { api } from "../lib/api";
 import { trackClick } from "../lib/analytics";
 import { handleAnalyticsQuery } from "../lib/chatbot-analytics";
 
-import { GoogleGenAI } from "@google/genai";
-
-const BASE_SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
-CORE DIRECTIVES:
-1. Be Concise and professional.
-2. website context: You are on Bilal's official portfolio.
-3. PROACTIVE LEAD COLLECTION: If the user is interested in hiring, collect: Name, Email, Phone, Project Description.
-
-OUTPUT FORMAT: You must output valid JSON with this schema:
-{
-  "reply": "your text response",
-  "isLeadDetected": boolean,
-  "leadInfo": { "name": "...", "email": "...", "phone": "...", "description": "..." }
-}`;
-
 interface Message {
   role: "user" | "model";
   text: string;
@@ -173,68 +158,6 @@ export default function Chatbot({ userId }: ChatbotProps) {
     }
   };
 
-  const rotateKey = async () => {
-    try {
-      console.log("[Chatbot] Requesting key rotation...");
-      const res = await fetch("/api/keys/rotate");
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentKey(data);
-        console.log(`[Chatbot] Rotated to key: ${data.name} (${data.id})`);
-        return data;
-      }
-    } catch (err) {
-      console.error("[Chatbot] Failed to rotate key:", err);
-    }
-    return null;
-  };
-
-  const generateWithFallback = async (prompt: string, contents: any[], context: string, activeKey: any) => {
-    const maxRetries = 3;
-    let keyToUse = activeKey?.key || import.meta.env.VITE_GEMINI_API_KEY;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[Chatbot] Generation Attempt ${attempt}/${maxRetries}`);
-        
-        const ai = new GoogleGenAI({ apiKey: keyToUse });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: contents,
-          config: {
-            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + context,
-            responseMimeType: "application/json",
-          }
-        });
-
-        if (!response.text) throw new Error("Empty response from AI");
-        return response.text;
-      } catch (error: any) {
-        console.error(`[Chatbot] Attempt ${attempt} failed:`, error.message);
-        
-        const isRetryable = error.message?.includes('503') || 
-                          error.message?.includes('UNAVAILABLE') || 
-                          error.message?.includes('429') ||
-                          error.status === 429;
-
-        if (isRetryable && attempt < maxRetries) {
-          const waitTime = 1000 * Math.pow(2, attempt);
-          console.log(`[Chatbot] Service unstable, waiting ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          
-          if (error.message?.includes('429')) {
-             console.log("[Chatbot] 429 detected during generation, attempting key rotation...");
-             const newKey = await rotateKey();
-             if (newKey) keyToUse = newKey.key;
-          }
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error('All retry attempts failed');
-  };
-
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
     
@@ -250,7 +173,6 @@ export default function Chatbot({ userId }: ChatbotProps) {
     trackClick('chatbot-send-message');
 
     const userText = input.trim();
-    const startTime = Date.now();
     const userMsg: Message = { role: "user", text: userText, timestamp: new Date().toISOString() };
     const newMessages = [...currentMessages, userMsg];
     
@@ -259,27 +181,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
     setIsLoading(true);
 
     try {
-      // 1. Manage Key Rotation & Tracking
-      let activeKey = currentKey;
-      let nextCount = chatState.messageCount + 1;
-      
-      if (!activeKey || nextCount % 15 === 0) {
-        activeKey = await rotateKey();
-      }
-
-      const keyId = activeKey?.id || 'env_key';
-      const keyName = activeKey?.name || 'Default Key';
-      
-      const newMessagesPerKey = { ...chatState.messagesPerKey };
-      newMessagesPerKey[keyId] = (newMessagesPerKey[keyId] || 0) + 1;
-      
-      const newState = {
-        messageCount: nextCount,
-        messagesPerKey: newMessagesPerKey
-      };
-      setChatState(newState);
-
-      // 2. Intelligence Queries
+      // 1. Intelligence Queries (handled locally on client for Admin analytics)
       const messageLower = userText.toLowerCase();
       const analyticsKeywords = ['visitor', 'traffic', 'analytics', 'report', 'stats', 'intelligence'];
       const isAnalyticsQuery = analyticsKeywords.some(keyword => messageLower.includes(keyword));
@@ -294,7 +196,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
         return;
       }
 
-      // 3. Normal Chat Implementation
+      // 2. Standard Client Knowledge Base Context
       const name = settings.name || "Bilal";
       const personalContext = `NAME: ${name}
 ABOUT: ${settings.aboutText || "Professional Developer."}
@@ -305,42 +207,56 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
         parts: [{ text: m.text }]
       }));
 
-      const responseText = await generateWithFallback(userText, contents, personalContext, activeKey);
-      const responseTime = Date.now() - startTime;
+      // 3. Make unified fast request to server side
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          context: personalContext,
+          userText,
+          sessionId: activeSession?.id || 'none',
+          userId: userId || 'guest',
+          userName: activeSession?.userName || "Guest",
+          isGuest: activeSession?.isGuest ?? true,
+          messageCount: chatState.messageCount,
+          messagesPerKey: chatState.messagesPerKey
+        })
+      });
 
-      let modelData;
-      try {
-        modelData = JSON.parse(responseText.trim());
-      } catch (e) {
-        modelData = { reply: responseText, isLeadDetected: false };
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Server connection failed" }));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
       }
+
+      const data = await response.json();
+      const { modelData, keyId, keyName, messageCount, messagesPerKey } = data;
+
+      // Update local state metrics
+      setCurrentKey({ id: keyId, key: "", name: keyName });
+      setChatState({
+        messageCount,
+        messagesPerKey
+      });
 
       const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
       const modelMsg: Message = { role: "model", text: modelText, timestamp: new Date().toISOString() };
       
       const finalMessages = [...newMessages, modelMsg];
       setMessages(finalMessages);
-      saveCurrentSession(finalMessages, activeSession);
 
-      api.saveChatMessage({
-        sessionId: activeSession?.id || 'none',
-        userMessage: userText,
-        botResponse: modelText,
-        apiKeyUsed: keyId,
-        apiKeyName: keyName,
-        messageNumberOverall: nextCount,
-        messageNumberForKey: newMessagesPerKey[keyId],
-        responseTime: responseTime,
-        status: 'success'
-      }).catch(err => console.error("Logging failed:", err));
+      // Save session representation locally in state for instantaneous fluid user experience
+      const updatedSession = { ...activeSession, messages: finalMessages };
+      setSession(updatedSession);
+
+      if (!user) {
+        const guestSessions = [updatedSession];
+        localStorage.setItem("guest_chat_history", JSON.stringify(guestSessions));
+        setPastSessions(guestSessions);
+      }
 
       if (modelData.isLeadDetected && modelData.leadInfo) {
         trackClick('chatbot-lead-detected');
-        api.saveLead({
-          ...modelData.leadInfo,
-          userId: userId || 'guest',
-          chatId: activeSession?.id || 'none'
-        }).catch(err => console.error("Lead saving failed:", err));
       }
 
     } catch (error: any) {
@@ -354,14 +270,6 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
 
       const errorMsg: Message = { role: "model", text: errorText, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, errorMsg]);
-
-      api.saveChatMessage({
-        userMessage: userText,
-        botResponse: "[ERROR]",
-        status: 'failed',
-        errorMessage: error.message,
-        timestamp: new Date()
-      }).catch(e => console.error("Error log failed:", e));
 
     } finally {
       setIsLoading(false);

@@ -5,11 +5,25 @@ import admin, { adminDb } from "./src/lib/firebase-admin.js";
 import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
 import { KeyRotationService } from "./src/lib/KeyRotationService.js";
 import { encryptKey } from "./src/lib/cryptoUtils.js";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+const BASE_SYSTEM_INSTRUCTION = `You are a professional AI assistant for **Muhammad Bilal Rasheed**. 
+CORE DIRECTIVES:
+1. Be Concise and professional.
+2. website context: You are on Bilal's official portfolio.
+3. PROACTIVE LEAD COLLECTION: If the user is interested in hiring, collect: Name, Email, Phone, Project Description.
+
+OUTPUT FORMAT: You must output valid JSON with this schema:
+{
+  "reply": "your text response",
+  "isLeadDetected": boolean,
+  "leadInfo": { "name": "...", "email": "...", "phone": "...", "description": "..." }
+}`;
 
 // Initialize Key Rotation Service
 const keyRotationSecret = process.env.API_KEY_ENCRYPTION_SECRET || 'gemini-key-rotation-secret-39281';
@@ -20,6 +34,197 @@ app.use(express.json());
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+/**
+ * Server-side Unified Fast Chat Endpoint
+ */
+app.post("/api/chat", async (req, res) => {
+  const { 
+    contents, 
+    context, 
+    userText, 
+    sessionId, 
+    userId, 
+    userName, 
+    isGuest, 
+    messageCount, 
+    messagesPerKey 
+  } = req.body;
+
+  const startTime = Date.now();
+
+  // 1. Manage Key Rotation & Tracking on the server
+  let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  let keyId = "env_key";
+  let keyName = "Default Key";
+
+  if (keyRotation) {
+    try {
+      const activeKey = await keyRotation.getRotatedKey();
+      if (activeKey) {
+        keyToUse = activeKey.key;
+        keyId = activeKey.id;
+        keyName = activeKey.name;
+      }
+    } catch (err) {
+      console.error("[Server Chat] Key rotation failed, using fallback env key:", err);
+    }
+  }
+
+  if (!keyToUse) {
+    return res.status(500).json({ error: "No Gemini API key configured on server." });
+  }
+
+  const currentCount = (messageCount || 0) + 1;
+  const currentMessagesPerKey = { ...(messagesPerKey || {}) };
+  currentMessagesPerKey[keyId] = (currentMessagesPerKey[keyId] || 0) + 1;
+
+  try {
+    let responseText = "";
+    const maxRetries = 2; // Keep low on server for snappy failover
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: keyToUse,
+          httpOptions: {
+            headers: {
+              "User-Agent": "aistudio-build",
+            }
+          }
+        });
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: contents,
+          config: {
+            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + (context || ""),
+            responseMimeType: "application/json",
+          }
+        });
+
+        if (response.text) {
+          responseText = response.text;
+          break;
+        } else {
+          throw new Error("Empty text response from Gemini");
+        }
+      } catch (err: any) {
+        console.error(`[Server Chat] Attempt ${attempt} failed:`, err.message);
+        const is429 = err.message?.includes("429") || err.status === 429;
+        
+        if (is429 && keyRotation && keyId !== "env_key") {
+          console.log(`[Server Chat] 429 detected, marking key ${keyId} as exhausted`);
+          await keyRotation.markAsExhausted(keyId).catch(e => console.error(e));
+          // Try to rotate to a new key
+          const activeKey = await keyRotation.getRotatedKey().catch(() => null);
+          if (activeKey) {
+            keyToUse = activeKey.key;
+            keyId = activeKey.id;
+            keyName = activeKey.name;
+          }
+        }
+
+        if (attempt === maxRetries) {
+          throw err;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    const responseTime = Date.now() - startTime;
+
+    let modelData: any;
+    try {
+      modelData = JSON.parse(responseText.trim());
+    } catch (e) {
+      modelData = { reply: responseText, isLeadDetected: false };
+    }
+
+    const modelText = modelData.reply || "I'm sorry, I couldn't process that.";
+
+    // Return the response immediately to maximize UI snappiness
+    res.json({
+      modelData,
+      keyId,
+      keyName,
+      messageCount: currentCount,
+      messagesPerKey: currentMessagesPerKey,
+      responseTime
+    });
+
+    // Run the logging and writes completely in the background without blocking the request!
+    if (adminDb) {
+      (async () => {
+        try {
+          // 1. Update Chat Session
+          const formattedMessages = contents.map((c: any) => ({
+            role: c.role,
+            text: c.parts[0]?.text || "",
+            timestamp: new Date().toISOString()
+          }));
+          
+          formattedMessages.push({
+            role: "model",
+            text: modelText,
+            timestamp: new Date().toISOString()
+          });
+
+          await adminDb.collection("chatSessions").doc(sessionId).set({
+            id: sessionId,
+            userId: userId,
+            userName: userName,
+            isGuest: isGuest,
+            messages: formattedMessages,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          // 2. Logging Chat Message Log
+          await adminDb.collection("chatMessages").add({
+            sessionId: sessionId || "none",
+            userMessage: userText,
+            botResponse: modelText,
+            apiKeyUsed: keyId,
+            apiKeyName: keyName,
+            messageNumberOverall: currentCount,
+            messageNumberForKey: currentMessagesPerKey[keyId] || 1,
+            responseTime: responseTime,
+            status: "success",
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          // 3. Lead generation if detected
+          if (modelData.isLeadDetected && modelData.leadInfo) {
+            await adminDb.collection("leads").add({
+              ...modelData.leadInfo,
+              userId: userId || "guest",
+              chatId: sessionId || "none",
+              status: "new",
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        } catch (loggerErr) {
+          console.error("[Server Chat] Error running background Firebase logs:", loggerErr);
+        }
+      })();
+    }
+
+  } catch (err: any) {
+    console.error("[Server Chat] Generation Error:", err);
+    res.status(500).json({ error: err.message || "Interactive generate content thread error" });
+
+    // Save error state in background
+    if (adminDb) {
+      adminDb.collection("chatMessages").add({
+        userMessage: userText,
+        botResponse: "[ERROR]",
+        status: "failed",
+        errorMessage: err.message || "Fatal chatbot error",
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      }).catch(e => console.error("[Server Chat] Error log save failure:", e));
+    }
+  }
 });
 
 /**
