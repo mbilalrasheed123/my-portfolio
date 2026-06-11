@@ -95,7 +95,7 @@ app.post("/api/chat", async (req, res) => {
         });
 
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-pro",
+          model: "gemini-2.5-flash-lite",
           contents: contents,
           config: {
             systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + (context || ""),
