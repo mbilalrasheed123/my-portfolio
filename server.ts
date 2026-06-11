@@ -359,44 +359,75 @@ app.post("/api/send-email", async (req, res) => {
  */
 app.post("/api/queries/auto-reply", async (req, res) => {
   const { queryId, userEmail, userName, subject, message } = req.body;
+  const steps: string[] = [];
+
+  const logStep = (msg: string) => {
+    const formatted = `[Auto-Reply Step] ${msg}`;
+    console.log(formatted);
+    steps.push(msg);
+  };
+
+  logStep(`Received trigger for message ID ${queryId}, email: ${userEmail}`);
 
   if (!queryId || !userEmail) {
-    return res.status(400).json({ error: "Missing queryId or userEmail" });
+    logStep("ERROR: Missing queryId or userEmail");
+    return res.status(400).json({ success: false, error: "Missing queryId or userEmail", steps });
   }
 
   if (!adminDb) {
-    console.warn("[Auto-Reply] No Firestore database connection. Skipping auto-reply.");
-    return res.status(500).json({ error: "No Database" });
+    logStep("ERROR: No Firestore database (adminDb is null)");
+    return res.status(500).json({ success: false, error: "No Database connection", steps });
   }
 
   try {
-    console.log(`[Auto-Reply] Starting query processing for message ${queryId}...`);
+    // 1. Fetch settings from Firestore
+    logStep("Fetching settings document with ID 'global' from 'settings' collection");
+    const settingsDoc = await adminDb.collection("settings").doc("global").get().catch((err: any) => {
+      logStep(`WARN/ERROR: Failed to fetch settings from Firestore: ${err?.message || err}`);
+      return null;
+    });
 
-    // 1. Fetch settings from Firestore to check if auto-reply feature is enabled and get customization instructions
-    const settingsDoc = await adminDb.collection("settings").doc("global").get().catch(() => null);
-    const settings = (settingsDoc && settingsDoc.exists) ? settingsDoc.data() : {};
+    const settings = (settingsDoc && settingsDoc.exists) ? settingsDoc.data() : null;
+    if (!settings) {
+      logStep("WARN: Settings document 'global' does not exist in Firestore! Using defaults.");
+    } else {
+      logStep(`Successfully fetched settings (enableAutoReply=${settings.enableAutoReply})`);
+    }
 
     const enableAutoReply = settings?.enableAutoReply ?? false;
     if (!enableAutoReply) {
-      console.log(`[Auto-Reply] Auto-reply is disabled in Settings. Skipping AI reply.`);
-      return res.json({ success: true, message: "Auto-reply is disabled" });
+      logStep("ABORTING: Auto-reply is disabled in Settings. Skipping AI reply.");
+      return res.json({ success: true, message: "Auto-reply is disabled", steps });
     }
 
     // 2. Fetch or rotate the Gemini Key
+    logStep("Checking for Gemini API Key configuration...");
     let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (keyToUse) {
+      logStep("Found standard Gemini key in environment variables");
+    }
+
     if (keyRotation) {
-      const activeKey = await keyRotation.getRotatedKey().catch(() => null);
-      if (activeKey) {
+      logStep("Attempting to get key from Key Rotation Service...");
+      const activeKey = await keyRotation.getRotatedKey().catch((err: any) => {
+        logStep(`WARN/ERROR: Key rotation failed: ${err?.message || err}`);
+        return null;
+      });
+      if (activeKey && activeKey.key) {
         keyToUse = activeKey.key;
+        logStep(`Key rotation success! Using rotated key: ${activeKey.name || activeKey.id}`);
+      } else {
+        logStep("Key rotation did not return a valid key. Falling back to environment variables.");
       }
     }
 
     if (!keyToUse) {
-      console.error("[Auto-Reply] Failed to find a valid key for content generation.");
-      return res.status(500).json({ error: "No Gemini Key Configured" });
+      logStep("ERROR: No Gemini API Key found in either environment variables or rotation service.");
+      return res.status(500).json({ success: false, error: "No Gemini Key Configured", steps });
     }
 
     // 3. Invoke GoogleGenAI Content Generation with custom prompt
+    logStep("Initializing GoogleGenAI SDK...");
     const ai = new GoogleGenAI({
       apiKey: keyToUse,
       httpOptions: {
@@ -409,7 +440,7 @@ app.post("/api/queries/auto-reply", async (req, res) => {
     const instruction = settings?.autoReplyInstruction || 
       "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text.";
 
-    console.log(`[Auto-Reply] Invoking gemini-2.5-flash-lite...`);
+    logStep("Invoking Gemini models.generateContent (gemini-2.5-flash-lite)...");
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-lite",
       contents: [
@@ -424,12 +455,12 @@ app.post("/api/queries/auto-reply", async (req, res) => {
     });
 
     if (!response || !response.text) {
-      console.warn("[Auto-Reply] Empty response obtained from Gemini.");
-      return res.status(500).json({ error: "Empty response from Gemini" });
+      logStep("ERROR: Empty response obtained from Gemini generation");
+      return res.status(500).json({ success: false, error: "Empty response from Gemini", steps });
     }
 
     const replyText = response.text.trim();
-    console.log(`[Auto-Reply] Generated draft acknowledging user inquiry (${replyText.length} chars).`);
+    logStep(`Gemini generation succeeded! Draft length: ${replyText.length} characters.`);
 
     // 4. Send email directly to User's email
     const replySubject = `Re: [Automated Reply] Your Inquiry to Bilal Rasheed`;
@@ -456,23 +487,40 @@ ${replyText}
       </div>
     `;
 
-    console.log(`[Auto-Reply] Dispatching email...`);
+    logStep(`Dispatching email dynamically to ${userEmail}...`);
     const sent = await sendMailHelper(userEmail, replySubject, replyText, htmlBody);
+    if (sent) {
+      logStep("Email dispatched successfully via NodeMailer SMTP.");
+    } else {
+      logStep("WARN: Email log-only mode (either SMTP credentials not configured, or SMTP dispatch failed).");
+    }
 
     // 5. Update the query document inside Firestore messages collection
     const autoReplyStatus = sent ? "sent" : "logged";
+    logStep(`Updating Firestore contactMessages document with ID ${queryId} status: ${autoReplyStatus}...`);
     await adminDb.collection("contactMessages").doc(queryId).update({
       autoReplyText: replyText,
       autoRepliedAt: admin.firestore.FieldValue.serverTimestamp(),
       autoReplyStatus: autoReplyStatus
     });
 
-    console.log(`[Auto-Reply] Securely updated contactMessages document with ID ${queryId} status: ${autoReplyStatus}`);
-    return res.json({ success: true, message: "Auto-reply sent successfully", replyText, emailStatus: autoReplyStatus });
+    logStep("Firestore document successfully updated! Process complete.");
+    return res.json({
+      success: true,
+      message: "Auto-reply processed successfully",
+      steps,
+      replyText,
+      emailStatus: autoReplyStatus
+    });
 
   } catch (error: any) {
-    console.error("[Auto-Reply] Error processing AI reply:", error);
-    return res.status(500).json({ error: error?.message || "Internal error during auto-reply generation" });
+    logStep(`FATAL ERROR: ${error?.message || error}`);
+    console.error("[Auto-Reply] Fatal Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || "Internal error during auto-reply generation",
+      steps
+    });
   }
 });
 
