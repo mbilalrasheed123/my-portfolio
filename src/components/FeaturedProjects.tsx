@@ -52,10 +52,11 @@ export default function FeaturedProjects({ projects, onViewProject }: FeaturedPr
     <section className="bg-black py-24 px-4 overflow-hidden" id="featured">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
-          <h2 className="text-4xl md:text-7xl font-display font-black text-white uppercase tracking-tighter heading-wrapper">
+           <h2 className="text-5xl md:text-7xl font-display uppercase leading-none heading-wrapper">
             <span className="heading-inner">Featured</span>
-            <span className="heading-inner text-secondary">Projects</span>
+            <span className="heading-inner">Projects</span>
           </h2>
+          
           
           <div className="hidden md:flex gap-4 mb-4">
             <button 

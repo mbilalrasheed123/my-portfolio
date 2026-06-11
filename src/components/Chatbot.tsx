@@ -117,7 +117,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
     }
   };
 
-  const createNewSession = async () => {
+  const createNewSession = () => {
     const name = settings.name || "the developer";
     
     // Generate a unique identifier for the guest
@@ -127,7 +127,10 @@ export default function Chatbot({ userId }: ChatbotProps) {
       localStorage.setItem("chatbot_guest_id", guestId);
     }
 
+    const sessionId = `${user?.uid || guestId}_${Date.now()}`;
+
     const newSession: ChatSession = {
+      id: sessionId,
       userId: user?.uid || guestId,
       userName: user?.displayName || `Guest ${guestId.substring(6, 11).toUpperCase()}`,
       isGuest: !user,
@@ -135,10 +138,9 @@ export default function Chatbot({ userId }: ChatbotProps) {
       createdAt: new Date().toISOString()
     };
     
-    const id = await api.saveChatSession(newSession);
-    if (id) {
-      newSession.id = id;
-    }
+    api.saveChatSession(newSession).catch(err => {
+      console.error("Failed to save new chat session in background:", err);
+    });
     
     setSession(newSession);
     setMessages(newSession.messages);
@@ -153,14 +155,16 @@ export default function Chatbot({ userId }: ChatbotProps) {
     return newSession;
   };
 
-  const saveCurrentSession = async (updatedMessages: Message[], targetSession?: ChatSession) => {
+  const saveCurrentSession = (updatedMessages: Message[], targetSession?: ChatSession) => {
     const s = targetSession || session;
     if (!s) return;
     
     const updated = { ...s, messages: updatedMessages };
     setSession(updated);
 
-    await api.saveChatSession(updated);
+    api.saveChatSession(updated).catch(err => {
+      console.error("Failed to save current chat session in background:", err);
+    });
 
     if (!user) {
       const guestSessions = [updated];
@@ -238,7 +242,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
     let currentMessages = messages;
 
     if (!activeSession) {
-      activeSession = await createNewSession();
+      activeSession = createNewSession();
       currentMessages = activeSession.messages;
     }
 
@@ -285,7 +289,7 @@ export default function Chatbot({ userId }: ChatbotProps) {
         const modelMsg: Message = { role: "model", text: analyticsResponse, timestamp: new Date().toISOString() };
         const finalMessages = [...newMessages, modelMsg];
         setMessages(finalMessages);
-        await saveCurrentSession(finalMessages, activeSession);
+        saveCurrentSession(finalMessages, activeSession);
         setIsLoading(false);
         return;
       }
@@ -316,7 +320,7 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
       
       const finalMessages = [...newMessages, modelMsg];
       setMessages(finalMessages);
-      await saveCurrentSession(finalMessages, activeSession);
+      saveCurrentSession(finalMessages, activeSession);
 
       api.saveChatMessage({
         sessionId: activeSession?.id || 'none',
