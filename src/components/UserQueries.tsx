@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { api } from "../lib/api";
+import { api, getApiUrl } from "../lib/api";
 import { MessageSquare, Send, Clock, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { auth, onAuthStateChanged } from "../firebase";
 import Auth from "./Auth";
@@ -65,7 +65,7 @@ export default function UserQueries() {
 
       // Trigger background AI automated email reply safely
       if (docRef && docRef.id) {
-        fetch("/api/queries/auto-reply", {
+        fetch(getApiUrl("/api/queries/auto-reply"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

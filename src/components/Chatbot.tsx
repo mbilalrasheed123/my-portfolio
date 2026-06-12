@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, X, Send, Bot, User, Minimize2, Maximize2, History, Trash2, ArrowLeft } from "lucide-react";
 import Markdown from "react-markdown";
 import { auth, onAuthStateChanged } from "../firebase";
-import { api } from "../lib/api";
+import { api, getApiUrl } from "../lib/api";
 import { trackClick } from "../lib/analytics";
 import { handleAnalyticsQuery } from "../lib/chatbot-analytics";
 
@@ -208,7 +208,7 @@ CONTEXT: ${kbContent || "No additional knowledge entries."}`;
       }));
 
       // 3. Make unified fast request to server side
-      const response = await fetch("/api/chat", {
+      const response = await fetch(getApiUrl("/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

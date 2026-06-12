@@ -23,6 +23,20 @@ import {
 } from "../firebase";
 import imageCompression from "browser-image-compression";
 
+export const getApiUrl = (path: string): string => {
+  const isMobileApp = window.location.origin.startsWith('capacitor://') || 
+                      (window.location.origin.startsWith('http://localhost') && !window.location.port) ||
+                      window.location.origin === 'file://' ||
+                      !!(window as any).Capacitor;
+  
+  const PROD_API_URL = "https://ais-dev-27dbl3sqrzznukp2d2muoj-520196975221.asia-southeast1.run.app";
+  
+  if (isMobileApp) {
+    return `${PROD_API_URL}${path}`;
+  }
+  return path;
+};
+
 // API utility with explicit fetch functions and graceful error handling
 export const api = {
   // Generic list fetcher with graceful fallback and optional ordering
@@ -394,7 +408,7 @@ export const api = {
 
   async sendEmail(to: string, subject: string, text: string, html?: string) {
     try {
-      const response = await fetch("/api/send-email", {
+      const response = await fetch(getApiUrl("/api/send-email"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, text, html }),

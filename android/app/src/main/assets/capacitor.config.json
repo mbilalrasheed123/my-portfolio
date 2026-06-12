@@ -1,0 +1,8 @@
+{
+	"appId": "com.bilalrasheed.portfolio",
+	"appName": "Bilal Rasheed Portfolio",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	}
+}

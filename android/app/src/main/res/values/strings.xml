@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bilal Rasheed Portfolio</string>
+    <string name="title_activity_main">Bilal Rasheed Portfolio</string>
+    <string name="package_name">com.bilalrasheed.portfolio</string>
+    <string name="custom_url_scheme">com.bilalrasheed.portfolio</string>
+</resources>

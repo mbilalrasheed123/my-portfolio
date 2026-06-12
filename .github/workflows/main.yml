@@ -1,47 +1,59 @@
-name: Generate Android APK
+name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ "main", "master" ]
   pull_request:
-    branches:
-      - main
-      - master
-  workflow_dispatch: # Allows manual triggering from the Actions tab
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
-  generate-apk:
-    name: Build Android Package (APK/AAB)
+  build_apk:
+    name: Build Android Debug APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # Uses Microsoft's official PWABuilder engine to wrap your live, already deployed Vercel portfolio URL into a native installer APK
-      - name: Convert PWA to Android Package (PWABuilder)
-        uses: pwabuilder/pwa-action@v1
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          pwa-url: "https://offibilal.vercel.app"
-          package-name: "com.offibilal.portfolio"
-          application-id: "com.offibilal.portfolio"
-          app-name: "Bilal Rasheed Portfolio"
-          manifest-url: "https://offibilal.vercel.app/manifest.json"
+          node-version: 20
+          cache: 'npm'
 
-      # Upload the compiled release files so you can download them directly from GitHub Actions
-      - name: Upload APK & AAB Artifacts
+      - name: Install Frontend Dependencies
+        run: npm ci || npm install --legacy-peer-deps
+
+      - name: Build React Web App
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://ais-dev-27dbl3sqrzznukp2d2muoj-520196975221.asia-southeast1.run.app
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor Web Assets to Android
+        run: npx cap sync android
+
+      - name: Grant Execute Permission to Gradle Wrapper
+        run: chmod +x android/gradlew
+
+      - name: Build Android Debug APK with Gradle
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload Finished APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Bilal-Portfolio-Android-Installer
-          path: |
-            *.apk
-            *.aab
-            pwa-release/*.apk
-            pwa-release/*.aab
-            mvb-*.apk
-            mvb-*.aab
-            android-build/*.apk
-            android-build/*.aab
-          if-no-files-found: warn
+          name: portfolio-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

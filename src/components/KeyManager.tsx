@@ -3,6 +3,7 @@ import { Plus, Trash2, Shield, AlertCircle, CheckCircle, Clock, RefreshCcw, Lock
 import { db } from "../firebase";
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, getDocs } from "firebase/firestore";
 import { motion, AnimatePresence } from "motion/react";
+import { getApiUrl } from "../lib/api";
 
 interface ApiKeyDoc {
   id: string;
@@ -89,7 +90,7 @@ export default function KeyManager() {
 
     try {
       // 1. Encrypt key via backend helper
-      const encryptRes = await fetch("/api/admin/encrypt-key", {
+      const encryptRes = await fetch(getApiUrl("/api/admin/encrypt-key"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: newKey })
