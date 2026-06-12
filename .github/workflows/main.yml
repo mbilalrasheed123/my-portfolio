@@ -22,7 +22,7 @@ jobs:
 
       # Uses Microsoft's official PWABuilder engine to wrap your live, already deployed Vercel portfolio URL into a native installer APK
       - name: Convert PWA to Android Package (PWABuilder)
-        uses: pwa-builder/pwa-action@v1
+        uses: pwabuilder/pwa-action@v1
         with:
           pwa-url: "https://offibilal.vercel.app"
           package-name: "com.offibilal.portfolio"
