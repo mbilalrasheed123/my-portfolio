@@ -1,4 +1,4 @@
-name: Build and Deploy (Vercel & Cloudflare Pages)
+name: Build, Deploy and Generate Android APK
 
 on:
   push:
@@ -87,7 +87,42 @@ jobs:
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLRE_ACCOUNT_ID }} # Match exact secret key name
           projectName: 'my-portfolio'
           directory: dist/
           gitBranch: ${{ github.head_ref || github.ref_name }}
+
+  generate-apk:
+    name: Generate Android APK
+    needs: deploy-vercel # Ensures the latest code with proper manifest is live on Vercel before packaging
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Uses Microsoft's official PWABuilder engine to wrap your live portfolio URLs into a native installer APK
+      - name: Build Android Package (APK/AAB)
+        uses: pwabuilder/github-action@v1
+        with:
+          pwa-url: "https://offibilal.vercel.app"
+          package-name: "com.offibilal.portfolio"
+          application-id: "com.offibilal.portfolio"
+          app-name: "Bilal Rasheed Portfolio"
+          manifest-url: "https://offibilal.vercel.app/manifest.json"
+
+      - name: Upload APK & AAB Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bilal-Portfolio-Android-Installer
+          path: |
+            *.apk
+            *.aab
+            pwa-release/*.apk
+            pwa-release/*.aab
+            mvb-*.apk
+            mvb-*.aab
+            android-build/*.apk
+            android-build/*.aab
+          if-no-files-found: warn
