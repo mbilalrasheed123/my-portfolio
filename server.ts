@@ -381,20 +381,50 @@ app.post("/api/queries/auto-reply", async (req, res) => {
 
   try {
     // 1. Fetch settings from Firestore
+    let settings: any = null;
     logStep("Fetching settings document with ID 'global' from 'settings' collection");
     const settingsDoc = await adminDb.collection("settings").doc("global").get().catch((err: any) => {
       logStep(`WARN/ERROR: Failed to fetch settings from Firestore: ${err?.message || err}`);
       return null;
     });
 
-    const settings = (settingsDoc && settingsDoc.exists) ? settingsDoc.data() : null;
-    if (!settings) {
-      logStep("WARN: Settings document 'global' does not exist in Firestore! Using defaults.");
-    } else {
-      logStep(`Successfully fetched settings (enableAutoReply=${settings.enableAutoReply})`);
+    if (settingsDoc && settingsDoc.exists) {
+      settings = settingsDoc.data();
+      logStep(`Successfully fetched settings (enableAutoReply=${settings?.enableAutoReply})`);
+    }
+
+    // Fallback 1: If 'global' settings missing or enableAutoReply is undefined, search settings collection for master admin profile
+    if (!settings || settings.enableAutoReply === undefined) {
+      logStep("WARN: 'global' settings missing or enableAutoReply is undefined. Searching 'settings' collection for master admin profile email 'muhammadbilalrasheed78@gmail.com'...");
+      const settingsQuery = await adminDb.collection("settings").where("email", "==", "muhammadbilalrasheed78@gmail.com").get().catch((err: any) => {
+        logStep(`WARN: Failed to search settings by admin email: ${err?.message || err}`);
+        return null;
+      });
+
+      if (settingsQuery && !settingsQuery.empty) {
+        settings = settingsQuery.docs[0].data();
+        logStep(`SUCCESS Fallback 1: Found master admin settings document with enableAutoReply=${settings?.enableAutoReply}`);
+      }
+    }
+
+    // Fallback 2: General first settings document fallback (same as client-side)
+    if (!settings || settings.enableAutoReply === undefined) {
+      logStep("WARN: Still no valid settings. Checking for ANY settings document in the collection...");
+      const allSettingsSnap = await adminDb.collection("settings").limit(5).get().catch((err: any) => {
+        logStep(`WARN: Failed to list settings table: ${err?.message || err}`);
+        return null;
+      });
+
+      if (allSettingsSnap && !allSettingsSnap.empty) {
+        const docWithAutoReply = allSettingsSnap.docs.find(d => d.data()?.enableAutoReply !== undefined);
+        const chosenDoc = docWithAutoReply || allSettingsSnap.docs[0];
+        settings = chosenDoc.data();
+        logStep(`SUCCESS Fallback 2: Found settings document (ID: ${chosenDoc.id}) with enableAutoReply=${settings?.enableAutoReply}`);
+      }
     }
 
     const enableAutoReply = settings?.enableAutoReply ?? false;
+    logStep(`Evaluated finalized auto-reply state: enableAutoReply=${enableAutoReply}`);
     if (!enableAutoReply) {
       logStep("ABORTING: Auto-reply is disabled in Settings. Skipping AI reply.");
       return res.json({ success: true, message: "Auto-reply is disabled", steps });
