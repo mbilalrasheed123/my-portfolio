@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, getApiUrl } from "../lib/api";
+import { api } from "../lib/api";
 import { auth } from "../firebase";
 import { useSectionTracking } from "../hooks/useSectionTracking";
 import { trackClick } from "../lib/analytics";
@@ -70,7 +70,7 @@ export default function Contact({ userId }: ContactProps) {
 
       // Trigger background AI automated email reply safely
       if (docRef && docRef.id) {
-        fetch(getApiUrl("/api/queries/auto-reply"), {
+        fetch("/api/queries/auto-reply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
