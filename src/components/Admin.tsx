@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
@@ -29,6 +29,7 @@ export default function Admin() {
   const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
+  const [draftingIds, setDraftingIds] = useState<{ [key: string]: boolean }>({});
   const [adminPassData, setAdminPassData] = useState({ current: "", new: "" });
   const [adminPassStatus, setAdminPassStatus] = useState({ error: "", success: "" });
 
@@ -380,6 +381,28 @@ export default function Admin() {
       fetchData();
     } catch (error) {
       console.error("Failed to reply:", error);
+    }
+  };
+
+  const handleDraftWithAi = async (queryId: string, subject: string, message: string, userName: string, userEmail: string) => {
+    setDraftingIds(prev => ({ ...prev, [queryId]: true }));
+    try {
+      const resp = await fetch("/api/queries/draft-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, message, userName, userEmail })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.success && data.draft) {
+        setReplyText(prev => ({ ...prev, [queryId]: data.draft }));
+      } else {
+        alert(data.error || "Failed to generate AI draft reply.");
+      }
+    } catch (err: any) {
+      console.error("Failed to generate draft with AI:", err);
+      alert(err?.message || "Failed to generate AI draft reply.");
+    } finally {
+      setDraftingIds(prev => ({ ...prev, [queryId]: false }));
     }
   };
 
@@ -910,10 +933,20 @@ export default function Admin() {
                           value={replyText[q.id] || ""}
                           onChange={(e) => setReplyText({ ...replyText, [q.id]: e.target.value })}
                         />
-                        <div className="flex justify-end">
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => handleDraftWithAi(q.id, q.subject, q.message, q.userName, q.userEmail)}
+                            disabled={draftingIds[q.id]}
+                            className="w-full sm:w-auto px-6 py-2 bg-white/5 hover:bg-white/10 text-white font-mono text-[10px] border border-line hover:border-accent rounded-full transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
+                          >
+                            <Sparkles size={12} className={draftingIds[q.id] ? "animate-pulse text-accent" : "text-accent"} />
+                            {draftingIds[q.id] ? "Drafting..." : "Draft Answer with AI"}
+                          </button>
+
                           <button
                             onClick={() => handleReply(q.id, q.userEmail, q.subject)}
-                            className="px-8 py-2 bg-accent text-white rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-transform"
+                            className="w-full sm:w-auto px-8 py-2 bg-accent text-white rounded-full font-mono text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform"
                           >
                             <Send size={14} /> Send Reply & Notify
                           </button>

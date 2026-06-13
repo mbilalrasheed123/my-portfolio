@@ -557,6 +557,72 @@ ${replyText}
 });
 
 /**
+ * Server-side AI Draft generation for contact queries (manually reviewed by Admin)
+ */
+app.post("/api/queries/draft-ai", async (req, res) => {
+  const { subject, message, userName, userEmail } = req.body;
+  if (!message) {
+    return res.status(400).json({ success: false, error: "Missing user message to draft reply for." });
+  }
+
+  try {
+    let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (keyRotation) {
+      const activeKey = await keyRotation.getRotatedKey().catch(() => null);
+      if (activeKey && activeKey.key) {
+        keyToUse = activeKey.key;
+      }
+    }
+
+    if (!keyToUse) {
+      return res.status(500).json({ success: false, error: "No Gemini Key Configured" });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey: keyToUse,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        }
+      }
+    });
+
+    const systemInstruction = `You are Muhammad Bilal Rasheed, a professional developer. Write a highly professional, polite, and contextual email response replying directly to the user's inquiry on your portfolio website.
+Guidelines:
+1. Write from Bilal's first-person perspective (using "I", "my").
+2. Be professional, friendly, and helpful.
+3. Do NOT include any email subject line, headers, salutations like "To:", or footer / sign-offs containing generic bracketed placeholders like "[Your Name]".
+4. Just return the actual paragraph body of the email reply. Keep it ready to be edited.
+5. Close the email with a professional sign-off as "Best regards, Muhammad Bilal Rasheed".`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `Inquirer's Name: ${userName || "Inquirer"}\nInquirer's Email: ${userEmail || "No Email"}\nSubject: ${subject || "No Subject"}\nMessage:\n${message}` }]
+        }
+      ],
+      config: {
+        systemInstruction: systemInstruction
+      }
+    });
+
+    if (!response || !response.text) {
+      return res.status(500).json({ success: false, error: "Empty response from Gemini" });
+    }
+
+    return res.json({
+      success: true,
+      draft: response.text.trim()
+    });
+  } catch (error: any) {
+    console.error("[Draft AI Error]:", error);
+    return res.status(500).json({ success: false, error: error?.message || "Internal server error during draft generation" });
+  }
+});
+
+/**
  * Diagnostic Endpoint: SMTP Verification (Handshake and Auth check)
  */
 app.get("/api/admin/diagnose-smtp", async (req, res) => {
