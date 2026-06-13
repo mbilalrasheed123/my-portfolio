@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../lib/api";
-import { MessageSquare, Send, Clock, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageSquare, Send, Clock, CheckCircle, ChevronDown, ChevronUp, Sparkles, Bot } from "lucide-react";
 import { auth, onAuthStateChanged } from "../firebase";
 import Auth from "./Auth";
 
@@ -14,6 +14,10 @@ interface Query {
   timestamp: string;
   repliedAt?: string;
   userEmail: string;
+  aiReplyText?: string;
+  autoReplyText?: string;
+  autoRepliedAt?: any;
+  aiRepliedAt?: any;
 }
 
 export default function UserQueries() {
@@ -23,12 +27,24 @@ export default function UserQueries() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<any>({});
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // Fetch global settings to determine if showing AI indicator is active
+    api.getSettings().then((data) => {
+      if (data) {
+        setSettings(data);
+      }
+    }).catch((err) => {
+      console.warn("Failed to retrieve settings for queries view:", err);
+    });
   }, []);
 
   const fetchQueries = async (uid: string) => {
@@ -216,6 +232,30 @@ export default function UserQueries() {
                         <span className="text-[10px] font-mono text-accent uppercase tracking-widest block mb-2">Your Message</span>
                         <p className="text-secondary text-sm leading-relaxed">{q.message}</p>
                       </div>
+
+                      {(q.aiReplyText || q.autoReplyText) && (
+                        <div className="bg-blue-500/5 p-5 rounded-2xl border border-blue-955/20 mb-6 relative overflow-hidden">
+                          {settings?.showAiIndicator && (
+                            <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-full mb-3 font-semibold">
+                              <Sparkles size={11} /> Auto-Replied by AI
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 mb-2 text-blue-400 font-semibold">
+                            <Bot size={15} />
+                            <span className="text-[10px] font-mono uppercase tracking-widest font-bold">Automated Agent Acknowledgment</span>
+                          </div>
+                          <p className="text-secondary/90 text-sm leading-relaxed italic">"{q.aiReplyText || q.autoReplyText}"</p>
+                          {(q.autoRepliedAt || q.aiRepliedAt) && (
+                            <span className="text-[10px] font-mono text-secondary/50 uppercase mt-4 block">
+                              Sent automatically on {(() => {
+                                const ts = q.autoRepliedAt || q.aiRepliedAt;
+                                if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
+                                return ts?.toDate?.()?.toLocaleDateString() || new Date().toLocaleDateString();
+                              })()}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {q.reply && (
                         <div className="bg-white/5 p-4 rounded-xl border border-line">

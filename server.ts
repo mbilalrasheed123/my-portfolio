@@ -530,7 +530,9 @@ ${replyText}
     logStep(`Updating Firestore contactMessages document with ID ${queryId} status: ${autoReplyStatus}...`);
     await adminDb.collection("contactMessages").doc(queryId).update({
       autoReplyText: replyText,
+      aiReplyText: replyText,
       autoRepliedAt: admin.firestore.FieldValue.serverTimestamp(),
+      aiRepliedAt: admin.firestore.FieldValue.serverTimestamp(),
       autoReplyStatus: autoReplyStatus
     });
 

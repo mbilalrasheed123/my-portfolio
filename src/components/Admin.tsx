@@ -860,19 +860,29 @@ export default function Admin() {
                       <p className="text-secondary text-sm leading-relaxed">{q.message}</p>
                     </div>
 
-                    {q.autoReplyText && (
+                    {(q.aiReplyText || q.autoReplyText) && (
                       <div className="bg-blue-500/5 p-6 rounded-xl border border-blue-500/20 mb-6 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-2 bg-blue-500/10 rounded-bl font-mono text-[9px] text-[#5b8ff3] tracking-widest uppercase">
-                          AI Auto Reply
-                        </div>
+                        {settings?.showAiIndicator ? (
+                          <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-bl font-mono text-[9px] uppercase tracking-widest font-bold">
+                            ✨ Auto-Replied by AI
+                          </div>
+                        ) : (
+                          <div className="absolute top-0 right-0 p-2 bg-blue-500/10 rounded-bl font-mono text-[9px] text-[#5b8ff3] tracking-widest uppercase">
+                            AI Auto Reply
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 mb-2 text-[#5b8ff3]">
                           <Bot size={16} />
                           <span className="text-[10px] font-mono uppercase tracking-widest font-bold">Automated Response Sent</span>
                         </div>
-                        <p className="text-secondary text-sm leading-relaxed italic">"{q.autoReplyText}"</p>
-                        {q.autoRepliedAt && (
+                        <p className="text-secondary text-sm leading-relaxed italic">"{q.aiReplyText || q.autoReplyText}"</p>
+                        {(q.autoRepliedAt || q.aiRepliedAt) && (
                           <p className="text-[10px] font-mono text-secondary/60 uppercase mt-4">
-                            Generated on {typeof q.autoRepliedAt === 'string' ? new Date(q.autoRepliedAt).toLocaleString() : q.autoRepliedAt?.toDate?.()?.toLocaleString() || 'N/A'}
+                            Generated on {(() => {
+                              const ts = q.autoRepliedAt || q.aiRepliedAt;
+                              if (typeof ts === 'string') return new Date(ts).toLocaleString();
+                              return ts?.toDate?.()?.toLocaleString() || 'N/A';
+                            })()}
                           </p>
                         )}
                       </div>
@@ -1467,6 +1477,26 @@ export default function Admin() {
                       }`}
                     >
                       {settings.enableAutoReply ? 'ENABLED' : 'DISABLED'}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/5 p-4 rounded-xl border border-line">
+                    <div>
+                      <h4 className="text-sm font-sans font-medium text-white mb-1">Show AI Generated Indicator on Queries</h4>
+                      <p className="text-[10px] font-mono text-secondary uppercase">
+                        Display a visual badge indicating that a response was generated automatically by the AI agent on client views.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, showAiIndicator: !settings.showAiIndicator })}
+                      className={`px-4 py-2 rounded-xl border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                        settings.showAiIndicator 
+                          ? 'border-accent bg-accent/20 text-accent font-bold' 
+                          : 'border-line text-secondary hover:text-white'
+                      }`}
+                    >
+                      {settings.showAiIndicator ? 'ENABLED' : 'DISABLED'}
                     </button>
                   </div>
 
