@@ -95,7 +95,7 @@ app.post("/api/chat", async (req, res) => {
         });
 
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash-lite",
+          model: "gemini-3.5-flash",
           contents: contents,
           config: {
             systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + (context || ""),
@@ -440,9 +440,9 @@ app.post("/api/queries/auto-reply", async (req, res) => {
     const instruction = settings?.autoReplyInstruction || 
       "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text.";
 
-    logStep("Invoking Gemini models.generateContent (gemini-2.5-flash-lite)...");
+    logStep("Invoking Gemini models.generateContent (gemini-3.5-flash)...");
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-3.5-flash",
       contents: [
         {
           role: "user",
@@ -521,6 +521,109 @@ ${replyText}
       error: error?.message || "Internal error during auto-reply generation",
       steps
     });
+  }
+});
+
+/**
+ * Diagnostic Endpoint: SMTP Verification (Handshake and Auth check)
+ */
+app.get("/api/admin/diagnose-smtp", async (req, res) => {
+  const steps: string[] = [];
+  const log = (msg: string) => { steps.push(msg); console.log(`[SMTP Diagnostic] ${msg}`); };
+  
+  log("Starting SMTP Connection Diagnostic Check...");
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const smtpPort = process.env.SMTP_PORT || "587";
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  
+  log(`SMTP Host: ${smtpHost}`);
+  log(`SMTP Port: ${smtpPort}`);
+  log(`SMTP User length: ${smtpUser ? smtpUser.length : 0} characters`);
+  log(`SMTP Password length: ${smtpPass ? smtpPass.length : 0} characters`);
+
+  if (!smtpUser || !smtpPass) {
+    log("ERROR: SMTP_USER or SMTP_PASS environment variables are missing.");
+    return res.json({ success: false, error: "Missing env credentials", steps });
+  }
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const port = parseInt(smtpPort);
+    log(`Creating transporter connection setting port=${port}, secure=${port === 465}...`);
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: port,
+      secure: port === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000
+    });
+
+    log("Verifying SMTP server handshake/connection...");
+    await transporter.verify();
+    log("SUCCESS: SMTP server connection verified and authenticated successfully!");
+    
+    return res.json({ success: true, steps });
+  } catch (err: any) {
+    log(`FATAL DIAGNOSTIC ERROR: ${err?.message || err}`);
+    return res.json({ success: false, error: err?.message || String(err), steps });
+  }
+});
+
+/**
+ * Diagnostic Endpoint: Draft Generation Test (AI model connection check)
+ */
+app.get("/api/admin/test-auto-reply", async (req, res) => {
+  const steps: string[] = [];
+  const log = (msg: string) => { steps.push(msg); console.log(`[Test Auto-Reply] ${msg}`); };
+  log("Starting Gemini Auto-Reply generation test...");
+  
+  let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  if (keyToUse) {
+    log("Found standard Gemini key in environment variables");
+  }
+
+  if (keyRotation) {
+    log("Querying KeyRotationService...");
+    const activeKey = await keyRotation.getRotatedKey().catch((err: any) => {
+      log(`Key rotation warning: ${err?.message || err}`);
+      return null;
+    });
+    if (activeKey && activeKey.key) {
+      keyToUse = activeKey.key;
+      log(`Rotated key detected: ${activeKey.name || activeKey.id}`);
+    }
+  }
+
+  if (!keyToUse) {
+    log("ERROR: No Gemini key configured.");
+    return res.json({ success: false, error: "No Gemini Key found", steps });
+  }
+
+  try {
+    log("Initializing GoogleGenAI with Gemini 3.5-flash...");
+    const ai = new GoogleGenAI({
+      apiKey: keyToUse,
+      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+    });
+    
+    log("Generating test content draft...");
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: "This is an automatic mailer diagnostic test. Please reply with: 'Success: Gemini 3.5-flash integration is active!' and nothing else.",
+    });
+
+    if (!response || !response.text) {
+      log("ERROR: Empty response from Gemini.");
+      return res.json({ success: false, error: "Empty response", steps });
+    }
+
+    log(`SUCCESS: Gemini response generated successfully: ${response.text.trim()}`);
+    return res.json({ success: true, steps, text: response.text.trim() });
+  } catch (err: any) {
+    log(`FATAL ERROR: ${err?.message || err}`);
+    return res.json({ success: false, error: err?.message || String(err), steps });
   }
 });
 

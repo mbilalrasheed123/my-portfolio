@@ -32,6 +32,19 @@ export default function Admin() {
   const [adminPassData, setAdminPassData] = useState({ current: "", new: "" });
   const [adminPassStatus, setAdminPassStatus] = useState({ error: "", success: "" });
 
+  // Direct Handshake SMTP Diagnostic States
+  const [smtpTestSteps, setSmtpTestSteps] = useState<string[]>([]);
+  const [smtpTestLoading, setSmtpTestLoading] = useState(false);
+  const [smtpTestError, setSmtpTestError] = useState<string | null>(null);
+  const [smtpTestSuccess, setSmtpTestSuccess] = useState(false);
+
+  // Gemini AI Generation Diagnostic States
+  const [aiTestSteps, setAiTestSteps] = useState<string[]>([]);
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+  const [aiTestError, setAiTestError] = useState<string | null>(null);
+  const [aiTestSuccess, setAiTestSuccess] = useState(false);
+  const [aiTestResultText, setAiTestResultText] = useState("");
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -200,6 +213,62 @@ export default function Admin() {
     } catch (err: any) {
       console.error("Password update error:", err);
       setAdminPassStatus({ error: err.message || "Failed to update password.", success: "" });
+    }
+  };
+
+  const handleDiagnoseSmtp = async () => {
+    setSmtpTestLoading(true);
+    setSmtpTestError(null);
+    setSmtpTestSuccess(false);
+    setSmtpTestSteps(["Initiating live SMTP connection and handshake validation via server-side diagnostic route..."]);
+    
+    try {
+      const resp = await fetch("/api/admin/diagnose-smtp");
+      const data = await resp.json();
+      
+      if (data.steps && Array.isArray(data.steps)) {
+        setSmtpTestSteps(data.steps);
+      }
+      
+      if (resp.ok && data.success) {
+        setSmtpTestSuccess(true);
+      } else {
+        setSmtpTestError(data.error || "SMTP check failed.");
+      }
+    } catch (err: any) {
+      setSmtpTestError(err?.message || "Internal diagnostic dispatch failure");
+      setSmtpTestSteps(prev => [...prev, `[FAIL] Transport layer connection exception: ${err?.message || err}`]);
+    } finally {
+      setSmtpTestLoading(false);
+    }
+  };
+
+  const handleTestAiReply = async () => {
+    setAiTestLoading(true);
+    setAiTestError(null);
+    setAiTestSuccess(false);
+    setAiTestResultText("");
+    setAiTestSteps(["Requesting automated draft test via server-side gemini integration check..."]);
+    
+    try {
+      const resp = await fetch("/api/admin/test-auto-reply");
+      const data = await resp.json();
+      
+      if (data.steps && Array.isArray(data.steps)) {
+        setAiTestSteps(data.steps);
+      }
+      
+      if (resp.ok && data.success) {
+        setAiTestSuccess(true);
+        setAiTestResultText(data.text || "");
+      } else {
+        setAiTestError(data.error || "AI Auto-reply generation test failed.");
+      }
+    } catch (err: any) {
+      setAiTestError(err?.message || "Internal AI execution test failure");
+      setAiTestSteps(prev => [...prev, `[FAIL] Connection layer error: ${err?.message || err}`]);
+    } finally {
+      setAiTestLoading(false);
     }
   };
 
@@ -1414,8 +1483,93 @@ export default function Admin() {
                       placeholder="E.g. You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry..."
                     />
                     <p className="text-[8px] font-mono text-secondary/60 uppercase">
-                      This system instruction instructs the Gemini 2.5-flash-lite model on how to draft the email response sent back to the inquirer.
+                      This system instruction instructs the Gemini 3.5-flash model on how to draft the email response sent back to the inquirer.
                     </p>
+                  </div>
+
+                  {/* Live Systems Diagnostics Tool */}
+                  <div className="bg-white/5 p-6 rounded-2xl border border-line space-y-6 mt-6">
+                    <div>
+                      <h4 className="text-sm font-sans font-medium text-white mb-1 flex items-center gap-2">
+                        <Bot size={16} className="text-[#3b82f6]" /> Live System Diagnostics & Mail Tester
+                      </h4>
+                      <p className="text-[10px] font-mono text-secondary uppercase">
+                        Verify communication and AI generation connections directly on the server to isolate issues.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* SMTP Handshake Diagnostics */}
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={handleDiagnoseSmtp}
+                          disabled={smtpTestLoading}
+                          className="w-full py-2 px-4 bg-white/5 hover:bg-white/10 text-white font-mono text-[9px] border border-line hover:border-accent rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
+                        >
+                          {smtpTestLoading ? "Testing Connection..." : "Verify SMTP Connection"}
+                        </button>
+
+                        {smtpTestSteps.length > 0 && (
+                          <div className="bg-black/40 p-3 rounded-lg border border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-secondary">
+                            <div className="text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">SMTP Mailer Logs:</div>
+                            {smtpTestSteps.map((step, idx) => (
+                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-400" : ""}>
+                                &gt; {step}
+                              </div>
+                            ))}
+                            {smtpTestError && (
+                              <div className="text-red-400 mt-2 p-1 bg-red-500/10 border border-red-500/20 rounded font-sans text-[10px]">
+                                <strong>Diagnostic Failure:</strong> {smtpTestError}
+                              </div>
+                            )}
+                            {smtpTestSuccess && (
+                              <div className="text-green-400 mt-2 p-1 bg-green-500/10 border border-green-500/20 rounded font-sans text-[10px] font-bold">
+                                ✓ Handshake Authenticated! NodeMailer is active.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* AI Draft Diagnostics */}
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={handleTestAiReply}
+                          disabled={aiTestLoading}
+                          className="w-full py-2 px-4 bg-white/5 hover:bg-white/10 text-white font-mono text-[9px] border border-line hover:border-accent rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
+                        >
+                          {aiTestLoading ? "Testing AI Draft..." : "Test AI Generation"}
+                        </button>
+
+                        {aiTestSteps.length > 0 && (
+                          <div className="bg-black/40 p-3 rounded-lg border border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-secondary">
+                            <div className="text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">Gemini AI Logs:</div>
+                            {aiTestSteps.map((step, idx) => (
+                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-400" : ""}>
+                                &gt; {step}
+                              </div>
+                            ))}
+                            {aiTestResultText && (
+                              <div className="text-white bg-white/5 max-h-20 overflow-y-auto p-2 border border-line/20 rounded text-[9px] mt-2 italic whitespace-pre-wrap">
+                                Response Draft: "{aiTestResultText}"
+                              </div>
+                            )}
+                            {aiTestError && (
+                              <div className="text-red-400 mt-2 p-1 bg-red-500/10 border border-red-500/20 rounded font-sans text-[10px]">
+                                <strong>AI Failure:</strong> {aiTestError}
+                              </div>
+                            )}
+                            {aiTestSuccess && (
+                              <div className="text-green-400 mt-2 p-1 bg-green-500/10 border border-green-500/20 rounded font-sans text-[10px] font-bold">
+                                ✓ Gemini 3.5-flash generated content successfully!
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
