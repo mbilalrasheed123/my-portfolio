@@ -16,10 +16,31 @@ import ChatHistoryManager from "./ChatHistoryManager";
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("dashboard");
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    const saved = localStorage.getItem("admin_theme");
+    return (saved as any) || "dark";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("admin_theme", theme);
+  }, [theme]);
+
+  const [sidebarStyle, setSidebarStyle] = useState<"hover-collapse" | "expanded" | "floating-dock">(() => {
+    const saved = localStorage.getItem("admin_sidebar_style");
+    return (saved as any) || "hover-collapse";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("admin_sidebar_style", sidebarStyle);
+  }, [sidebarStyle]);
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
-  const isSidebarCollapsed = !isPinned && !isSidebarHovered && !mobileSidebarOpen;
+  const isSidebarCollapsed = 
+    sidebarStyle === "expanded" ? false :
+    sidebarStyle === "floating-dock" ? (!isSidebarHovered && !mobileSidebarOpen) :
+    (!isPinned && !isSidebarHovered && !mobileSidebarOpen);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: "lead" | "query" }[]>([]);
 
@@ -580,8 +601,18 @@ export default function Admin() {
     try {
       const testimonialData = {
         ...formData,
+        text: formData.text || formData.message || "",
+        message: formData.text || formData.message || "",
+        company: formData.company || formData.role || "",
+        role: formData.role || "",
+        avatar: formData.avatar || "",
         rating: Number(formData.rating) || 5,
-        order: Number(formData.order) || 0
+        order: Number(formData.order) || 0,
+        approved: true,
+        status: "approved",
+        isApproved: true,
+        visible: true,
+        userId: targetId || "global"
       };
 
       if (isEditing === "new_testimonial") {
@@ -738,7 +769,128 @@ export default function Admin() {
   });
 
   return (
-    <div className="container mx-auto px-4 lg:px-6 pb-12">
+    <div className={`admin-theme-wrapper ${theme === "light" ? "theme-light" : "theme-dark"} container mx-auto px-4 lg:px-6 pb-12`}>
+      <style>{`
+        /* Dynamic Theme Variables and Overrides */
+        .theme-light {
+          --bg-main: #f8fafc;
+          --bg-sidebar: #ffffff;
+          --bg-card: #ffffff;
+          --border-color: rgba(148, 163, 184, 0.18);
+          --text-primary: #0f172a;
+          --text-muted: #475569;
+          --glow-color: rgba(37, 99, 235, 0.05);
+        }
+
+        .admin-theme-wrapper.theme-light {
+          background-color: var(--bg-main) !important;
+          color: var(--text-primary) !important;
+        }
+
+        .admin-theme-wrapper.theme-light h1,
+        .admin-theme-wrapper.theme-light h2,
+        .admin-theme-wrapper.theme-light h3,
+        .admin-theme-wrapper.theme-light h4,
+        .admin-theme-wrapper.theme-light h5,
+        .admin-theme-wrapper.theme-light h6,
+        .admin-theme-wrapper.theme-light span:not(.font-mono):not(.text-green-500):not(.text-amber-500):not(.bg-white\/5),
+        .admin-theme-wrapper.theme-light label:not(.font-mono) {
+          color: var(--text-primary) !important;
+        }
+
+        .admin-theme-wrapper.theme-light p {
+          color: var(--text-muted) !important;
+        }
+
+        /* Glass / Card styling overrides */
+        .admin-theme-wrapper.theme-light .glass {
+          background: rgba(255, 255, 255, 0.8) !important;
+          backdrop-filter: blur(24px) !important;
+          border-color: var(--border-color) !important;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
+          color: var(--text-primary) !important;
+        }
+
+        /* Inputs & forms */
+        .admin-theme-wrapper.theme-light input,
+        .admin-theme-wrapper.theme-light textarea,
+        .admin-theme-wrapper.theme-light select {
+          background-color: #ffffff !important;
+          border: 1px solid rgba(148, 163, 184, 0.3) !important;
+          color: var(--text-primary) !important;
+        }
+        .admin-theme-wrapper.theme-light input:focus,
+        .admin-theme-wrapper.theme-light textarea:focus,
+        .admin-theme-wrapper.theme-light select:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .text-white {
+          color: var(--text-primary) !important;
+        }
+        .admin-theme-wrapper.theme-light .text-secondary {
+          color: var(--text-muted) !important;
+        }
+        .admin-theme-wrapper.theme-light .text-[#94a3b8] {
+          color: var(--text-muted) !important;
+        }
+
+        /* Sidebar Styling */
+        .admin-theme-wrapper.theme-light aside {
+          background-color: var(--bg-sidebar) !important;
+          border-color: var(--border-color) !important;
+          box-shadow: 0 15px 45px rgba(15, 23, 42, 0.04) !important;
+        }
+
+        .admin-theme-wrapper.theme-light aside .text-white {
+          color: var(--text-primary) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .border-line,
+        .admin-theme-wrapper.theme-light .border-white\/\[0\.04\],
+        .admin-theme-wrapper.theme-light .border-white\/\[0\.08\],
+        .admin-theme-wrapper.theme-light .border-white\/10 {
+          border-color: var(--border-color) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .bg-white\/\[0\.01\],
+        .admin-theme-wrapper.theme-light .bg-white\/\[0\.02\],
+        .admin-theme-wrapper.theme-light .bg-white\/5 {
+          background-color: rgba(148, 163, 184, 0.05) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .bg-[#181a20],
+        .admin-theme-wrapper.theme-light .bg-[#181a20]\/80 {
+          background-color: #f1f5f9 !important;
+          color: var(--text-primary) !important;
+        }
+
+        /* Buttons & Badges and Icons */
+        .admin-theme-wrapper.theme-light .text-white\/40,
+        .admin-theme-wrapper.theme-light .text-secondary\/60 {
+          color: var(--text-muted) !important;
+          opacity: 0.8;
+        }
+
+        /* Hover elements of sidebar and list rows */
+        .admin-theme-wrapper.theme-light .hover\:bg-white\/\[0\.04\]:hover,
+        .admin-theme-wrapper.theme-light .hover\:bg-white\/5:hover {
+          background-color: rgba(148, 163, 184, 0.1) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .bg-accent\/10 {
+          background-color: rgba(37, 99, 235, 0.08) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .border-accent\/30 {
+          border-color: rgba(37, 99, 235, 0.3) !important;
+        }
+
+        .admin-theme-wrapper.theme-light .shadow-\[0_10px_40px_rgba\(0\,0\,0\,0\.6\)\] {
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04) !important;
+        }
+      `}</style>
       {/* MOBILE BAR */}
       <div className="lg:hidden flex items-center justify-between py-4 border-b border-[#111] bg-black sticky top-0 z-50 mb-6">
         <div className="flex items-center gap-3">
@@ -764,11 +916,13 @@ export default function Admin() {
           onMouseEnter={() => setIsSidebarHovered(true)}
           onMouseLeave={() => setIsSidebarHovered(false)}
           className={`
-            fixed lg:sticky top-0 lg:top-12 h-[100vh] lg:h-[calc(100vh-6rem)] z-40 bg-[#0e1014] border border-[#1b1e24] lg:rounded-[24px]
-            transition-all duration-300 ease-in-out flex flex-col justify-between p-5 shrink-0 shadow-[0_10px_40px_rgba(0,0,0,0.6)]
-            ${mobileSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
-            ${isSidebarCollapsed ? "lg:w-20 lg:p-3" : "w-64 lg:w-64"}
-            left-0 lg:left-auto
+            fixed lg:sticky z-40 transition-all duration-300 ease-in-out flex flex-col justify-between shrink-0
+            ${sidebarStyle === "floating-dock" 
+              ? "top-0 lg:top-16 h-[100vh] lg:h-[calc(100vh-8rem)] bg-slate-950/40 backdrop-blur-xl border border-white/15 lg:rounded-[32px] lg:my-6 lg:ml-6 shadow-[0_20px_50px_rgba(0,0,0,0.8)]" 
+              : "top-0 lg:top-12 h-[100vh] lg:h-[calc(100vh-6rem)] bg-[#0e1014] border border-[#1b1e24] lg:rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.6)]"
+            }
+            ${isSidebarCollapsed ? "lg:w-20 lg:p-3 p-5" : "w-64 lg:w-64 p-5"}
+            ${mobileSidebarOpen ? "translate-x-0 left-0" : "-translate-x-full lg:translate-x-0 left-0 lg:left-auto"}
           `}
         >
           {/* SIDEBAR MAIN MENU */}
@@ -2061,6 +2215,93 @@ export default function Admin() {
         {activeTab === "settings" && (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl font-display uppercase mb-8">Site Settings</h2>
+
+            {/* VISUAL INTERFACE CUSTOMIZATION */}
+            <div className="glass p-8 rounded-2xl space-y-6 border border-line mb-8">
+              <div>
+                <h3 className="text-lg font-display uppercase text-white flex items-center gap-2">
+                  <Sparkles size={18} className="text-[#2563eb]" /> Interface Customizer
+                </h3>
+                <p className="text-[10px] font-mono text-secondary uppercase tracking-widest mt-1">Configure layout themes and navigation style presets</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* GLOBAL STATE THEME SWITCHER */}
+                <div className="space-y-3">
+                  <label className="font-mono text-[10px] uppercase text-secondary block">Global Interface Theme</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setTheme("dark")}
+                      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                        theme === "dark"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-[#0a0b0d] border border-white/20" />
+                      <span className="text-[10px] font-mono uppercase tracking-widest">Dark Slate (Default)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTheme("light")}
+                      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                        theme === "light"
+                          ? "border-[#2563eb] bg-blue-50 text-[#0f172a] font-semibold"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-slate-50 border border-slate-300" />
+                      <span className="text-[10px] font-mono uppercase tracking-widest">High Contrast Light</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* SIDEBAR STYLE SWITCHER */}
+                <div className="space-y-3">
+                  <label className="font-mono text-[10px] uppercase text-secondary block">Navigation Sidebar Style</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSidebarStyle("hover-collapse")}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
+                        sidebarStyle === "hover-collapse"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="text-[9px] font-mono uppercase tracking-tight">Hover Collapse</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSidebarStyle("expanded")}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
+                        sidebarStyle === "expanded"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="text-[9px] font-mono uppercase tracking-tight">Always Open</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSidebarStyle("floating-dock")}
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
+                        sidebarStyle === "floating-dock"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="text-[9px] font-mono uppercase tracking-tight">Floating Dock</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handleSaveSettings} className="glass p-8 rounded-2xl space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4 md:col-span-2 border-b border-line pb-8 mb-4">
@@ -2252,39 +2493,7 @@ export default function Admin() {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">About Text</label>
-                  <textarea
-                    rows={6}
-                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                    value={settings.aboutText || ""}
-                    onChange={e => setSettings({ ...settings, aboutText: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">Experience Years</label>
-                  <input
-                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                    value={settings.experienceYears || ""}
-                    onChange={e => setSettings({ ...settings, experienceYears: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">Education</label>
-                  <input
-                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                    value={settings.education || ""}
-                    onChange={e => setSettings({ ...settings, education: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="font-mono text-[10px] uppercase text-secondary">Location</label>
-                  <input
-                    className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
-                    value={settings.location || ""}
-                    onChange={e => setSettings({ ...settings, location: e.target.value })}
-                  />
-                </div>
+
                 <div className="space-y-2">
                   <label className="font-mono text-[10px] uppercase text-secondary">Email</label>
                   <input
