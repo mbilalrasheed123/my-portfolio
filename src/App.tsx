@@ -11,6 +11,7 @@ import Hero from "./components/Hero";
 import ParticleHero from "./components/ui/particle-effect-for-hero";
 import AetherFlowHero from "./components/ui/aether-flow-hero";
 import SplineHero from "./components/ui/spline-hero";
+import BackgroundBoxesHero from "./components/ui/background-boxes-hero";
 import About from "./components/About";
 import Skills from "./components/Skills";
 import Projects from "./components/Projects";
@@ -50,7 +51,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
       if (settings.heroDesignLoop) {
         const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
           ? settings.heroLoopOrder
-          : ['default', 'particles', 'aether', 'spline'];
+          : ['default', 'particles', 'aether', 'spline', 'boxes'];
         
         // Use session storage to keep style consistent for the SESSION
         const sessionKey = `hero_session_style_${userId || 'global'}`;
@@ -145,6 +146,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
   const isParticleHero = activeHeroStyle === 'particles';
   const isAetherHero = activeHeroStyle === 'aether';
   const isSplineHero = activeHeroStyle === 'spline';
+  const isBoxesHero = activeHeroStyle === 'boxes';
 
   return (
     <div className="min-h-screen selection:bg-accent/30 bg-black text-white">
@@ -156,6 +158,8 @@ function PortfolioContent({ userId }: { userId?: string }) {
           <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : isParticleHero ? (
           <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+        ) : isBoxesHero ? (
+          <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : (
           <Hero userId={userId} />
         )}

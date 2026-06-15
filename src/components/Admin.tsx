@@ -1890,6 +1890,13 @@ export default function Admin() {
                     >
                       Spline 3D
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'boxes' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'boxes' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Interactive Boxes
+                    </button>
                   </div>
                 </div>
 
@@ -2747,6 +2754,13 @@ export default function Admin() {
                       className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'spline' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
                     >
                       Spline 3D
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, heroStyle: 'boxes' })}
+                      className={`flex-1 min-w-[120px] py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all ${settings.heroStyle === 'boxes' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-secondary hover:text-white'}`}
+                    >
+                      Interactive Boxes
                     </button>
                   </div>
                 </div>
