@@ -40,6 +40,7 @@ export default function Admin() {
   const [knowledgeBase, setKnowledgeBase] = useState<any[]>([]);
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [kbFilter, setKbFilter] = useState({ category: "all", status: "all" });
+  const [queriesFilter, setQueriesFilter] = useState({ search: "", status: "all" });
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +71,96 @@ export default function Admin() {
 
   const isSuperAdmin = user?.email === ADMIN_EMAIL;
   const targetId = isSuperAdmin ? "global" : (user?.uid || "");
+
+  const filteredQueries = queries.filter(q => {
+    const matchesSearch = 
+      !queriesFilter.search ||
+      q.subject?.toLowerCase().includes(queriesFilter.search.toLowerCase()) ||
+      q.userName?.toLowerCase().includes(queriesFilter.search.toLowerCase()) ||
+      q.userEmail?.toLowerCase().includes(queriesFilter.search.toLowerCase()) ||
+      q.message?.toLowerCase().includes(queriesFilter.search.toLowerCase()) ||
+      (q.reply && q.reply.toLowerCase().includes(queriesFilter.search.toLowerCase())) ||
+      (q.aiReplyText && q.aiReplyText.toLowerCase().includes(queriesFilter.search.toLowerCase())) ||
+      (q.autoReplyText && q.autoReplyText.toLowerCase().includes(queriesFilter.search.toLowerCase()));
+
+    const matchesStatus = queriesFilter.status === "all" || q.status === queriesFilter.status;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const downloadLeadsCSV = () => {
+    if (leads.length === 0) {
+      alert("No leads data available to export.");
+      return;
+    }
+    const headers = ["ID", "Name", "Email", "Phone", "Interest", "Message", "Created At"];
+    const rows = leads.map(l => {
+      const createdAtDate = l.createdAt?.seconds 
+        ? new Date(l.createdAt.seconds * 1000).toLocaleString() 
+        : l.createdAt?.toDate 
+          ? l.createdAt.toDate().toLocaleString() 
+          : typeof l.createdAt === 'string' 
+            ? new Date(l.createdAt).toLocaleString() 
+            : 'Unknown';
+      return [
+        l.id || "",
+        l.name ? `"${l.name.replace(/"/g, '""')}"` : "",
+        l.email || "",
+        l.phone || "",
+        l.interest ? `"${l.interest.replace(/"/g, '""')}"` : "",
+        l.message ? `"${l.message.replace(/"/g, '""')}"` : "",
+        createdAtDate
+      ];
+    });
+
+    const csvString = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `admin_leads_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadQueriesCSV = () => {
+    if (queries.length === 0) {
+      alert("No inquiries data available to export.");
+      return;
+    }
+    const headers = ["ID", "Name", "Email", "Subject", "Message", "Status", "AI Reply", "Timestamp"];
+    const rows = queries.map(q => {
+      const ts = q.timestamp || q.createdAt;
+      const tsDate = ts?.seconds 
+        ? new Date(ts.seconds * 1000).toLocaleString() 
+        : ts?.toDate 
+          ? ts.toDate().toLocaleString() 
+          : typeof ts === 'string' 
+            ? new Date(ts).toLocaleString() 
+            : 'Unknown';
+      return [
+        q.id || "",
+        q.userName ? `"${q.userName.replace(/"/g, '""')}"` : "",
+        q.userEmail || "",
+        q.subject ? `"${q.subject.replace(/"/g, '""')}"` : "",
+        q.message ? `"${q.message.replace(/"/g, '""')}"` : "",
+        q.status || "",
+        q.aiReplyText || q.autoReplyText ? `"${(q.aiReplyText || q.autoReplyText).replace(/"/g, '""')}"` : "",
+        tsDate
+      ];
+    });
+
+    const csvString = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `admin_queries_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -787,6 +878,22 @@ export default function Admin() {
                     System Node active &bull; Authenticated administrator
                   </p>
                 </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={downloadLeadsCSV}
+                    className="px-4 py-2 bg-[#181a20]/80 h-10 hover:bg-[#1f2229] active:scale-95 text-white border border-white/[0.04] focus:border-[#2563eb]/20 rounded-xl font-mono text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+                    title="Export business leads data as CSV file"
+                  >
+                    Download Leads CSV
+                  </button>
+                  <button
+                    onClick={downloadQueriesCSV}
+                    className="px-4 py-2 bg-[#181a20]/80 h-10 hover:bg-[#1f2229] active:scale-95 text-white border border-white/[0.04] focus:border-[#2563eb]/20 rounded-xl font-mono text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+                    title="Export inbox user inquiries as CSV file"
+                  >
+                    Download Queries CSV
+                  </button>
+                </div>
               </div>
 
               {/* STATS ANALYTICS GRID */}
@@ -1311,14 +1418,49 @@ export default function Admin() {
 
         {activeTab === "queries" && (
           <div className="space-y-8">
-            <h2 className="text-3xl font-display uppercase">User Queries</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#111] pb-5">
+              <div>
+                <h2 className="text-3xl font-display uppercase">User Queries</h2>
+                <p className="text-[#64748b] font-mono text-[9px] uppercase tracking-wider mt-1">Manage, filter, and draft AI responses to inbound messages</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                {/* Search Input */}
+                <div className="relative flex-1 md:w-64">
+                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+                    <Search size={13} className="text-[#475569]" />
+                  </span>
+                  <input
+                    type="text"
+                    value={queriesFilter.search}
+                    onChange={(e) => setQueriesFilter({ ...queriesFilter, search: e.target.value })}
+                    placeholder="Search queries..."
+                    className="w-full pl-8 pr-3 py-1.5 bg-[#181a20]/80 hover:bg-[#1f2229] focus:bg-[#1f2229] border border-white/[0.04] focus:border-[#2563eb]/30 rounded-xl font-mono text-[11px] text-white placeholder-[#475569] focus:outline-none transition-all"
+                  />
+                </div>
+                {/* Status Dropdown */}
+                <select
+                  value={queriesFilter.status}
+                  onChange={(e) => setQueriesFilter({ ...queriesFilter, status: e.target.value })}
+                  className="bg-[#181a20]/80 hover:bg-[#1f2229] focus:outline-none border border-white/[0.04] rounded-xl px-3 py-1.5 font-mono text-[11px] text-white opacity-90 cursor-pointer"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="replied">Replied</option>
+                </select>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-6">
               {queries.length === 0 ? (
                 <div className="text-center py-20 glass rounded-3xl border border-line">
                   <p className="text-secondary font-mono text-xs uppercase">No queries received yet</p>
                 </div>
+              ) : filteredQueries.length === 0 ? (
+                <div className="text-center py-20 glass rounded-3xl border border-line">
+                  <p className="text-secondary font-mono text-xs uppercase">No queries match your search filters</p>
+                </div>
               ) : (
-                queries.map((q) => (
+                filteredQueries.map((q) => (
                   <div key={q.id} className="glass p-8 rounded-2xl border-line">
                     <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
                       <div>

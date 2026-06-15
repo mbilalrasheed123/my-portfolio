@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, Upload, Image as ImageIcon, ExternalLink, Github, Monitor, Star, Layers, Loader2, GripVertical } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, Upload, Image as ImageIcon, ExternalLink, Github, Monitor, Star, Layers, Loader2, GripVertical, Search } from "lucide-react";
 import { api } from "../lib/api";
 import { FileUpload } from "./FileUpload";
 
@@ -28,6 +28,10 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedFeatured, setSelectedFeatured] = useState("all");
+
   const [formData, setFormData] = useState<Partial<Project>>({
     technologies: [],
     tags: [],
@@ -49,6 +53,28 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
     setProjects(data);
     setIsLoading(false);
   };
+
+  // Get unique categories for filtering
+  const categories = ["all", ...Array.from(new Set(projects.map(p => p.category).filter(Boolean)))];
+
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = 
+      project.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.technologies?.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      project.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    const matchesCategory = selectedCategory === "all" || project.category === selectedCategory;
+    
+    const matchesFeatured = selectedFeatured === "all"
+      ? true
+      : selectedFeatured === "featured"
+        ? project.featured
+        : !project.featured;
+
+    return matchesSearch && matchesCategory && matchesFeatured;
+  });
 
   const handleEdit = (project: Project) => {
     setFormData(project);
@@ -409,11 +435,47 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
 
       {/* Projects Table */}
       <div className="glass rounded-[32px] border border-white/5 overflow-hidden">
-        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+        <div className="p-6 border-b border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/5">
           <h3 className="font-display uppercase tracking-widest text-sm flex items-center gap-2">
             <Layers size={16} className="text-[#00ffa3]" /> 
-            Active Repository ({projects.length})
+            Active Repository ({filteredProjects.length})
           </h3>
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {/* Search Input */}
+            <div className="relative flex-1 md:w-60">
+              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search size={13} className="text-secondary/50" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#181a20]/80 hover:bg-[#1f2229] focus:bg-[#1f2229] border border-white/5 focus:border-[#00ffa3]/30 rounded-xl pl-9 pr-3 py-1.5 font-mono text-[11px] text-white placeholder-secondary/50 focus:outline-none transition-all"
+              />
+            </div>
+            {/* Category Dropdown */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="bg-[#181a20]/80 hover:bg-[#1f2229] focus:outline-none border border-white/5 rounded-xl px-3 py-1.5 font-mono text-[11px] text-white opacity-90 cursor-pointer"
+            >
+              <option value="all">All Categories</option>
+              {categories.filter(c => c !== "all").map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            {/* Status / Featured Dropdown */}
+            <select
+              value={selectedFeatured}
+              onChange={(e) => setSelectedFeatured(e.target.value)}
+              className="bg-[#181a20]/80 hover:bg-[#1f2229] focus:outline-none border border-white/5 rounded-xl px-3 py-1.5 font-mono text-[11px] text-white opacity-90 cursor-pointer"
+            >
+              <option value="all">All Showcase</option>
+              <option value="featured">Featured Only</option>
+              <option value="standard">Standard Only</option>
+            </select>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -429,7 +491,7 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {[...projects].sort((a,b) => a.order - b.order).map((project, idx) => (
+              {[...filteredProjects].sort((a,b) => a.order - b.order).map((project, idx) => (
                 <tr key={project.id} className="hover:bg-white/[0.02] transition-colors group">
                   <td className="px-6 py-4 text-secondary font-mono text-[10px]">{idx + 1}</td>
                   <td className="px-6 py-4">
