@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles, BookOpen, Activity, ArrowUpRight, Search } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles, BookOpen, Activity, ArrowUpRight, Search, Columns, Layout } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import Auth from "./Auth";
 import { api } from "../lib/api";
@@ -25,7 +25,7 @@ export default function Admin() {
     localStorage.setItem("admin_theme", theme);
   }, [theme]);
 
-  const [sidebarStyle, setSidebarStyle] = useState<"hover-collapse" | "expanded" | "floating-dock">(() => {
+  const [sidebarStyle, setSidebarStyle] = useState<"hover-collapse" | "expanded" | "minimal-dock">(() => {
     const saved = localStorage.getItem("admin_sidebar_style");
     return (saved as any) || "hover-collapse";
   });
@@ -39,7 +39,7 @@ export default function Admin() {
   const [isPinned, setIsPinned] = useState(false);
   const isSidebarCollapsed = 
     sidebarStyle === "expanded" ? false :
-    sidebarStyle === "floating-dock" ? (!isSidebarHovered && !mobileSidebarOpen) :
+    sidebarStyle === "minimal-dock" ? (!isSidebarHovered && !mobileSidebarOpen) :
     (!isPinned && !isSidebarHovered && !mobileSidebarOpen);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: "lead" | "query" }[]>([]);
@@ -784,7 +784,8 @@ export default function Admin() {
 
         /* Root-level viewport style overrides when active */
         html:has(.theme-light) .min-h-screen,
-        html:has(.theme-light) body {
+        html:has(.theme-light) body,
+        html:has(.theme-light) .bg-black {
           background-color: #f8fafc !important;
           color: #0f172a !important;
         }
@@ -825,20 +826,22 @@ export default function Admin() {
 
         /* Deep overrides for ALL cards/sections */
         .admin-theme-wrapper.theme-light .glass,
-        .admin-theme-wrapper.theme-light [class*="bg-[#0a0b0d]"],
-        .admin-theme-wrapper.theme-light [class*="bg-[#0c0d12]"],
-        .admin-theme-wrapper.theme-light [class*="bg-[#0e0f12]"],
-        .admin-theme-wrapper.theme-light [class*="bg-[#0e1014]"]:not(aside),
-        .admin-theme-wrapper.theme-light [class*="bg-[#08090c]"],
+        .admin-theme-wrapper.theme-light [class*="bg-[#"],
         .admin-theme-wrapper.theme-light [class*="bg-black"]:not(.bg-accent):not(.bg-[#2563eb]):not(button):not(aside),
         .admin-theme-wrapper.theme-light [class*="bg-slate-900"],
         .admin-theme-wrapper.theme-light [class*="bg-slate-950"]:not(aside),
+        .admin-theme-wrapper.theme-light [class*="bg-zinc-900"],
         .admin-theme-wrapper.theme-light [class*="bg-zinc-950"],
-        .admin-theme-wrapper.theme-light [class*="bg-[#111]"]:not(button),
-        .admin-theme-wrapper.theme-light [class*="bg-[#181a20]"]:not(button):not(aside),
-        .admin-theme-wrapper.theme-light [class*="bg-neutral-900"] {
+        .admin-theme-wrapper.theme-light [class*="bg-neutral-900"],
+        .admin-theme-wrapper.theme-light [class*="bg-neutral-950"]:not(aside),
+        .admin-theme-wrapper.theme-light [class*="bg-stone-900"],
+        .admin-theme-wrapper.theme-light .bg-white\/5,
+        .admin-theme-wrapper.theme-light .bg-white\/10,
+        .admin-theme-wrapper.theme-light .bg-white\/\[0\.02\],
+        .admin-theme-wrapper.theme-light .bg-white\/\[0\.01\],
+        .admin-theme-wrapper.theme-light .bg-white\/\[0\.04\] {
           background-color: #ffffff !important;
-          border-color: rgba(148, 163, 184, 0.18) !important;
+          border-color: rgba(148, 163, 184, 0.22) !important;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.02), 0 1px 3px rgba(15, 23, 42, 0.01) !important;
           color: #0f172a !important;
         }
@@ -879,6 +882,52 @@ export default function Admin() {
         .admin-theme-wrapper.theme-light .border-white\/10,
         .admin-theme-wrapper.theme-light .border-white\/\[0\.04\],
         .admin-theme-wrapper.theme-light .border-white\/\[0\.08\] {
+          border-color: rgba(148, 163, 184, 0.18) !important;
+        }
+
+        /* Override light gray text classes commonly used in dark themes to be dark slate gray */
+        .admin-theme-wrapper.theme-light [class*="text-slate-100"],
+        .admin-theme-wrapper.theme-light [class*="text-slate-200"],
+        .admin-theme-wrapper.theme-light [class*="text-slate-300"],
+        .admin-theme-wrapper.theme-light [class*="text-slate-400"],
+        .admin-theme-wrapper.theme-light [class*="text-gray-100"],
+        .admin-theme-wrapper.theme-light [class*="text-gray-200"],
+        .admin-theme-wrapper.theme-light [class*="text-gray-300"],
+        .admin-theme-wrapper.theme-light [class*="text-gray-400"],
+        .admin-theme-wrapper.theme-light [class*="text-zinc-100"],
+        .admin-theme-wrapper.theme-light [class*="text-zinc-200"],
+        .admin-theme-wrapper.theme-light [class*="text-zinc-300"],
+        .admin-theme-wrapper.theme-light [class*="text-zinc-400"],
+        .admin-theme-wrapper.theme-light [class*="text-neutral-100"],
+        .admin-theme-wrapper.theme-light [class*="text-neutral-200"],
+        .admin-theme-wrapper.theme-light [class*="text-neutral-300"],
+        .admin-theme-wrapper.theme-light [class*="text-neutral-400"] {
+          color: #1e293b !important;
+        }
+
+        .admin-theme-wrapper.theme-light [class*="text-slate-500"],
+        .admin-theme-wrapper.theme-light [class*="text-gray-500"],
+        .admin-theme-wrapper.theme-light [class*="text-neutral-500"],
+        .admin-theme-wrapper.theme-light [class*="text-zinc-500"] {
+          color: #475569 !important;
+        }
+
+        /* Table & Lists Row Backgrounds & Hover Highlights */
+        .admin-theme-wrapper.theme-light [class*="hover:bg-white"]:hover,
+        .admin-theme-wrapper.theme-light [class*="hover:bg-slate-900"]:hover,
+        .admin-theme-wrapper.theme-light [class*="hover:bg-[#"]:hover {
+          background-color: rgba(148, 163, 184, 0.08) !important;
+        }
+
+        /* Universal Neutral Border Overrides */
+        .admin-theme-wrapper.theme-light .border-line,
+        .admin-theme-wrapper.theme-light [class*="border-white"],
+        .admin-theme-wrapper.theme-light [class*="border-[#1]"],
+        .admin-theme-wrapper.theme-light [class*="border-[#2]"],
+        .admin-theme-wrapper.theme-light [class*="border-[#3]"],
+        .admin-theme-wrapper.theme-light [class*="border-neutral"],
+        .admin-theme-wrapper.theme-light [class*="border-slate-800"],
+        .admin-theme-wrapper.theme-light [class*="border-zinc-800"] {
           border-color: rgba(148, 163, 184, 0.18) !important;
         }
 
@@ -929,11 +978,21 @@ export default function Admin() {
           border-color: rgba(148, 163, 184, 0.15) !important;
         }
 
-        /* Buttons & Badges and Icons */
-        .admin-theme-wrapper.theme-light button:not(.bg-accent):not(.bg-[#2563eb]):not(.bg-blue-600):not(.bg-purple-600):not(.bg-red-600):not(.bg-green-600):not(.bg-[#10b981]):not(.bg-white) {
+        /* Secondary and Neutral Glass/Stroke Buttons Overrides */
+        .admin-theme-wrapper.theme-light button.bg-white\/5,
+        .admin-theme-wrapper.theme-light button.bg-white\/10,
+        .admin-theme-wrapper.theme-light button.border-line,
+        .admin-theme-wrapper.theme-light button:not([class*="bg-blue"]):not([class*="bg-accent"]):not([class*="bg-[#2563eb]"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-red"]):not([class*="bg-indigo"]) {
+          background-color: #ffffff !important;
           border-color: rgba(148, 163, 184, 0.25) !important;
           color: #0f172a !important;
-          background-color: #ffffff !important;
+        }
+        
+        .admin-theme-wrapper.theme-light button.bg-white\/5 *,
+        .admin-theme-wrapper.theme-light button.bg-white\/10 *,
+        .admin-theme-wrapper.theme-light button.border-line *,
+        .admin-theme-wrapper.theme-light button:not([class*="bg-blue"]):not([class*="bg-accent"]):not([class*="bg-[#2563eb]"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-red"]):not([class*="bg-indigo"]) * {
+          color: #0f172a !important;
         }
 
         .admin-theme-wrapper.theme-light .bg-accent\/10 {
@@ -985,13 +1044,13 @@ export default function Admin() {
           onMouseEnter={() => setIsSidebarHovered(true)}
           onMouseLeave={() => setIsSidebarHovered(false)}
           className={`
-            fixed lg:sticky z-40 transition-all duration-300 ease-in-out flex flex-col justify-between shrink-0
-            ${sidebarStyle === "floating-dock" 
-              ? "top-0 lg:top-16 h-[100vh] lg:h-[calc(100vh-8rem)] bg-slate-950/40 backdrop-blur-xl border border-white/15 lg:rounded-[32px] lg:my-6 lg:ml-6 shadow-[0_20px_50px_rgba(0,0,0,0.8)]" 
-              : "top-0 lg:top-12 h-[100vh] lg:h-[calc(100vh-6rem)] bg-[#0e1014] border border-[#1b1e24] lg:rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.6)]"
+            fixed lg:fixed left-0 z-40 transition-all duration-300 ease-in-out flex flex-col justify-between shrink-0
+            ${sidebarStyle === "minimal-dock" 
+              ? "top-0 lg:top-6 lg:left-6 h-[100vh] lg:h-[calc(100vh-3rem)] bg-slate-950/40 backdrop-blur-xl border border-white/15 lg:rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.8)]" 
+              : "top-0 lg:top-24 lg:left-0 h-screen lg:h-[calc(100vh-6rem)] bg-[#0e1014] border-r border-white/[0.04] lg:rounded-none shadow-[0_10px_40px_rgba(0,0,0,0.6)]"
             }
             ${isSidebarCollapsed ? "lg:w-20 lg:p-3 p-5" : "w-64 lg:w-64 p-5"}
-            ${mobileSidebarOpen ? "translate-x-0 left-0" : "-translate-x-full lg:translate-x-0 left-0 lg:left-auto"}
+            ${mobileSidebarOpen ? "translate-x-0 left-0" : "-translate-x-full lg:translate-x-0"}
           `}
         >
           {/* SIDEBAR MAIN MENU */}
@@ -1005,17 +1064,21 @@ export default function Admin() {
                 <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f] border border-[#1aab29] block" />
               </div>
 
-              {/* BRAND LOGO DESIGN */}
-              <div className={`flex items-center gap-2 px-1 mt-2 ${isSidebarCollapsed ? "justify-center" : ""}`}>
-                <div className="flex gap-0.5 items-end h-5 shrink-0">
-                  <span className="w-1.5 h-3 rounded-full bg-accent animate-pulse" />
-                  <span className="w-1.5 h-5 rounded-full bg-[#2563eb]" />
-                  <span className="w-1.5 h-4 rounded-full bg-purple-500" />
-                </div>
+              {/* DYNAMIC PROFILE SECTION */}
+              <div className={`flex items-center gap-3 px-1.5 mt-2 ${isSidebarCollapsed ? "justify-center" : ""}`}>
+                <img 
+                  src={settings.adminAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
+                  alt="Admin Avatar" 
+                  className="w-10 h-10 rounded-full object-cover border border-white/10 bg-white/5 shrink-0" 
+                  referrerPolicy="no-referrer"
+                />
                 {!isSidebarCollapsed && (
-                  <span className="text-sm font-display font-black tracking-wider text-white uppercase bg-clip-text">
-                    MingCute
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-white truncate leading-tight">
+                      {settings.adminName || settings.name || "Administrator"}
+                    </p>
+                    <p className="text-[9px] font-mono text-[#2563eb] uppercase tracking-wider mt-0.5 font-bold">Admin Portal</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1157,7 +1220,37 @@ export default function Admin() {
         )}
 
         {/* MAIN WORKSPACE CONTENT */}
-        <div className="flex-1 space-y-8 min-w-0">
+        <div className={`flex-1 space-y-8 min-w-0 transition-all duration-300 ${
+          sidebarStyle === "expanded" ? "lg:pl-72" :
+          sidebarStyle === "minimal-dock" ? (isSidebarCollapsed ? "lg:pl-36" : "lg:pl-80") :
+          "lg:pl-28"
+        }`}>
+          {/* BREADCRUMB NAVIGATION TRAIL */}
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-secondary/60 border-b border-line pb-4 flex-wrap">
+            <span className="hover:text-[#2563eb] cursor-pointer transition-colors" onClick={() => setActiveTab("dashboard")}>Console</span>
+            <span className="text-secondary/30">/</span>
+            <span className="hover:text-[#2563eb] cursor-pointer transition-colors uppercase">{activeTab === "chatHistory" ? "AI Chat" : activeTab}</span>
+            <span className="text-secondary/30">/</span>
+            <span className="text-[#2563eb] font-bold tracking-wider">
+              {(() => {
+                const map: Record<string, string> = {
+                  dashboard: "Dashboard Overview",
+                  projects: "Project Portfolio & Case Studies",
+                  settings: "System Configuration & Presets",
+                  queries: "Inquiries & Contact Inbox",
+                  users: "Administrator & User Access Control",
+                  certificates: "Credentials & Certifications",
+                  leads: "Acquisitions & Client Leads",
+                  chatHistory: "AI Assistant Conversational History",
+                  about: "Biographical Profile & Skills",
+                  knowledgeBase: "Semantic Knowledge Base & RAG Settings",
+                  testimonials: "Endoursements & Testimonials",
+                  apiKeys: "API Key Management & Rotation"
+                };
+                return map[activeTab] || activeTab;
+              })()}
+            </span>
+          </div>
           
           {/* DASHBOARD TAB ACTIVE VIEW */}
           {activeTab === "dashboard" && (
@@ -2294,78 +2387,129 @@ export default function Admin() {
                 <p className="text-[10px] font-mono text-secondary uppercase tracking-widest mt-1">Configure layout themes and navigation style presets</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 {/* GLOBAL STATE THEME SWITCHER */}
                 <div className="space-y-3">
                   <label className="font-mono text-[10px] uppercase text-secondary block">Global Interface Theme</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <p className="text-[10px] font-mono text-secondary/60 uppercase pb-1">Toggle between deep cosmic slate and high contrast light views</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
                       onClick={() => setTheme("dark")}
-                      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                      className={`p-5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
                         theme === "dark"
                           ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
                           : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
                       }`}
                     >
-                      <span className="w-5 h-5 rounded-full bg-[#0a0b0d] border border-white/20" />
-                      <span className="text-[10px] font-mono uppercase tracking-widest">Dark Slate (Default)</span>
+                      <div className="flex items-center gap-3">
+                        <span className="w-5 h-5 rounded-full bg-[#0a0b0d] border border-white/20" />
+                        <span className="text-[10px] font-mono uppercase tracking-widest">Dark Slate (Default)</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${theme === "dark" ? "border-[#2563eb] bg-[#2563eb]" : "border-secondary/40"}`}>
+                        {theme === "dark" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setTheme("light")}
-                      className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                      className={`p-5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
                         theme === "light"
                           ? "border-[#2563eb] bg-blue-50 text-[#0f172a] font-semibold"
                           : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
                       }`}
                     >
-                      <span className="w-5 h-5 rounded-full bg-slate-50 border border-slate-300" />
-                      <span className="text-[10px] font-mono uppercase tracking-widest">High Contrast Light</span>
+                      <div className="flex items-center gap-3">
+                        <span className="w-5 h-5 rounded-full bg-slate-50 border border-slate-300" />
+                        <span className="text-[10px] font-mono uppercase tracking-widest">High Contrast Light</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${theme === "light" ? "border-[#2563eb] bg-[#2563eb]" : "border-secondary/40"}`}>
+                        {theme === "light" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
                     </button>
                   </div>
                 </div>
 
-                {/* SIDEBAR STYLE SWITCHER */}
-                <div className="space-y-3">
-                  <label className="font-mono text-[10px] uppercase text-secondary block">Navigation Sidebar Style</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
+                {/* SIDEBAR STYLE SWITCHER (GRID OF RADIO-CARDS) */}
+                <div className="space-y-3 border-t border-line/40 pt-6">
+                  <label className="font-mono text-[10px] uppercase text-secondary block">Navigation Sidebar Layout Configuration</label>
+                  <p className="text-[10px] font-mono text-secondary/60 uppercase pb-2">Select a preset to dynamically adjust Admin Panel workspace boundaries</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* HOVER COLLAPSE CARD */}
+                    <div
                       onClick={() => setSidebarStyle("hover-collapse")}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
+                      className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between h-40 group ${
                         sidebarStyle === "hover-collapse"
-                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
-                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:border-white/[0.12] hover:bg-white/[0.03]"
                       }`}
                     >
-                      <span className="text-[9px] font-mono uppercase tracking-tight">Hover Collapse</span>
-                    </button>
+                      <div className="flex justify-between items-start w-full">
+                        <span className="p-2.5 rounded-xl bg-white/5 text-[#7f8ea3] group-hover:text-white transition-colors">
+                          <Columns size={18} />
+                        </span>
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                          sidebarStyle === "hover-collapse" ? "border-[#2563eb] bg-[#2563eb]" : "border-secondary/40"
+                        }`}>
+                          {sidebarStyle === "hover-collapse" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                      </div>
+                      <div className="mt-4">
+                        <span className="text-[11px] font-mono uppercase tracking-widest block font-bold">Hover Collapse</span>
+                        <span className="text-[9px] text-secondary mt-1 block font-mono uppercase leading-normal">Collapses on idle, expands on hover.</span>
+                      </div>
+                    </div>
 
-                    <button
-                      type="button"
+                    {/* ALWAYS OPEN CARD */}
+                    <div
                       onClick={() => setSidebarStyle("expanded")}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
+                      className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between h-40 group ${
                         sidebarStyle === "expanded"
-                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
-                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:border-white/[0.12] hover:bg-white/[0.03]"
                       }`}
                     >
-                      <span className="text-[9px] font-mono uppercase tracking-tight">Always Open</span>
-                    </button>
+                      <div className="flex justify-between items-start w-full">
+                        <span className="p-2.5 rounded-xl bg-white/5 text-[#7f8ea3] group-hover:text-white transition-colors">
+                          <Layout size={18} />
+                        </span>
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                          sidebarStyle === "expanded" ? "border-[#2563eb] bg-[#2563eb]" : "border-secondary/40"
+                        }`}>
+                          {sidebarStyle === "expanded" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                      </div>
+                      <div className="mt-4">
+                        <span className="text-[11px] font-mono uppercase tracking-widest block font-bold">Always Open</span>
+                        <span className="text-[9px] text-secondary mt-1 block font-mono uppercase leading-normal">Traditional full-screen sidebar layout.</span>
+                      </div>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setSidebarStyle("floating-dock")}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
-                        sidebarStyle === "floating-dock"
-                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white font-semibold"
-                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:bg-white/[0.03]"
+                    {/* MINIMAL DOCK CARD */}
+                    <div
+                      onClick={() => setSidebarStyle("minimal-dock")}
+                      className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between h-40 group ${
+                        sidebarStyle === "minimal-dock"
+                          ? "border-[#2563eb] bg-[#2563eb]/10 text-white"
+                          : "border-white/[0.04] bg-white/[0.01] text-[#94a3b8] hover:border-white/[0.12] hover:bg-white/[0.03]"
                       }`}
                     >
-                      <span className="text-[9px] font-mono uppercase tracking-tight">Floating Dock</span>
-                    </button>
+                      <div className="flex justify-between items-start w-full">
+                        <span className="p-2.5 rounded-xl bg-white/5 text-[#7f8ea3] group-hover:text-white transition-colors">
+                          <Sparkles size={18} />
+                        </span>
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                          sidebarStyle === "minimal-dock" ? "border-[#2563eb] bg-[#2563eb]" : "border-secondary/40"
+                        }`}>
+                          {sidebarStyle === "minimal-dock" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                      </div>
+                      <div className="mt-4">
+                        <span className="text-[11px] font-mono uppercase tracking-widest block font-bold">Minimal Dock</span>
+                        <span className="text-[9px] text-secondary mt-1 block font-mono uppercase leading-normal">Premium floated screen-offset layout.</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2419,6 +2563,50 @@ export default function Admin() {
                         onChange={e => setSettings({ ...settings, logoAlt: e.target.value })}
                         placeholder="e.g. Bilal Rasheed - Web Portfolio"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 md:col-span-2 border-b border-line pb-8 mb-4">
+                  <h3 className="text-lg font-display uppercase text-white flex items-center gap-2">
+                    <Sparkles size={16} className="text-[#2563eb]" /> Administrator Profile Customization
+                  </h3>
+                  <p className="text-[10px] font-mono text-secondary uppercase tracking-widest mt-1">Configure Avatar Image and display name for administrative branding</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                    <div className="space-y-2">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Administrator Display Name</label>
+                      <input
+                        className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                        value={settings.adminName || settings.name || "Administrator"}
+                        onChange={e => setSettings({ ...settings, adminName: e.target.value })}
+                        placeholder="e.g. Bilal Rasheed"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-mono text-[10px] uppercase text-secondary">Administrator Avatar URL</label>
+                      <div className="flex items-center gap-4">
+                        <img 
+                          src={settings.adminAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
+                          alt="Avatar Preview" 
+                          className="h-10 w-10 rounded-full object-cover border border-white/10 bg-white/5 shrink-0" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="flex-1 flex flex-col gap-2">
+                          <input
+                            className="w-full bg-white/5 border border-line rounded-lg px-4 py-2 outline-none focus:border-accent"
+                            value={settings.adminAvatar || ""}
+                            onChange={e => setSettings({ ...settings, adminAvatar: e.target.value })}
+                            placeholder="e.g. https://images.unsplash.com/..."
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-mono text-secondary uppercase">Or Upload:</span>
+                            <FileUpload 
+                              folder="admin_avatar" 
+                              onUpload={(urls) => setSettings({ ...settings, adminAvatar: urls[0] })} 
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
