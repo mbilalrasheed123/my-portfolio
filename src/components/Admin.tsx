@@ -15,8 +15,10 @@ import ChatHistoryManager from "./ChatHistoryManager";
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("dashboard");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const isSidebarCollapsed = !isPinned && !isSidebarHovered && !mobileSidebarOpen;
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: "lead" | "query" }[]>([]);
 
@@ -692,6 +694,8 @@ export default function Admin() {
       <div className="flex flex-col lg:flex-row min-h-[85vh] gap-8">
         {/* SLEEK, VERTICAL LEFT SIDEBAR */}
         <aside
+          onMouseEnter={() => setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
           className={`
             fixed lg:sticky top-0 lg:top-12 h-[100vh] lg:h-[calc(100vh-6rem)] z-40 bg-[#0e1014] border border-[#1b1e24] lg:rounded-[24px]
             transition-all duration-300 ease-in-out flex flex-col justify-between p-5 shrink-0 shadow-[0_10px_40px_rgba(0,0,0,0.6)]
@@ -843,12 +847,13 @@ export default function Admin() {
               )}
             </div>
 
-            {/* SIDEBAR COLLAPSER CHEVRON (DESKTOP ONLY) */}
+            {/* SIDEBAR LOCKER / COLLAPSER (DESKTOP ONLY) */}
             <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="hidden lg:flex w-full items-center justify-center py-1.5 bg-[#181a20] border border-white/[0.04] hover:border-white/[0.12] text-secondary hover:text-white rounded-xl transition-all"
+              onClick={() => setIsPinned(!isPinned)}
+              className="hidden lg:flex w-full items-center justify-center py-1.5 bg-[#181a20] border border-white/[0.04] hover:border-white/[0.12] text-[#94a3b8] hover:text-white rounded-xl transition-all"
+              title={isPinned ? "Unlock & Auto-Collapse Sidebar" : "Pin & Keep Expanded"}
             >
-              {isSidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+              {isPinned ? <ChevronLeft size={13} className="text-[#2563eb]" /> : <ChevronRight size={13} />}
             </button>
           </div>
         </aside>
