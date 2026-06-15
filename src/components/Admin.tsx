@@ -626,10 +626,13 @@ export default function Admin() {
         userId: targetId || "global"
       };
 
+      const cleanData = { ...testimonialData };
+      delete cleanData.id;
+
       if (isEditing === "new_testimonial") {
-        await api.post("testimonials", testimonialData, targetId);
+        await api.post("testimonials", cleanData, targetId);
       } else if (isEditing) {
-        await api.put("testimonials", isEditing, testimonialData);
+        await api.put("testimonials", isEditing, cleanData);
       }
 
       setIsEditing(null);

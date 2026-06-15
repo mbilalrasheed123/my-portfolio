@@ -30,42 +30,32 @@ service cloud.firestore {
     // Public Collections (Read-Only for public, Write for Owner/Admin)
     match /projects/{projectId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && existing().userId == request.auth.uid)
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
     
     match /certificates/{certId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && existing().userId == request.auth.uid)
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     match /skills/{skillId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && existing().userId == request.auth.uid)
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     match /experience/{expId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && existing().userId == request.auth.uid)
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     match /testimonials/{testId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && existing().userId == request.auth.uid)
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
     }
 
     function isValidSetting(data) {
@@ -113,10 +103,8 @@ service cloud.firestore {
     // Knowledge Base
     match /knowledgeBase/{entryId} {
       allow read: if true; 
-      allow write: if isAdmin() || (isSignedIn() && (
-        (request.method == 'create' && incoming().userId == request.auth.uid) ||
-        (request.method != 'create' && (existing().userId == request.auth.uid || !existing().keys().hasAny(['userId'])))
-      ));
+      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || !existing().keys().hasAny(['userId'])));
     }
 
     // Contact Messages (Queries)

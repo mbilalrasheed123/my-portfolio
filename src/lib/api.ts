@@ -82,12 +82,8 @@ export const api = {
       // If it's a global request for projects/skills, we skip Try 1 to avoid restricted filtering
       if (!isGlobalOrMaster || !isPublicPortfolioCollection) {
         try {
-          let q;
-          if (shouldOrder) {
-            q = query(colRef, where(uidField, "==", searchId), orderBy(orderField, "asc"));
-          } else {
-            q = query(colRef, where(uidField, "==", searchId));
-          }
+          // Fetch simple collection with key filter to avoid composite index requirements
+          const q = query(colRef, where(uidField, "==", searchId));
           const snapshot = await getDocs(q as any);
           results = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
           console.log(`[api.fetchList] Try 1 (${searchId}) returned ${results.length} docs`);
@@ -127,13 +123,14 @@ export const api = {
               }
             });
           }
-          
-          if (shouldOrder) {
-             results.sort((a,b) => (a[orderField] || 0) - (b[orderField] || 0));
-          }
         } catch (legacyErr) {
           console.error(`[api.fetchList] Fallback failed for ${collectionName}:`, legacyErr);
         }
+      }
+
+      // Always sort the unified results in memory
+      if (shouldOrder) {
+         results.sort((a, b) => (a[orderField] || 0) - (b[orderField] || 0));
       }
 
       return results;

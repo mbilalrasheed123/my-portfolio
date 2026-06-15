@@ -321,6 +321,29 @@
         }
       },
       "required": ["date"]
+    },
+    "Testimonial": {
+      "title": "Testimonial",
+      "description": "Client endorsement and review",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "company": { "type": "string" },
+        "text": { "type": "string" },
+        "message": { "type": "string" },
+        "avatar": { "type": "string" },
+        "rating": { "type": "number" },
+        "order": { "type": "number" },
+        "approved": { "type": "boolean" },
+        "status": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "visible": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "role", "text"]
     }
   },
   "firestore": {
@@ -375,6 +398,10 @@
     "/apiKeys/{keyId}": {
       "schema": "ApiKey",
       "description": "API Key rotation management"
+    },
+    "/testimonials/{testId}": {
+      "schema": "Testimonial",
+      "description": "Client endorsements listed on portfolio landing page"
     }
   }
 }
