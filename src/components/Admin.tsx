@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles, BookOpen, Activity, ArrowUpRight, Search } from "lucide-react";
 import Auth from "./Auth";
 import { api } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
@@ -14,7 +14,22 @@ import ChatHistoryManager from "./ChatHistoryManager";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("projects");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("dashboard");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [toasts, setToasts] = useState<{ id: string; title: string; message: string; type: "lead" | "query" }[]>([]);
+
+  const addToast = (title: string, message: string, type: "lead" | "query") => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, title, message, type }]);
+    
+    // Auto-dismiss after 6 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 6000);
+  };
+
   const [projects, setProjects] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   const [queries, setQueries] = useState<any[]>([]);
@@ -132,13 +147,13 @@ export default function Admin() {
   useEffect(() => {
     fetchData();
 
-    // Set up real-time listener for chat sessions
     if (user) {
-      const q = isSuperAdmin 
+      // 1. Chat Sessions Listener
+      const qChat = isSuperAdmin 
         ? collection(db, "chatSessions") 
         : query(collection(db, "chatSessions"), where("userId", "==", user.uid));
         
-      const unsubscribe = onSnapshot(q, (snapshot: any) => {
+      const unsubscribeChat = onSnapshot(qChat, (snapshot: any) => {
         const sessions = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
         setChatSessions(sessions.sort((a: any, b: any) => {
           const getT = (ts: any) => {
@@ -148,7 +163,90 @@ export default function Admin() {
           return getT(b.createdAt || b.lastUpdated || b.lastActivity) - getT(a.createdAt || a.lastUpdated || a.lastActivity);
         }));
       });
-      return () => unsubscribe();
+
+      // 2. Real-time Queries Listener
+      const qQueries = isSuperAdmin
+        ? collection(db, "contactMessages")
+        : query(collection(db, "contactMessages"), where("userUid", "==", user.uid));
+
+      let isInitialQueries = true;
+      const unsubscribeQueries = onSnapshot(qQueries, (snapshot: any) => {
+        const list: any[] = [];
+        snapshot.docs.forEach((doc: any) => {
+          list.push({ id: doc.id, ...doc.data() });
+        });
+
+        const sortedQueries = list.sort((a: any, b: any) => {
+          const getTime = (ts: any) => {
+            if (ts?.seconds) return ts.seconds * 1000;
+            if (ts?.toDate) return ts.toDate().getTime();
+            if (typeof ts === 'string') return new Date(ts).getTime();
+            return 0;
+          };
+          return getTime(b.timestamp || b.createdAt) - getTime(a.timestamp || a.createdAt);
+        });
+
+        setQueries(sortedQueries);
+
+        if (!isInitialQueries) {
+          snapshot.docChanges().forEach((change: any) => {
+            if (change.type === "added") {
+              const data = change.doc.data();
+              addToast(
+                `New Inquiry: ${data.subject || "No Subject"}`,
+                `From ${data.userName || data.userEmail || "Someone"}`,
+                "query"
+              );
+            }
+          });
+        }
+        isInitialQueries = false;
+      });
+
+      // 3. Real-time Leads Listener
+      const qLeads = isSuperAdmin
+        ? collection(db, "leads")
+        : query(collection(db, "leads"), where("userId", "==", user.uid));
+
+      let isInitialLeads = true;
+      const unsubscribeLeads = onSnapshot(qLeads, (snapshot: any) => {
+        const list: any[] = [];
+        snapshot.docs.forEach((doc: any) => {
+          list.push({ id: doc.id, ...doc.data() });
+        });
+
+        const sortedLeads = list.sort((a: any, b: any) => {
+          const getTime = (ts: any) => {
+            if (ts?.seconds) return ts.seconds * 1000;
+            if (ts?.toDate) return ts.toDate().getTime();
+            if (typeof ts === 'string') return new Date(ts).getTime();
+            return 0;
+          };
+          return getTime(b.createdAt) - getTime(a.createdAt);
+        });
+
+        setLeads(sortedLeads);
+
+        if (!isInitialLeads) {
+          snapshot.docChanges().forEach((change: any) => {
+            if (change.type === "added") {
+              const data = change.doc.data();
+              addToast(
+                `New Business Lead!`,
+                `${data.name || "Client"} is interested in ${data.interest || "collaboration"}`,
+                "lead"
+              );
+            }
+          });
+        }
+        isInitialLeads = false;
+      });
+
+      return () => {
+        unsubscribeChat();
+        unsubscribeQueries();
+        unsubscribeLeads();
+      };
     }
   }, [user]);
 
@@ -480,112 +578,481 @@ export default function Admin() {
   });
 
   return (
-    <div className="container mx-auto px-6">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full overflow-hidden border border-line bg-white/10 flex items-center justify-center">
-              {user.photoURL ? <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" /> : <LogIn size={20} />}
-            </div>
-            <div>
-              <h1 className="text-2xl font-display uppercase">Dashboard</h1>
-              <p className="text-xs font-mono text-secondary uppercase tracking-widest">{user.email}</p>
-            </div>
+    <div className="container mx-auto px-4 lg:px-6 pb-12">
+      {/* MOBILE BAR */}
+      <div className="lg:hidden flex items-center justify-between py-4 border-b border-[#111] bg-black sticky top-0 z-50 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-[#222] bg-white/5 flex items-center justify-center">
+            {user.photoURL ? <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <LogIn size={14} />}
           </div>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button
-              onClick={() => setActiveTab("projects")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'projects' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <FolderKanban size={14} className="inline mr-2" /> Projects
-            </button>
-            <button
-              onClick={() => setActiveTab("about")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'about' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Users size={14} className="inline mr-2" /> About Me
-            </button>
-            <button
-              onClick={() => setActiveTab("certificates")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'certificates' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Award size={14} className="inline mr-2" /> Certificates
-            </button>
-            <button
-              onClick={() => setActiveTab("queries")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'queries' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <MessageSquare size={14} className="inline mr-2" /> {isSuperAdmin ? "All Queries" : "My Queries"}
-              {queries.filter(q => q.status === 'pending').length > 0 && (
-                <span className="ml-2 bg-accent text-white px-2 py-0.5 rounded-full text-[8px]">
-                  {queries.filter(q => q.status === 'pending').length}
-                </span>
-              )}
-            </button>
-            {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-              >
-                <Users size={14} className="inline mr-2" /> Users
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab("leads")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'leads' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <CheckCircle size={14} className="inline mr-2" /> {isSuperAdmin ? "Global Leads" : "My Leads"}
-              {leads.length > 0 && <span className="ml-2 bg-accent text-white px-2 py-0.5 rounded-full text-[8px]">{leads.length}</span>}
-            </button>
-            <button
-              onClick={() => setActiveTab("chatHistory")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'chatHistory' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Bot size={14} className="inline mr-2" /> Chat History
-            </button>
-            <button
-              onClick={() => setActiveTab("knowledgeBase")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'knowledgeBase' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Users size={14} className="inline mr-2" /> Knowledge Base
-            </button>
-            <button
-              onClick={() => setActiveTab("testimonials")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'testimonials' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <Star size={14} className="inline mr-2" /> Testimonials
-            </button>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-white text-black' : 'border border-line text-secondary hover:text-white'}`}
-            >
-              <SettingsIcon size={14} className="inline mr-2" /> Settings
-            </button>
-            {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab("apiKeys")}
-                className={`px-6 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all ${activeTab === 'apiKeys' ? 'bg-[#00ffa3] text-black border-[#00ffa3]/30' : 'border border-line text-secondary hover:text-white'}`}
-              >
-                <RotateCcw size={14} className="inline mr-2" /> Rotation
-              </button>
-            )}
-            <button
-              onClick={handleLogout}
-              className="px-6 py-2 border border-line rounded-full font-mono text-[10px] uppercase tracking-widest text-secondary hover:bg-red-500/10 hover:text-red-500 transition-all"
-            >
-              <LogOut size={14} className="inline mr-2" /> Logout
-            </button>
-            <div className="md:ml-auto pt-4 md:pt-0">
-              <a 
-                href={`/u/${user.uid}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-2 bg-accent/10 border border-accent/20 text-accent rounded-full font-mono text-[10px] uppercase tracking-widest hover:bg-accent hover:text-white transition-all shadow-[0_0_20px_rgba(0,255,163,0.1)] hover:shadow-[0_0_25px_rgba(0,255,163,0.3)]"
-              >
-                View My Portfolio <ExternalLink size={14} className="animate-pulse" />
-              </a>
-            </div>
+          <div>
+            <span className="text-xs font-display font-bold uppercase tracking-wider text-white">Console</span>
+            <p className="text-[8px] font-mono text-secondary tracking-tight">{user.email}</p>
           </div>
         </div>
+        <button
+          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          className="p-2 border border-[#222] hover:border-accent text-secondary hover:text-white rounded-lg transition-all"
+        >
+          {mobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      </div>
+
+      <div className="flex flex-col lg:flex-row min-h-[85vh] gap-8">
+        {/* SLEEK, VERTICAL LEFT SIDEBAR */}
+        <aside
+          className={`
+            fixed lg:sticky top-0 lg:top-12 h-[100vh] lg:h-[calc(100vh-6rem)] z-40 bg-[#0e1014] border border-[#1b1e24] lg:rounded-[24px]
+            transition-all duration-300 ease-in-out flex flex-col justify-between p-5 shrink-0 shadow-[0_10px_40px_rgba(0,0,0,0.6)]
+            ${mobileSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
+            ${isSidebarCollapsed ? "lg:w-20 lg:p-3" : "w-64 lg:w-64"}
+            left-0 lg:left-auto
+          `}
+        >
+          {/* SIDEBAR MAIN MENU */}
+          <div className="space-y-5 flex-1 flex flex-col min-h-0">
+            {/* macOS WINDOW CHROME DOTS & BRANDING LOGO */}
+            <div className={`flex flex-col gap-4 border-b border-white/[0.04] pb-4 ${isSidebarCollapsed ? "items-center" : ""}`}>
+              {/* macOS Window dots */}
+              <div className="flex items-center gap-1.5 px-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] border border-[#e0443e] block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] border border-[#dea123] block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f] border border-[#1aab29] block" />
+              </div>
+
+              {/* BRAND LOGO DESIGN */}
+              <div className={`flex items-center gap-2 px-1 mt-2 ${isSidebarCollapsed ? "justify-center" : ""}`}>
+                <div className="flex gap-0.5 items-end h-5 shrink-0">
+                  <span className="w-1.5 h-3 rounded-full bg-accent animate-pulse" />
+                  <span className="w-1.5 h-5 rounded-full bg-[#2563eb]" />
+                  <span className="w-1.5 h-4 rounded-full bg-purple-500" />
+                </div>
+                {!isSidebarCollapsed && (
+                  <span className="text-sm font-display font-black tracking-wider text-white uppercase bg-clip-text">
+                    MingCute
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* MOCK SEARCH INPUT */}
+            {!isSidebarCollapsed && (
+              <div className="relative px-1">
+                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+                  <Search size={13} className="text-[#475569]" />
+                </span>
+                <input
+                  type="text"
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  placeholder="Search"
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#181a20] hover:bg-[#1f2229] focus:bg-[#1f2229] border border-white/[0.04] focus:border-white/[0.12] rounded-xl font-mono text-[11px] text-white placeholder-[#475569] focus:outline-none transition-all"
+                />
+              </div>
+            )}
+
+            {/* NAV LINKS */}
+            <nav className="space-y-1 overflow-y-auto scrollbar-none flex-1 pr-1">
+              {[
+                { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+                { id: "projects", label: "Projects", icon: FolderKanban },
+                { id: "about", label: "About Me", icon: Users },
+                { id: "certificates", label: "Certificates", icon: Award },
+                { id: "queries", label: (isSuperAdmin ? "Queries" : "My Queries"), icon: MessageSquare, badge: queries.filter(q => q.status === 'pending').length },
+                ...(isSuperAdmin ? [{ id: "users", label: "Users", icon: Users }] : []),
+                { id: "leads", label: (isSuperAdmin ? "Leads" : "My Leads"), icon: CheckCircle, badge: leads.length },
+                { id: "chatHistory", label: "Chat History", icon: Bot },
+                { id: "knowledgeBase", label: "Knowledge Base", icon: BookOpen },
+                { id: "testimonials", label: "Testimonials", icon: Star },
+                { id: "settings", label: "Settings", icon: SettingsIcon },
+                ...(isSuperAdmin ? [{ id: "apiKeys", label: "Rotation", icon: RotateCcw }] : [])
+              ]
+              .filter(item => item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+              .map((item) => {
+                const IconComponent = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-mono text-[10px] uppercase tracking-wider transition-all relative group
+                      ${isActive 
+                        ? 'bg-[#2563eb] text-white font-bold shadow-[0_4px_12px_rgba(37,99,235,0.25)]' 
+                        : 'text-[#94a3b8] hover:text-white hover:bg-white/[0.04]'
+                      }
+                      ${isSidebarCollapsed ? "justify-center lg:px-2" : ""}
+                    `}
+                    title={item.label}
+                  >
+                    <IconComponent size={14} className={`${isActive ? "text-white" : "text-[#7f8ea3] group-hover:text-white"} shrink-0`} />
+                    
+                    {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                    
+                    {item.badge !== undefined && item.badge > 0 && !isSidebarCollapsed ? (
+                      <span className={`ml-auto px-1.5 py-0.5 rounded-full text-[8px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-white/[0.07] text-[#94a3b8]'}`}>
+                        {item.badge}
+                      </span>
+                    ) : item.badge !== undefined && item.badge > 0 && isSidebarCollapsed ? (
+                      <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* SIDEBAR FOOTER ACTION REQUISITES */}
+          <div className="space-y-4 pt-4 border-t border-white/[0.04] mt-auto shrink-0">
+            {/* PORTFOLIO USER PROFILE CARD FOOTER */}
+            <div className={`flex items-center gap-3 ${isSidebarCollapsed ? "justify-center" : "justify-between"}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-[#27c93f]/20 bg-white/5 flex items-center justify-center shrink-0">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-[#2563eb] text-white flex items-center justify-center font-bold text-xs uppercase">
+                      {user.email?.slice(0, 2)}
+                    </div>
+                  )}
+                </div>
+                {!isSidebarCollapsed && (
+                  <div className="min-w-0 leading-tight">
+                    <h4 className="text-[11px] font-sans font-bold text-white truncate">{user.displayName || "Admin"}</h4>
+                    <p className="text-[9px] font-mono text-[#64748b] truncate">{user.email}</p>
+                  </div>
+                )}
+              </div>
+
+              {!isSidebarCollapsed && (
+                <div className="flex items-center gap-1.5 ml-2">
+                  {/* VIEW PUBLIC PORTFOLIO ICON */}
+                  <a 
+                    href={`/u/${user.uid}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="p-1 px-1.5 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] text-accent rounded-lg transition-all"
+                    title="Live Site"
+                  >
+                    <ExternalLink size={11} />
+                  </a>
+
+                  {/* LOGOUT EXIT ICON CHEVRON */}
+                  <button
+                    onClick={handleLogout}
+                    className="p-1 px-1.5 bg-white/[0.03] border border-white/[0.06] hover:bg-red-500/10 hover:border-red-500/20 text-[#94a3b8] hover:text-red-400 rounded-lg transition-all"
+                    title="Logout"
+                  >
+                    <LogOut size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SIDEBAR COLLAPSER CHEVRON (DESKTOP ONLY) */}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="hidden lg:flex w-full items-center justify-center py-1.5 bg-[#181a20] border border-white/[0.04] hover:border-white/[0.12] text-secondary hover:text-white rounded-xl transition-all"
+            >
+              {isSidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            </button>
+          </div>
+        </aside>
+
+        {/* MOBILE OVERLAY */}
+        {mobileSidebarOpen && (
+          <div 
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+
+        {/* MAIN WORKSPACE CONTENT */}
+        <div className="flex-1 space-y-8 min-w-0">
+          
+          {/* DASHBOARD TAB ACTIVE VIEW */}
+          {activeTab === "dashboard" && (
+            <div className="space-y-8">
+              {/* DASHBOARD TOP HEADER */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-mono text-accent uppercase tracking-widest font-semibold pb-1 block">SYSTEM STATUS</span>
+                  <h1 className="text-3xl font-display font-medium uppercase tracking-tight text-white">
+                    Dashboard Overview
+                  </h1>
+                  <p className="text-[10px] font-mono text-secondary uppercase tracking-widest mt-1">
+                    System Node active &bull; Authenticated administrator
+                  </p>
+                </div>
+              </div>
+
+              {/* STATS ANALYTICS GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                {/* 1. ACTIVE PROJECTS */}
+                <div className="glass p-6 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group hover:border-[#ffffff1c] transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 bg-white/[0.02] rounded-bl-xl">
+                    <FolderKanban size={18} className="text-accent" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#94a3b8] block">Projects</span>
+                    <span className="text-4xl font-display font-bold text-white mt-1 block tracking-tight">
+                      {projects.length.toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-line/40 flex items-center justify-between">
+                    <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">Total items</span>
+                    <button 
+                      onClick={() => setActiveTab("projects")}
+                      className="text-[9px] font-mono text-accent uppercase tracking-widest flex items-center gap-1 hover:underline"
+                    >
+                      Manage <ArrowUpRight size={10} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. LEADS CARD */}
+                <div className="glass p-6 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group hover:border-[#ffffff1c] transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 bg-white/[0.02] rounded-bl-xl">
+                    <CheckCircle size={18} className="text-[#a581ff]" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#94a3b8] block">Leads</span>
+                    <span className="text-4xl font-display font-bold text-white mt-1 block tracking-tight">
+                      {leads.length.toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-line/40 flex items-center justify-between">
+                    <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">Interest list</span>
+                    <button 
+                      onClick={() => setActiveTab("leads")}
+                      className="text-[9px] font-mono text-[#a581ff] uppercase tracking-widest flex items-center gap-1 hover:underline"
+                    >
+                      View <ArrowUpRight size={10} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. TOTAL REGISTERED USERS CARD */}
+                <div className="glass p-6 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group hover:border-[#ffffff1c] transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 bg-white/[0.02] rounded-bl-xl">
+                    <Users size={18} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#94a3b8] block">Total Users</span>
+                    <span className="text-4xl font-display font-bold text-white mt-1 block tracking-tight">
+                      {isSuperAdmin ? users.length.toString().padStart(2, '0') : "01"}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-line/40 flex items-center justify-between">
+                    <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">
+                      {isSuperAdmin ? "User list" : "Staff level"}
+                    </span>
+                    {isSuperAdmin && (
+                      <button 
+                        onClick={() => setActiveTab("users")}
+                        className="text-[9px] font-mono text-blue-400 uppercase tracking-widest flex items-center gap-1 hover:underline"
+                      >
+                        Manage <ArrowUpRight size={10} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. ALL QUERIES CARD */}
+                <div className="glass p-6 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group hover:border-[#ffffff1c] transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 bg-white/[0.02] rounded-bl-xl">
+                    <MessageSquare size={18} className="text-[#38bdf8]" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#94a3b8] block">All Queries</span>
+                    <span className="text-4xl font-display font-bold text-white mt-1 block tracking-tight">
+                      {queries.length.toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-line/40 flex items-center justify-between">
+                    <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">Total inbounds</span>
+                    <button 
+                      onClick={() => setActiveTab("queries")}
+                      className="text-[9px] font-mono text-[#38bdf8] uppercase tracking-widest flex items-center gap-1 hover:underline"
+                    >
+                      History <ArrowUpRight size={10} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 5. PENDING QUERIES CARD */}
+                <div className="glass p-6 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group hover:border-[#ffffff1c] transition-all duration-300">
+                  <div className={`absolute top-0 right-0 p-3 bg-white/[0.02] rounded-bl-xl ${queries.filter(q => q.status === 'pending').length > 0 ? 'animate-pulse' : ''}`}>
+                    <Activity size={18} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#94a3b8] block">Pending Queries</span>
+                    <span className={`text-4xl font-display font-bold mt-1 block tracking-tight ${queries.filter(q => q.status === 'pending').length > 0 ? 'text-amber-400 animate-pulse' : 'text-white'}`}>
+                      {queries.filter(q => q.status === 'pending').length.toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-line/40 flex items-center justify-between">
+                    <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">Needs response</span>
+                    <button 
+                      onClick={() => setActiveTab("queries")}
+                      className="text-[9px] font-mono text-amber-300 uppercase tracking-widest flex items-center gap-1 hover:underline"
+                    >
+                      Resolve <ArrowUpRight size={10} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* FEED AND QUICK CONTROL SPLIT LAYOUT */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* RECENT ACTIVITY FEED */}
+                <div className="lg:col-span-2 glass p-8 rounded-3xl border border-line space-y-6">
+                  <div className="flex items-center justify-between border-b border-[#111] pb-4">
+                    <h3 className="text-base font-sans font-medium text-white flex items-center gap-2">
+                      <Activity size={16} className="text-accent" /> Recent Activity Feed
+                    </h3>
+                    <span className="text-[9px] font-mono uppercase tracking-widest px-2.5 py-1 rounded bg-white/5 text-secondary">
+                      Chronological Events
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {(() => {
+                      const feedItems = [
+                        ...queries.slice(0, 4).map(q => ({
+                          id: `q-${q.id || q.timestamp}`,
+                          type: "query",
+                          icon: MessageSquare,
+                          colorClass: "text-[#38bdf8] bg-[#38bdf8]/10 border-[#38bdf8]/20",
+                          title: `New query: "${q.subject || "No Subject"}"`,
+                          subtitle: `By ${q.userName || "Guest"} (${q.userEmail})`,
+                          time: q.timestamp || q.createdAt,
+                          badge: q.status === "pending" ? "Pending" : "Resolved",
+                          badgeColor: q.status === "pending" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                          clickableTab: "queries"
+                        })),
+                        ...leads.slice(0, 4).map(l => ({
+                          id: `l-${l.id || l.createdAt}`,
+                          type: "lead",
+                          icon: CheckCircle,
+                          colorClass: "text-[#a581ff] bg-[#a581ff]/10 border-[#a581ff]/20",
+                          title: `Lead from "${l.name || "Business Lead"}"`,
+                          subtitle: `Interest: ${l.interest || "Collaboration"}`,
+                          time: l.createdAt,
+                          badge: "Active Lead",
+                          badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+                          clickableTab: "leads"
+                        }))
+                      ].sort((a, b) => {
+                        const getT = (ts: any) => {
+                          if (!ts) return 0;
+                          if (typeof ts === 'string') return new Date(ts).getTime();
+                          if (ts.seconds) return ts.seconds * 1000;
+                          if (ts.toDate) return ts.toDate().getTime();
+                          return 0;
+                        };
+                        return getT(b.time) - getT(a.time);
+                      }).slice(0, 5);
+
+                      if (feedItems.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-secondary font-mono text-[10px] uppercase">
+                            No recent activity found
+                          </div>
+                        );
+                      }
+
+                      return feedItems.map((item) => {
+                        const ItemIcon = item.icon;
+                        return (
+                          <div key={item.id} className="flex items-start gap-4 p-4 rounded-2xl border border-[#111] hover:border-line hover:bg-white/[0.01] transition-all group">
+                            <div className={`p-2 rounded-xl border ${item.colorClass} shrink-0`}>
+                              <ItemIcon size={12} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                                <h4 className="text-xs font-sans text-white font-semibold truncate group-hover:text-accent transition-colors">{item.title}</h4>
+                                <span className="text-[8px] font-mono text-secondary uppercase tracking-tighter">
+                                  {(() => {
+                                    const ts = item.time;
+                                    if (!ts) return "Recently";
+                                    if (typeof ts === 'string') return new Date(ts).toLocaleDateString();
+                                    return ts?.toDate?.()?.toLocaleDateString() || "Recently";
+                                  })()}
+                                </span>
+                              </div>
+                              <p className="text-[9px] font-mono text-secondary truncate uppercase">{item.subtitle}</p>
+                              
+                              <div className="flex items-center gap-3 mt-3">
+                                <span className={`text-[8px] font-mono uppercase tracking-wider px-2 py-0.5 border rounded-full ${item.badgeColor}`}>
+                                  {item.badge}
+                                </span>
+                                <button
+                                  onClick={() => setActiveTab(item.clickableTab as any)}
+                                  className="text-[8px] font-mono uppercase tracking-widest text-white/50 hover:text-accent flex items-center gap-0.5 ml-auto font-bold"
+                                >
+                                  Go to view <ArrowUpRight size={8} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* AUTOMATION STATUS COLUMN */}
+                <div className="space-y-6">
+                  <div className="glass p-6 rounded-3xl border border-line space-y-4">
+                    <h3 className="text-xs font-mono uppercase text-secondary tracking-widest font-bold">Automation Node</h3>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-xs font-sans font-medium text-white">AI Email Auto-Reply</h4>
+                        <p className="text-[9px] font-[#94a3b8] text-secondary uppercase mt-0.5 leading-tight">
+                          {settings.enableAutoReply ? "Responding live via Gemini AI" : "System currently offline"}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-mono uppercase tracking-widest border ${settings.enableAutoReply ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-[#e11d48]/10 text-rose-400 border-[#e11d48]/20'}`}>
+                        {settings.enableAutoReply ? 'ACTIVE' : 'OFFLINE'}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#111]">
+                      <button 
+                        onClick={() => setActiveTab("settings")}
+                        className="w-full py-2 bg-white/5 border border-line hover:border-accent text-white font-mono text-[9px] uppercase tracking-widest rounded-xl transition-all"
+                      >
+                        Automation Settings
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="glass p-6 rounded-3xl border border-line space-y-4">
+                    <h3 className="text-xs font-mono uppercase text-secondary tracking-widest font-bold">Access Controls</h3>
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-[#111] leading-relaxed">
+                      <span className="text-[9px] font-mono text-secondary uppercase block">Logged in as</span>
+                      <span className="text-xs font-sans text-white font-bold mt-1 block truncate">
+                        {isSuperAdmin ? "Administrator" : "Representative User"}
+                      </span>
+                    </div>
+
+                    <a
+                      href={`/u/${user.uid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 bg-accent text-black hover:scale-[1.01] transition-all font-mono text-[9px] uppercase tracking-widest font-bold rounded-xl flex items-center justify-center gap-2"
+                    >
+                      <ExternalLink size={11} /> View Public Landing page
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         {activeTab === "projects" && (
           <AdminProjectManager userId={targetId} />
@@ -2081,6 +2548,36 @@ export default function Admin() {
         {activeTab === "apiKeys" && isSuperAdmin && (
           <KeyManager />
         )}
+        </div>
       </div>
+
+      {/* Real-time Toasts Layer */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`p-4 rounded-xl border bg-[#0a0b0d] border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.8)] transition-all duration-300 animate-slide-in flex gap-3 items-start relative select-none ${
+              toast.type === "lead" ? "border-l-4 border-l-purple-500" : "border-l-4 border-l-[#2563eb]"
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg border ${
+              toast.type === "lead" ? "text-purple-400 bg-purple-500/10 border-purple-400/20" : "text-blue-400 bg-[#2563eb]/10 border-blue-400/20"
+            }`}>
+              {toast.type === "lead" ? <CheckCircle size={14} /> : <MessageSquare size={14} />}
+            </div>
+            <div className="flex-1 pr-6">
+              <h4 className="text-[11px] font-sans font-bold text-white uppercase tracking-wider">{toast.title}</h4>
+              <p className="text-[10px] text-[#94a3b8] mt-1 leading-normal">{toast.message}</p>
+            </div>
+            <button
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="text-[#475569] hover:text-white absolute top-3.5 right-3.5 transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
