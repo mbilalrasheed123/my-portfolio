@@ -23,6 +23,17 @@ export default function Admin() {
 
   useEffect(() => {
     localStorage.setItem("admin_theme", theme);
+    if (theme === "light") {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+      document.documentElement.classList.add("dark");
+    }
+    return () => {
+      document.documentElement.classList.remove("light");
+      document.documentElement.classList.add("dark");
+    };
   }, [theme]);
 
   const [sidebarStyle, setSidebarStyle] = useState<"hover-collapse" | "expanded" | "minimal-dock">(() => {
@@ -1020,19 +1031,19 @@ export default function Admin() {
         }
       `}</style>
       {/* MOBILE BAR */}
-      <div className="lg:hidden flex items-center justify-between py-4 border-b border-[#111] bg-black sticky top-0 z-50 mb-6">
+      <div className="lg:hidden flex items-center justify-between py-4 border-b border-slate-200 dark:border-[#111] bg-slate-50 dark:bg-black sticky top-0 z-50 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-[#222] bg-white/5 flex items-center justify-center">
-            {user.photoURL ? <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <LogIn size={14} />}
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-[#222] bg-slate-100 dark:bg-white/5 flex items-center justify-center">
+            {user.photoURL ? <img src={user.photoURL} alt="Admin" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <LogIn size={14} className="text-slate-800 dark:text-white" />}
           </div>
           <div>
-            <span className="text-xs font-display font-bold uppercase tracking-wider text-white">Console</span>
-            <p className="text-[8px] font-mono text-secondary tracking-tight">{user.email}</p>
+            <span className="text-xs font-display font-bold uppercase tracking-wider text-slate-900 dark:text-white">Console</span>
+            <p className="text-[8px] font-mono text-slate-500 dark:text-secondary tracking-tight">{user.email}</p>
           </div>
         </div>
         <button
           onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          className="p-2 border border-[#222] hover:border-accent text-secondary hover:text-white rounded-lg transition-all"
+          className="p-2 border border-slate-200 dark:border-[#222] hover:border-accent text-slate-600 dark:text-secondary hover:text-[#2563eb] dark:hover:text-white rounded-lg transition-all"
         >
           {mobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -1083,21 +1094,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* MOCK SEARCH INPUT */}
-            {!isSidebarCollapsed && (
-              <div className="relative px-1">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                  <Search size={13} className="text-[#475569]" />
-                </span>
-                <input
-                  type="text"
-                  value={sidebarSearch}
-                  onChange={(e) => setSidebarSearch(e.target.value)}
-                  placeholder="Search"
-                  className="w-full pl-8 pr-3 py-1.5 bg-[#181a20] hover:bg-[#1f2229] focus:bg-[#1f2229] border border-white/[0.04] focus:border-white/[0.12] rounded-xl font-mono text-[11px] text-white placeholder-[#475569] focus:outline-none transition-all"
-                />
-              </div>
-            )}
+
 
             {/* NAV LINKS */}
             <nav className="space-y-1 overflow-y-auto scrollbar-none flex-1 pr-1">
@@ -2884,20 +2881,20 @@ export default function Admin() {
                         </button>
 
                         {smtpTestSteps.length > 0 && (
-                          <div className="bg-black/40 p-3 rounded-lg border border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-secondary">
-                            <div className="text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">SMTP Mailer Logs:</div>
+                          <div className="bg-slate-100 dark:bg-black/40 p-3 rounded-lg border border-slate-300/60 dark:border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-slate-800 dark:text-secondary">
+                            <div className="text-[#2563eb] dark:text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">SMTP Mailer Logs:</div>
                             {smtpTestSteps.map((step, idx) => (
-                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-400" : ""}>
+                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-600 dark:text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-500 dark:text-red-400" : ""}>
                                 &gt; {step}
                               </div>
                             ))}
                             {smtpTestError && (
-                              <div className="text-red-400 mt-2 p-1 bg-red-500/10 border border-red-500/20 rounded font-sans text-[10px]">
+                              <div className="text-red-500 dark:text-red-400 mt-2 p-1 bg-red-500/10 border border-red-500/20 rounded font-sans text-[10px]">
                                 <strong>Diagnostic Failure:</strong> {smtpTestError}
                               </div>
                             )}
                             {smtpTestSuccess && (
-                              <div className="text-green-400 mt-2 p-1 bg-green-500/10 border border-green-500/20 rounded font-sans text-[10px] font-bold">
+                              <div className="text-green-600 dark:text-green-400 mt-2 p-1 bg-green-500/10 border border-green-500/20 rounded font-sans text-[10px] font-bold">
                                 ✓ Handshake Authenticated! NodeMailer is active.
                               </div>
                             )}
@@ -2917,15 +2914,15 @@ export default function Admin() {
                         </button>
 
                         {aiTestSteps.length > 0 && (
-                          <div className="bg-black/40 p-3 rounded-lg border border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-secondary">
-                            <div className="text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">Gemini AI Logs:</div>
+                          <div className="bg-slate-100 dark:bg-black/40 p-3 rounded-lg border border-slate-300/60 dark:border-line/40 font-mono text-[9px] space-y-1 h-44 overflow-y-auto scrollbar-none text-slate-800 dark:text-secondary">
+                            <div className="text-[#2563eb] dark:text-accent border-b border-line/30 pb-1 mb-1 uppercase tracking-wider font-bold">Gemini AI Logs:</div>
                             {aiTestSteps.map((step, idx) => (
-                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-400" : ""}>
+                              <div key={idx} className={step.includes("SUCCESS") ? "text-green-600 dark:text-green-400 font-bold" : step.includes("ERROR") || step.includes("FAIL") ? "text-red-500 dark:text-red-400" : ""}>
                                 &gt; {step}
                               </div>
                             ))}
                             {aiTestResultText && (
-                              <div className="text-white bg-white/5 max-h-20 overflow-y-auto p-2 border border-line/20 rounded text-[9px] mt-2 italic whitespace-pre-wrap">
+                              <div className="text-slate-950 dark:text-white bg-white dark:bg-white/5 max-h-20 overflow-y-auto p-2 border border-slate-300/50 dark:border-line/20 rounded text-[9px] mt-2 italic whitespace-pre-wrap">
                                 Response Draft: "{aiTestResultText}"
                               </div>
                             )}
