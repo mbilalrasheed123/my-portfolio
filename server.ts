@@ -37,6 +37,89 @@ app.get("/api/health", (req, res) => {
 });
 
 /**
+ * Helper to generate content with resilient retry, key rotation, and model fallback
+ * If gemini-3.5-flash is unavailable or experiencing high demand, we try alternative models.
+ */
+async function generateContentWithFallback(params: {
+  contents: any;
+  config?: any;
+  initialKey: string;
+  initialKeyId: string;
+  initialKeyName: string;
+}): Promise<{
+  text: string;
+  keyUsed: string;
+  keyIdUsed: string;
+  keyNameUsed: string;
+  modelUsed: string;
+}> {
+  const modelsToTry = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite"];
+  let currentKey = params.initialKey;
+  let currentKeyId = params.initialKeyId;
+  let currentKeyName = params.initialKeyName;
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`[AI Resilient] Requesting model: ${model}, attempt: ${attempt} using key: ${currentKeyName}`);
+        const ai = new GoogleGenAI({
+          apiKey: currentKey,
+          httpOptions: {
+            headers: {
+              "User-Agent": "aistudio-build",
+            }
+          }
+        });
+
+        const response = await ai.models.generateContent({
+          model: model,
+          contents: params.contents,
+          config: params.config
+        });
+
+        if (response.text) {
+          return {
+            text: response.text,
+            keyUsed: currentKey,
+            keyIdUsed: currentKeyId,
+            keyNameUsed: currentKeyName,
+            modelUsed: model
+          };
+        } else {
+          throw new Error("Empty response from Gemini");
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMessage = err?.message || String(err);
+        const status = err?.status || (errMessage.includes("429") ? 429 : errMessage.includes("503") ? 503 : 500);
+        console.warn(`[AI Resilient] Failure using model: ${model} with key: ${currentKeyName}. Status: ${status}, Message: ${errMessage}`);
+        
+        if (keyRotation && currentKeyId !== "env_key") {
+          try {
+            if (status === 429) {
+              console.log(`[AI Resilient] Mark key ${currentKeyId} as exhausted`);
+              await keyRotation.markAsExhausted(currentKeyId).catch((e: any) => console.error(e));
+            }
+            const activeKey = await keyRotation.getRotatedKey().catch(() => null);
+            if (activeKey) {
+              currentKey = activeKey.key;
+              currentKeyId = activeKey.id;
+              currentKeyName = activeKey.name;
+              console.log(`[AI Resilient] Rotated to key: ${currentKeyName} (${currentKeyId})`);
+            }
+          } catch (rotateErr) {
+            console.error(`[AI Resilient] Key rotation lookup failure:`, rotateErr);
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      }
+    }
+  }
+  throw lastError || new Error("All fallback models exhausted and failed");
+}
+
+/**
  * Server-side Unified Fast Chat Endpoint
  */
 app.post("/api/chat", async (req, res) => {
@@ -81,56 +164,21 @@ app.post("/api/chat", async (req, res) => {
   currentMessagesPerKey[keyId] = (currentMessagesPerKey[keyId] || 0) + 1;
 
   try {
-    let responseText = "";
-    const maxRetries = 2; // Keep low on server for snappy failover
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const ai = new GoogleGenAI({
-          apiKey: keyToUse,
-          httpOptions: {
-            headers: {
-              "User-Agent": "aistudio-build",
-            }
-          }
-        });
+    const genResult = await generateContentWithFallback({
+      contents: contents,
+      config: {
+        systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + (context || ""),
+        responseMimeType: "application/json",
+      },
+      initialKey: keyToUse,
+      initialKeyId: keyId,
+      initialKeyName: keyName,
+    });
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: contents,
-          config: {
-            systemInstruction: BASE_SYSTEM_INSTRUCTION + "\n\n" + (context || ""),
-            responseMimeType: "application/json",
-          }
-        });
-
-        if (response.text) {
-          responseText = response.text;
-          break;
-        } else {
-          throw new Error("Empty text response from Gemini");
-        }
-      } catch (err: any) {
-        console.error(`[Server Chat] Attempt ${attempt} failed:`, err.message);
-        const is429 = err.message?.includes("429") || err.status === 429;
-        
-        if (is429 && keyRotation && keyId !== "env_key") {
-          console.log(`[Server Chat] 429 detected, marking key ${keyId} as exhausted`);
-          await keyRotation.markAsExhausted(keyId).catch(e => console.error(e));
-          // Try to rotate to a new key
-          const activeKey = await keyRotation.getRotatedKey().catch(() => null);
-          if (activeKey) {
-            keyToUse = activeKey.key;
-            keyId = activeKey.id;
-            keyName = activeKey.name;
-          }
-        }
-
-        if (attempt === maxRetries) {
-          throw err;
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
+    const responseText = genResult.text;
+    keyToUse = genResult.keyUsed;
+    keyId = genResult.keyIdUsed;
+    keyName = genResult.keyNameUsed;
 
     const responseTime = Date.now() - startTime;
 
@@ -433,6 +481,8 @@ app.post("/api/queries/auto-reply", async (req, res) => {
     // 2. Fetch or rotate the Gemini Key
     logStep("Checking for Gemini API Key configuration...");
     let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    let keyId = "env_key";
+    let keyName = "Default Key";
     if (keyToUse) {
       logStep("Found standard Gemini key in environment variables");
     }
@@ -445,6 +495,8 @@ app.post("/api/queries/auto-reply", async (req, res) => {
       });
       if (activeKey && activeKey.key) {
         keyToUse = activeKey.key;
+        keyId = activeKey.id;
+        keyName = activeKey.name;
         logStep(`Key rotation success! Using rotated key: ${activeKey.name || activeKey.id}`);
       } else {
         logStep("Key rotation did not return a valid key. Falling back to environment variables.");
@@ -456,23 +508,11 @@ app.post("/api/queries/auto-reply", async (req, res) => {
       return res.status(500).json({ success: false, error: "No Gemini Key Configured", steps });
     }
 
-    // 3. Invoke GoogleGenAI Content Generation with custom prompt
-    logStep("Initializing GoogleGenAI SDK...");
-    const ai = new GoogleGenAI({
-      apiKey: keyToUse,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        }
-      }
-    });
-
     const instruction = settings?.autoReplyInstruction || 
       "You are an automated AI assistant for Bilal Rasheed. Write a brief, polite, and professional email response acknowledging the user's inquiry, letting them know Bilal will review it shortly, and providing a preliminary helpful thought based on their message text.";
 
-    logStep("Invoking Gemini models.generateContent (gemini-3.5-flash)...");
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    logStep("Invoking Gemini with robust fallback model support...");
+    const genResult = await generateContentWithFallback({
       contents: [
         {
           role: "user",
@@ -481,16 +521,14 @@ app.post("/api/queries/auto-reply", async (req, res) => {
       ],
       config: {
         systemInstruction: instruction
-      }
+      },
+      initialKey: keyToUse,
+      initialKeyId: keyId,
+      initialKeyName: keyName
     });
 
-    if (!response || !response.text) {
-      logStep("ERROR: Empty response obtained from Gemini generation");
-      return res.status(500).json({ success: false, error: "Empty response from Gemini", steps });
-    }
-
-    const replyText = response.text.trim();
-    logStep(`Gemini generation succeeded! Draft length: ${replyText.length} characters.`);
+    const replyText = genResult.text.trim();
+    logStep(`Gemini generation succeeded (model used: ${genResult.modelUsed})! Draft length: ${replyText.length} characters.`);
 
     // 4. Send email directly to User's email
     const replySubject = `Re: [Automated Reply] Your Inquiry to Bilal Rasheed`;
@@ -567,25 +605,20 @@ app.post("/api/queries/draft-ai", async (req, res) => {
 
   try {
     let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    let keyId = "env_key";
+    let keyName = "Default Key";
     if (keyRotation) {
       const activeKey = await keyRotation.getRotatedKey().catch(() => null);
       if (activeKey && activeKey.key) {
         keyToUse = activeKey.key;
+        keyId = activeKey.id;
+        keyName = activeKey.name;
       }
     }
 
     if (!keyToUse) {
       return res.status(500).json({ success: false, error: "No Gemini Key Configured" });
     }
-
-    const ai = new GoogleGenAI({
-      apiKey: keyToUse,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        }
-      }
-    });
 
     const systemInstruction = `You are Muhammad Bilal Rasheed, a professional developer. Write a highly professional, polite, and contextual email response replying directly to the user's inquiry on your portfolio website.
 Guidelines:
@@ -595,8 +628,7 @@ Guidelines:
 4. Just return the actual paragraph body of the email reply. Keep it ready to be edited.
 5. Close the email with a professional sign-off as "Best regards, Muhammad Bilal Rasheed".`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const genResult = await generateContentWithFallback({
       contents: [
         {
           role: "user",
@@ -605,16 +637,15 @@ Guidelines:
       ],
       config: {
         systemInstruction: systemInstruction
-      }
+      },
+      initialKey: keyToUse,
+      initialKeyId: keyId,
+      initialKeyName: keyName
     });
-
-    if (!response || !response.text) {
-      return res.status(500).json({ success: false, error: "Empty response from Gemini" });
-    }
 
     return res.json({
       success: true,
-      draft: response.text.trim()
+      draft: genResult.text.trim()
     });
   } catch (error: any) {
     console.error("[Draft AI Error]:", error);
@@ -678,6 +709,9 @@ app.get("/api/admin/test-auto-reply", async (req, res) => {
   log("Starting Gemini Auto-Reply generation test...");
   
   let keyToUse = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  let keyId = "env_key";
+  let keyName = "Default Key";
+
   if (keyToUse) {
     log("Found standard Gemini key in environment variables");
   }
@@ -690,6 +724,8 @@ app.get("/api/admin/test-auto-reply", async (req, res) => {
     });
     if (activeKey && activeKey.key) {
       keyToUse = activeKey.key;
+      keyId = activeKey.id;
+      keyName = activeKey.name;
       log(`Rotated key detected: ${activeKey.name || activeKey.id}`);
     }
   }
@@ -700,25 +736,16 @@ app.get("/api/admin/test-auto-reply", async (req, res) => {
   }
 
   try {
-    log("Initializing GoogleGenAI with Gemini 3.5-flash...");
-    const ai = new GoogleGenAI({
-      apiKey: keyToUse,
-      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
-    });
-    
-    log("Generating test content draft...");
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: "This is an automatic mailer diagnostic test. Please reply with: 'Success: Gemini 3.5-flash integration is active!' and nothing else.",
+    log("Invoking Gemini with robust fallback model support...");
+    const genResult = await generateContentWithFallback({
+      contents: "This is an automatic mailer diagnostic test. Please reply with: 'Success: Gemini integration is active!' and nothing else.",
+      initialKey: keyToUse,
+      initialKeyId: keyId,
+      initialKeyName: keyName
     });
 
-    if (!response || !response.text) {
-      log("ERROR: Empty response from Gemini.");
-      return res.json({ success: false, error: "Empty response", steps });
-    }
-
-    log(`SUCCESS: Gemini response generated successfully: ${response.text.trim()}`);
-    return res.json({ success: true, steps, text: response.text.trim() });
+    log(`SUCCESS: Gemini response generated successfully (model: ${genResult.modelUsed}): ${genResult.text.trim()}`);
+    return res.json({ success: true, steps, text: genResult.text.trim(), modelUsed: genResult.modelUsed });
   } catch (err: any) {
     log(`FATAL ERROR: ${err?.message || err}`);
     return res.json({ success: false, error: err?.message || String(err), steps });
