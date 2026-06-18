@@ -3,31 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
-import ParticleHero from "./components/ui/particle-effect-for-hero";
-import AetherFlowHero from "./components/ui/aether-flow-hero";
-import SplineHero from "./components/ui/spline-hero";
-import BackgroundBoxesHero from "./components/ui/background-boxes-hero";
 import About from "./components/About";
 import Skills from "./components/Skills";
 import Projects from "./components/Projects";
 import Contact from "./components/Contact";
-import Admin from "./components/Admin";
-import UserQueries from "./components/UserQueries";
-import Settings from "./components/Settings";
-import Certificates from "./components/Certificates";
 import Chatbot from "./components/Chatbot";
-import Testimonials from "./components/Testimonials";
+
+// Lazy load large/library-heavy graphic heros
+const ParticleHero = lazy(() => import("./components/ui/particle-effect-for-hero"));
+const AetherFlowHero = lazy(() => import("./components/ui/aether-flow-hero"));
+const SplineHero = lazy(() => import("./components/ui/spline-hero"));
+const BackgroundBoxesHero = lazy(() => import("./components/ui/background-boxes-hero"));
+
+// Lazy load non-landing page elements or optional section modules
+const Certificates = lazy(() => import("./components/Certificates"));
+const Testimonials = lazy(() => import("./components/Testimonials"));
+const Admin = lazy(() => import("./components/Admin"));
+const UserQueries = lazy(() => import("./components/UserQueries"));
+const Settings = lazy(() => import("./components/Settings"));
+const AnalyticsDashboard = lazy(() => import("./components/AnalyticsDashboard"));
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider, useData } from "./contexts/DataContext";
 import LoadingSpinner from "./components/LoadingSpinner";
 import AnalyticsDispatcher from "./components/AnalyticsDispatcher";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import CookieBanner from "./components/CookieBanner";
 
 function PortfolioContent({ userId }: { userId?: string }) {
@@ -153,21 +157,33 @@ function PortfolioContent({ userId }: { userId?: string }) {
       <Navbar userId={userId} />
       <main>
         {isSplineHero ? (
-          <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          <Suspense fallback={<Hero userId={userId} />}>
+            <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          </Suspense>
         ) : isAetherHero ? (
-          <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          <Suspense fallback={<Hero userId={userId} />}>
+            <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          </Suspense>
         ) : isParticleHero ? (
-          <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          <Suspense fallback={<Hero userId={userId} />}>
+            <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          </Suspense>
         ) : isBoxesHero ? (
-          <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          <Suspense fallback={<Hero userId={userId} />}>
+            <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
+          </Suspense>
         ) : (
           <Hero userId={userId} />
         )}
         <About userId={userId} />
         <Skills userId={userId} />
         <Projects userId={userId} />
-        <Certificates userId={userId} />
-        <Testimonials />
+        <Suspense fallback={<div className="py-20 text-center text-secondary font-mono text-xs">Loading Certificates...</div>}>
+          <Certificates userId={userId} />
+        </Suspense>
+        <Suspense fallback={<div className="py-20 text-center text-secondary font-mono text-xs">Loading Testimonials...</div>}>
+          <Testimonials />
+        </Suspense>
         <Contact userId={userId} />
       </main>
       <Chatbot userId={userId} />
@@ -254,27 +270,37 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Portfolio />} />
             <Route path="/u/:userId" element={<Portfolio />} />
-            <Route path="/admin" element={<AdminRoute />} />
+            <Route path="/admin" element={
+              <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><LoadingSpinner /></div>}>
+                <AdminRoute />
+              </Suspense>
+            } />
             <Route path="/queries" element={
-              <MultiUserPageWrapper>
-                <div className="min-h-screen bg-black text-white pt-24">
-                  <Navbar />
-                  <UserQueries />
-                </div>
-              </MultiUserPageWrapper>
+              <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><LoadingSpinner /></div>}>
+                <MultiUserPageWrapper>
+                  <div className="min-h-screen bg-black text-white pt-24">
+                    <Navbar />
+                    <UserQueries />
+                  </div>
+                </MultiUserPageWrapper>
+              </Suspense>
             } />
             <Route path="/settings" element={
-              <MultiUserPageWrapper>
-                <div className="min-h-screen bg-black text-white pt-24">
-                  <Navbar />
-                  <Settings />
-                </div>
-              </MultiUserPageWrapper>
+              <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><LoadingSpinner /></div>}>
+                <MultiUserPageWrapper>
+                  <div className="min-h-screen bg-black text-white pt-24">
+                    <Navbar />
+                    <Settings />
+                  </div>
+                </MultiUserPageWrapper>
+              </Suspense>
             } />
             <Route path="/admin/analytics" element={
-              <MultiUserPageWrapper>
-                <AnalyticsDashboard />
-              </MultiUserPageWrapper>
+              <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><LoadingSpinner /></div>}>
+                <MultiUserPageWrapper>
+                  <AnalyticsDashboard />
+                </MultiUserPageWrapper>
+              </Suspense>
             } />
           </Routes>
         </Router>

@@ -15,25 +15,52 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children, userId }: { children: React.ReactNode, userId?: string }) {
-  const [projects, setProjects] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
-  const [skills, setSkills] = useState<any[]>([]);
-  const [certificates, setCertificates] = useState<any[]>([]);
-  const [experience, setExperience] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const idKey = userId || "global";
+
+  const [projects, setProjects] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem(`cache_projects_${idKey}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [settings, setSettings] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem(`cache_settings_${idKey}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
+  const [skills, setSkills] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem(`cache_skills_${idKey}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [certificates, setCertificates] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem(`cache_certificates_${idKey}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [experience, setExperience] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem(`cache_experience_${idKey}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`cache_settings_${idKey}`);
+      return !cached;
+    } catch { return true; }
+  });
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    setLoading(true);
     setError(null);
+    const currentIdKey = userId || "global";
     try {
-      // If no userId is provided, we should either show nothing or a default portfolio.
-      // Let's assume the Super Admin's data is the default for the landing page.
-      const SUPER_ADMIN_ID = "6v6v6v6v6v6v6v6v6v6v6v6v6v6v"; // Placeholder or actual UID
-      // Actually, let's just use whatever userId is passed. 
-      // If it's missing, we fetch nothing or a "global" state if intended.
-      
-      console.log(`[DataProvider] Fetching data for userId: ${userId || 'global'}`);
+      console.log(`[DataProvider] Fetching data for userId: ${currentIdKey}`);
       
       const [p, s, sk, c, e] = await Promise.all([
         api.fetchProjects(userId),
@@ -49,16 +76,52 @@ export function DataProvider({ children, userId }: { children: React.ReactNode, 
       setCertificates(c);
       setExperience(e);
       
-      console.log(`[DataProvider] Data loaded successfully for ${userId || 'global'}`);
+      try {
+        localStorage.setItem(`cache_projects_${currentIdKey}`, JSON.stringify(p));
+        localStorage.setItem(`cache_settings_${currentIdKey}`, JSON.stringify(s));
+        localStorage.setItem(`cache_skills_${currentIdKey}`, JSON.stringify(sk));
+        localStorage.setItem(`cache_certificates_${currentIdKey}`, JSON.stringify(c));
+        localStorage.setItem(`cache_experience_${currentIdKey}`, JSON.stringify(e));
+      } catch (cacheErr) {
+        console.warn("[DataProvider] Local cache write failed:", cacheErr);
+      }
+
+      console.log(`[DataProvider] Data loaded successfully for ${currentIdKey}`);
     } catch (err: any) {
       console.error("[DataProvider] Failed to fetch shared data:", err);
-      setError(err.message || "Failed to load portfolio data.");
+      // Only show error screen if we don't even have cached settings
+      if (!localStorage.getItem(`cache_settings_${currentIdKey}`)) {
+        setError(err.message || "Failed to load portfolio data.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    const currentIdKey = userId || "global";
+    try {
+      const cachedP = localStorage.getItem(`cache_projects_${currentIdKey}`);
+      const cachedS = localStorage.getItem(`cache_settings_${currentIdKey}`);
+      const cachedSk = localStorage.getItem(`cache_skills_${currentIdKey}`);
+      const cachedC = localStorage.getItem(`cache_certificates_${currentIdKey}`);
+      const cachedE = localStorage.getItem(`cache_experience_${currentIdKey}`);
+
+      setProjects(cachedP ? JSON.parse(cachedP) : []);
+      setSettings(cachedS ? JSON.parse(cachedS) : null);
+      setSkills(cachedSk ? JSON.parse(cachedSk) : []);
+      setCertificates(cachedC ? JSON.parse(cachedC) : []);
+      setExperience(cachedE ? JSON.parse(cachedE) : []);
+      setLoading(!cachedS);
+    } catch (e) {
+      setProjects([]);
+      setSettings(null);
+      setSkills([]);
+      setCertificates([]);
+      setExperience([]);
+      setLoading(true);
+    }
+
     fetchData();
   }, [userId]);
 
