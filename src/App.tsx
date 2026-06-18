@@ -13,6 +13,8 @@ import Skills from "./components/Skills";
 import Projects from "./components/Projects";
 import Contact from "./components/Contact";
 import Chatbot from "./components/Chatbot";
+import Certificates from "./components/Certificates";
+import Testimonials from "./components/Testimonials";
 
 // Lazy load large/library-heavy graphic heros
 const ParticleHero = lazy(() => import("./components/ui/particle-effect-for-hero"));
@@ -20,9 +22,7 @@ const AetherFlowHero = lazy(() => import("./components/ui/aether-flow-hero"));
 const SplineHero = lazy(() => import("./components/ui/spline-hero"));
 const BackgroundBoxesHero = lazy(() => import("./components/ui/background-boxes-hero"));
 
-// Lazy load non-landing page elements or optional section modules
-const Certificates = lazy(() => import("./components/Certificates"));
-const Testimonials = lazy(() => import("./components/Testimonials"));
+// Lazy load non-landing page elements or optional admin modules
 const Admin = lazy(() => import("./components/Admin"));
 const UserQueries = lazy(() => import("./components/UserQueries"));
 const Settings = lazy(() => import("./components/Settings"));
@@ -152,24 +152,30 @@ function PortfolioContent({ userId }: { userId?: string }) {
   const isSplineHero = activeHeroStyle === 'spline';
   const isBoxesHero = activeHeroStyle === 'boxes';
 
+  const HeroFallback = (
+    <div className="h-screen min-h-[600px] w-full bg-black flex items-center justify-center">
+      <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
   return (
     <div className="min-h-screen selection:bg-accent/30 bg-black text-white">
       <Navbar userId={userId} />
       <main>
         {isSplineHero ? (
-          <Suspense fallback={<Hero userId={userId} />}>
+          <Suspense fallback={HeroFallback}>
             <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
           </Suspense>
         ) : isAetherHero ? (
-          <Suspense fallback={<Hero userId={userId} />}>
+          <Suspense fallback={HeroFallback}>
             <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
           </Suspense>
         ) : isParticleHero ? (
-          <Suspense fallback={<Hero userId={userId} />}>
+          <Suspense fallback={HeroFallback}>
             <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
           </Suspense>
         ) : isBoxesHero ? (
-          <Suspense fallback={<Hero userId={userId} />}>
+          <Suspense fallback={HeroFallback}>
             <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
           </Suspense>
         ) : (
@@ -178,12 +184,8 @@ function PortfolioContent({ userId }: { userId?: string }) {
         <About userId={userId} />
         <Skills userId={userId} />
         <Projects userId={userId} />
-        <Suspense fallback={<div className="py-20 text-center text-secondary font-mono text-xs">Loading Certificates...</div>}>
-          <Certificates userId={userId} />
-        </Suspense>
-        <Suspense fallback={<div className="py-20 text-center text-secondary font-mono text-xs">Loading Testimonials...</div>}>
-          <Testimonials />
-        </Suspense>
+        <Certificates userId={userId} />
+        <Testimonials />
         <Contact userId={userId} />
       </main>
       <Chatbot userId={userId} />

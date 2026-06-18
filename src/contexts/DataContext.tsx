@@ -48,12 +48,7 @@ export function DataProvider({ children, userId }: { children: React.ReactNode, 
     } catch { return []; }
   });
 
-  const [loading, setLoading] = useState(() => {
-    try {
-      const cached = localStorage.getItem(`cache_settings_${idKey}`);
-      return !cached;
-    } catch { return true; }
-  });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -100,6 +95,7 @@ export function DataProvider({ children, userId }: { children: React.ReactNode, 
 
   useEffect(() => {
     const currentIdKey = userId || "global";
+    setLoading(true); // Always start loading as true for fresh fetches
     try {
       const cachedP = localStorage.getItem(`cache_projects_${currentIdKey}`);
       const cachedS = localStorage.getItem(`cache_settings_${currentIdKey}`);
@@ -112,14 +108,12 @@ export function DataProvider({ children, userId }: { children: React.ReactNode, 
       setSkills(cachedSk ? JSON.parse(cachedSk) : []);
       setCertificates(cachedC ? JSON.parse(cachedC) : []);
       setExperience(cachedE ? JSON.parse(cachedE) : []);
-      setLoading(!cachedS);
     } catch (e) {
       setProjects([]);
       setSettings(null);
       setSkills([]);
       setCertificates([]);
       setExperience([]);
-      setLoading(true);
     }
 
     fetchData();
