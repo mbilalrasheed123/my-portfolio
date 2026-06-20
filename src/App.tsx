@@ -34,64 +34,67 @@ import LoadingSpinner from "./components/LoadingSpinner";
 import AnalyticsDispatcher from "./components/AnalyticsDispatcher";
 import CookieBanner from "./components/CookieBanner";
 
+function getHeroStyle(settings: any, userId?: string) {
+  if (!settings) return "default";
+
+  // 1. Mobile Detection (Robust check)
+  const isMobile = typeof window !== "undefined" && (window.innerWidth < 1024 || 
+                  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+
+  // 2. Priority 1: Mobile-Specific Lock
+  if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== "sameAsDesktop") {
+    return settings.mobileHeroStyle;
+  }
+
+  // 3. Priority 2: Design Loop (if enabled)
+  if (settings.heroDesignLoop) {
+    const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
+      ? settings.heroLoopOrder
+      : ["default", "particles", "aether", "spline", "boxes"];
+
+    // Use session storage to keep style consistent for the SESSION
+    const sessionKey = `hero_session_style_${userId || "global"}`;
+    let style = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(sessionKey) : null;
+
+    if (!style) {
+      const storageKey = `hero_loop_index_${userId || "global"}`;
+      const currentIndex = parseInt((typeof localStorage !== "undefined" && localStorage.getItem(storageKey)) || "-1");
+      const nextIndex = (currentIndex + 1) % order.length;
+
+      style = order[nextIndex];
+      if (typeof localStorage !== "undefined") localStorage.setItem(storageKey, nextIndex.toString());
+      if (typeof sessionStorage !== "undefined") sessionStorage.setItem(sessionKey, style);
+    }
+
+    return style;
+  }
+
+  // 4. Priority 3: Manual Desktop Selection
+  return settings.heroStyle || "default";
+}
+
 function PortfolioContent({ userId }: { userId?: string }) {
   const { loading, error, settings } = useData();
-  const [activeHeroStyle, setActiveHeroStyle] = React.useState<string | null>(null);
 
+  // Use a single initial state check based on the settings context
+  const [activeHeroStyle, setActiveHeroStyle] = React.useState<string>(() => {
+    return getHeroStyle(settings, userId);
+  });
+
+  // Keep activeHeroStyle fully in sync when settings values are retrieved or changed
   React.useEffect(() => {
-    if (!settings) return;
-
-    const determineHeroStyle = () => {
-      // 1. Mobile Detection (Robust check)
-      const isMobile = window.innerWidth < 1024 || 
-                      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      // 2. Priority 1: Mobile-Specific Lock
-      if (isMobile && settings.mobileHeroStyle && settings.mobileHeroStyle !== 'sameAsDesktop') {
-        return settings.mobileHeroStyle;
-      }
-
-      // 3. Priority 2: Design Loop (if enabled)
-      if (settings.heroDesignLoop) {
-        const order = settings.heroLoopOrder && settings.heroLoopOrder.length > 0
-          ? settings.heroLoopOrder
-          : ['default', 'particles', 'aether', 'spline', 'boxes'];
-        
-        // Use session storage to keep style consistent for the SESSION
-        const sessionKey = `hero_session_style_${userId || 'global'}`;
-        let style = sessionStorage.getItem(sessionKey);
-        
-        if (!style) {
-          const storageKey = `hero_loop_index_${userId || 'global'}`;
-          const currentIndex = parseInt(localStorage.getItem(storageKey) || '-1');
-          const nextIndex = (currentIndex + 1) % order.length;
-          
-          style = order[nextIndex];
-          localStorage.setItem(storageKey, nextIndex.toString());
-          sessionStorage.setItem(sessionKey, style);
-        }
-        
-        return style;
-      }
-
-      // 4. Priority 3: Manual Desktop Selection
-      return settings.heroStyle || 'default';
-    };
-
-    const newStyle = determineHeroStyle();
-    if (newStyle !== activeHeroStyle) {
-      setActiveHeroStyle(newStyle);
+    if (settings) {
+      setActiveHeroStyle(getHeroStyle(settings, userId));
     }
-  }, [settings, userId, activeHeroStyle]);
+  }, [settings, userId]);
 
   // Handle Resize for Hero stability
   React.useEffect(() => {
     const handleResize = () => {
-      // If we're already on a locked mobile hero, don't flicker back and forth too easily 
-      // unless it's a major change
+      // Keep mobile styles and order stable on small layout adjustments
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Scroll Reveal Observer
@@ -101,20 +104,20 @@ function PortfolioContent({ userId }: { userId?: string }) {
     // Use a small delay to make sure DOM is fully printed
     const timer = setTimeout(() => {
       const elements = document.querySelectorAll(
-        '.reveal, .reveal-left, .reveal-right, .reveal-scale, .heading-wrapper'
+        ".reveal, .reveal-left, .reveal-right, .reveal-scale, .heading-wrapper"
       );
 
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
+              entry.target.classList.add("visible");
             }
           });
         },
         {
           threshold: 0.1,
-          rootMargin: '0px 0px -50px 0px'
+          rootMargin: "0px 0px -50px 0px"
         }
       );
 
@@ -179,7 +182,12 @@ function PortfolioContent({ userId }: { userId?: string }) {
             <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
           </Suspense>
         ) : (
-          <Hero userId={userId} />
+          <Hero 
+            userId={userId} 
+            title={settings?.title} 
+            name={settings?.name} 
+            subtitle={settings?.subtitle} 
+          />
         )}
         <About userId={userId} />
         <Skills userId={userId} />

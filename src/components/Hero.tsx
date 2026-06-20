@@ -16,10 +16,17 @@ const COLORS_TOP = ["#13FFAA", "#1E67C6", "#CE84CF", "#DD335C"];
 
 interface HeroProps {
   userId?: string;
+  title?: string;
+  name?: string;
+  subtitle?: string;
 }
 
-export default function Hero({ userId }: HeroProps) {
-  const { settings } = useData();
+export default function Hero({ userId, title, name, subtitle }: HeroProps) {
+  const { settings: contextSettings } = useData();
+  const actualTitle = title || contextSettings?.title || "";
+  const actualName = name || contextSettings?.name || "";
+  const actualSubtitle = subtitle || contextSettings?.subtitle || "";
+
   const color = useMotionValue(COLORS_TOP[0]);
   const sectionRef = useSectionTracking("hero");
 
@@ -52,7 +59,7 @@ export default function Hero({ userId }: HeroProps) {
           transition={{ duration: 0.5 }}
           className="mb-4 inline-block rounded-full bg-gray-600/50 px-3 py-1.5 text-xs font-mono uppercase tracking-widest"
         >
-          {settings.title}
+          {actualTitle}
         </motion.span>
         
         <motion.h1 
@@ -61,7 +68,7 @@ export default function Hero({ userId }: HeroProps) {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="max-w-4xl bg-gradient-to-br from-white to-gray-400 bg-clip-text text-center text-4xl font-bold leading-tight text-transparent sm:text-7xl sm:leading-tight md:text-8xl md:leading-tight tracking-tight break-words"
         >
-          {settings.name}
+          {actualName}
         </motion.h1>
         
         <motion.p 
@@ -70,7 +77,7 @@ export default function Hero({ userId }: HeroProps) {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="my-8 max-w-xl text-center text-base leading-relaxed md:text-lg md:leading-relaxed text-secondary font-light"
         >
-          {settings.subtitle?.replace(/,vmvmvmvm/g, '')}
+          {actualSubtitle?.replace(/,vmvmvmvm/g, '')}
         </motion.p>
         
         <motion.div
