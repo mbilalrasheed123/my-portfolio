@@ -6,16 +6,19 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
+// Pre-load components that should appear immediately
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
-import About from "./components/About";
-import Skills from "./components/Skills";
-import Projects from "./components/Projects";
-import Contact from "./components/Contact";
 import Chatbot from "./components/Chatbot";
-import Certificates from "./components/Certificates";
-import Testimonials from "./components/Testimonials";
 import VisitorCounter from "./components/VisitorCounter";
+
+// Lazy load below-the-fold content to optimize initial paint
+const About = lazy(() => import("./components/About"));
+const Skills = lazy(() => import("./components/Skills"));
+const Projects = lazy(() => import("./components/Projects"));
+const Certificates = lazy(() => import("./components/Certificates"));
+const Testimonials = lazy(() => import("./components/Testimonials"));
+const Contact = lazy(() => import("./components/Contact"));
 
 // Lazy load large/library-heavy graphic heros
 const ParticleHero = lazy(() => import("./components/ui/particle-effect-for-hero"));
@@ -76,6 +79,7 @@ function getHeroStyle(settings: any, userId?: string) {
 
 function PortfolioContent({ userId }: { userId?: string }) {
   const { loading, error, settings } = useData();
+  const [isWindowLoaded, setIsWindowLoaded] = React.useState(document.readyState === "complete");
 
   // Use a single initial state check based on the settings context
   const [activeHeroStyle, setActiveHeroStyle] = React.useState<string>(() => {
@@ -89,6 +93,21 @@ function PortfolioContent({ userId }: { userId?: string }) {
     }
   }, [settings, userId]);
 
+  // Wait for the window 'load' event to ensure all styles, fonts, and assets are parsed
+  React.useEffect(() => {
+    if (document.readyState === "complete") {
+      const timer = setTimeout(() => setIsWindowLoaded(true), 100);
+      return () => clearTimeout(timer);
+    } else {
+      const handleLoad = () => {
+        // Fallback delay to let the browser's main thread paint the background
+        setTimeout(() => setIsWindowLoaded(true), 100);
+      };
+      window.addEventListener("load", handleLoad);
+      return () => window.removeEventListener("load", handleLoad);
+    }
+  }, []);
+
   // Handle Resize for Hero stability
   React.useEffect(() => {
     const handleResize = () => {
@@ -100,7 +119,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
   // Scroll Reveal Observer
   React.useEffect(() => {
-    if (loading || !activeHeroStyle) return;
+    if (loading || !activeHeroStyle || !isWindowLoaded) return;
 
     // Use a small delay to make sure DOM is fully printed
     const timer = setTimeout(() => {
@@ -130,9 +149,9 @@ function PortfolioContent({ userId }: { userId?: string }) {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [loading, activeHeroStyle, settings]);
+  }, [loading, activeHeroStyle, settings, isWindowLoaded]);
 
-  if (loading || !activeHeroStyle) {
+  if (loading || !activeHeroStyle || !isWindowLoaded) {
     return <LoadingSpinner />;
   }
 
@@ -190,12 +209,14 @@ function PortfolioContent({ userId }: { userId?: string }) {
             subtitle={settings?.subtitle} 
           />
         )}
-        <About userId={userId} />
-        <Skills userId={userId} />
-        <Projects userId={userId} />
-        <Certificates userId={userId} />
-        <Testimonials />
-        <Contact userId={userId} />
+        <Suspense fallback={<div className="h-24"></div>}>
+          <About userId={userId} />
+          <Skills userId={userId} />
+          <Projects userId={userId} />
+          <Certificates userId={userId} />
+          <Testimonials />
+          <Contact userId={userId} />
+        </Suspense>
       </main>
       <Chatbot userId={userId} />
       <footer className="py-12 border-t border-line text-center">

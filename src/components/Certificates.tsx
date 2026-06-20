@@ -23,12 +23,15 @@ interface CertificatesProps {
 export default function Certificates({ userId }: CertificatesProps) {
   const { certificates } = useData();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
 
   const nextCertificate = () => {
+    setDirection(1);
     setCurrentIndex((prev) => (prev + 1) % certificates.length);
   };
 
   const prevCertificate = () => {
+    setDirection(-1);
     setCurrentIndex((prev) => (prev - 1 + certificates.length) % certificates.length);
   };
 
@@ -43,9 +46,23 @@ export default function Certificates({ userId }: CertificatesProps) {
   const currentCert = certificates[currentIndex];
 
   const variants = {
-    enter: { opacity: 0, scale: 0.95 },
-    center: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 1.05 }
+    enter: (direction: number) => ({
+      x: direction > 0 ? "100%" : "-100%",
+      opacity: 0,
+      scale: 0.95
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1,
+      scale: 1
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? "100%" : "-100%",
+      opacity: 0,
+      scale: 0.95
+    })
   };
 
   return (
@@ -76,9 +93,10 @@ export default function Certificates({ userId }: CertificatesProps) {
         </div>
 
         <div className="relative min-h-[600px] flex flex-col justify-center">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentIndex}
+              custom={direction}
               variants={variants}
               initial="enter"
               animate="center"
@@ -87,7 +105,7 @@ export default function Certificates({ userId }: CertificatesProps) {
               className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
             >
               {/* Left Side: Image */}
-              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group bg-white/5 reveal-left">
+              <div className="relative aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-3xl overflow-hidden border border-line group bg-white/5">
                 {currentCert.image ? (
                   <img 
                     src={currentCert.image} 
@@ -104,7 +122,7 @@ export default function Certificates({ userId }: CertificatesProps) {
               </div>
 
               {/* Right Side: Content */}
-              <div className="flex flex-col justify-center relative h-full reveal-right">
+              <div className="flex flex-col justify-center relative h-full">
                 <div className="mb-8">
                   <div className="flex items-center gap-2 text-accent mb-4">
                     <Award size={20} />

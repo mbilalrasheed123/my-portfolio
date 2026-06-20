@@ -95,55 +95,69 @@ export default function Testimonials() {
           </motion.p>
         </div>
 
-        {/* Testimonials Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-4 stagger-children">
-          {testimonialsList.map((t, idx) => (
-            <div
-              key={t.id || idx}
-              className="reveal-scale relative p-8 rounded-3xl backdrop-blur-md bg-white/[0.02] border border-white/10 hover:border-white/35 hover:bg-white/[0.04] shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:shadow-[0_0_40px_rgba(59,130,246,0.2)] transition-all duration-500 flex flex-col justify-between h-full group"
-            >
-              <div className="space-y-6">
-                {/* Custom Styled Avatar Container */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-[10px] scale-90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  <div className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
-                    <img 
-                      src={t.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
-                      alt={t.name} 
-                      className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                    />
+        {/* Testimonials Auto-Playing Carousel Layout */}
+        <div className="relative mt-12 w-full overflow-hidden group">
+          {/* Fading edges for smooth enter/exit of the marquee */}
+          <div className="absolute inset-y-0 left-0 w-12 md:w-32 bg-gradient-to-r from-[#050716] to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-12 md:w-32 bg-gradient-to-l from-[#050716] to-transparent z-10 pointer-events-none" />
+
+          <motion.div
+            className="flex gap-6 md:gap-8 w-fit py-4"
+            animate={{ x: ["0%", "-50%"] }}
+            transition={{
+              repeat: Infinity,
+              ease: "linear",
+              duration: testimonialsList.length * 10 || 30, // 10s per item to be slow and smooth
+            }}
+          >
+            {[...testimonialsList, ...testimonialsList, ...testimonialsList, ...testimonialsList].map((t, idx) => (
+              <div
+                key={`${t.id || 't'}-${idx}`}
+                className="relative p-8 rounded-3xl backdrop-blur-md bg-white/[0.02] border border-white/10 hover:border-white/35 hover:bg-white/[0.04] shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:shadow-[0_0_40px_rgba(59,130,246,0.2)] transition-all duration-500 flex flex-col justify-between h-full group shrink-0 w-[300px] md:w-[400px]"
+              >
+                <div className="space-y-6">
+                  {/* Custom Styled Avatar Container */}
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-blue-500/30 rounded-full blur-[10px] scale-90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <div className="relative w-14 h-14 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
+                      <img 
+                        src={t.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200&h=200"} 
+                        alt={t.name} 
+                        className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Identity */}
+                  <div className="space-y-1">
+                    <h4 className="text-base font-medium text-white tracking-wide">
+                      {t.name}
+                    </h4>
+                    <p className="text-xs text-white/45 tracking-wider font-mono">
+                      {t.role}
+                    </p>
+                  </div>
+
+                  {/* Testimonial text */}
+                  <p className="text-white/70 text-sm leading-relaxed font-light">
+                    {t.text}
+                  </p>
+
+                  {/* Star Rating Display */}
+                  <div className="flex items-center gap-1 pt-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        size={14}
+                        className={i < (t.rating ?? 5) ? "fill-amber-400 text-amber-400" : "text-white/10"}
+                      />
+                    ))}
                   </div>
                 </div>
-
-                {/* Identity */}
-                <div className="space-y-1">
-                  <h4 className="text-base font-medium text-white tracking-wide">
-                    {t.name}
-                  </h4>
-                  <p className="text-xs text-white/45 tracking-wider font-mono">
-                    {t.role}
-                  </p>
-                </div>
-
-                {/* Testimonial text */}
-                <p className="text-white/70 text-sm leading-relaxed font-light">
-                  {t.text}
-                </p>
-
-                {/* Star Rating Display */}
-                <div className="flex items-center gap-1 pt-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      size={14}
-                      className={i < (t.rating ?? 5) ? "fill-amber-400 text-amber-400" : "text-white/10"}
-                    />
-                  ))}
-                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </motion.div>
         </div>
       </div>
     </section>
