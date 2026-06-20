@@ -23,15 +23,12 @@ interface CertificatesProps {
 export default function Certificates({ userId }: CertificatesProps) {
   const { certificates } = useData();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
 
   const nextCertificate = () => {
-    setDirection(1);
     setCurrentIndex((prev) => (prev + 1) % certificates.length);
   };
 
   const prevCertificate = () => {
-    setDirection(-1);
     setCurrentIndex((prev) => (prev - 1 + certificates.length) % certificates.length);
   };
 
@@ -46,25 +43,14 @@ export default function Certificates({ userId }: CertificatesProps) {
   const currentCert = certificates[currentIndex];
 
   const variants = {
-    enter: (direction: number) => ({
-      x: direction > 0 ? "100%" : "-100%",
-      opacity: 0
-    }),
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1
-    },
-    exit: (direction: number) => ({
-      zIndex: 0,
-      x: direction < 0 ? "100%" : "-100%",
-      opacity: 0
-    })
+    enter: { opacity: 0, scale: 0.95 },
+    center: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 1.05 }
   };
 
   return (
-    <section id="certificates" className="py-24 bg-black min-h-screen flex items-center">
-      <div className="container mx-auto px-6">
+    <section id="certificates" className="py-24 bg-black min-h-screen flex items-center relative">
+      <div className="container mx-auto px-6 relative z-10">
         <div className="mb-16">
           <Reveal>
             <motion.span 
@@ -89,19 +75,15 @@ export default function Certificates({ userId }: CertificatesProps) {
           </Reveal>
         </div>
 
-        <div className="relative overflow-hidden min-h-[500px] flex items-center">
-          <AnimatePresence initial={false} custom={direction} mode="wait">
+        <div className="relative min-h-[600px] flex flex-col justify-center">
+          <AnimatePresence mode="wait">
             <motion.div
               key={currentIndex}
-              custom={direction}
               variants={variants}
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{
-                x: { type: "spring", stiffness: 300, damping: 30 },
-                opacity: { duration: 0.2 }
-              }}
+              transition={{ duration: 0.3 }}
               className="w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
             >
               {/* Left Side: Image */}
@@ -167,33 +149,37 @@ export default function Certificates({ userId }: CertificatesProps) {
                     </a>
                   )}
                 </div>
-
-                {/* Bottom Right Navigation */}
-                <div className="absolute bottom-0 right-0 flex gap-4">
-                  <button 
-                    onClick={prevCertificate}
-                    className="w-14 h-14 rounded-full border border-line flex items-center justify-center hover:bg-white hover:text-black transition-all group"
-                  >
-                    <ArrowRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={24} />
-                  </button>
-                  <button 
-                    onClick={nextCertificate}
-                    className="w-14 h-14 rounded-full border border-line flex items-center justify-center hover:bg-white hover:text-black transition-all group"
-                  >
-                    <ArrowRight className="group-hover:translate-x-1 transition-transform" size={24} />
-                  </button>
-                </div>
               </div>
             </motion.div>
           </AnimatePresence>
+
+          {/* Bottom Right Navigation - Positioned Outside of Animation */}
+          {certificates.length > 1 && (
+            <div className="absolute bottom-4 right-0 flex gap-4 lg:bottom-0 lg:right-0">
+              <button 
+                onClick={prevCertificate}
+                className="w-14 h-14 rounded-full border border-line bg-black/50 backdrop-blur flex items-center justify-center hover:bg-white hover:text-black transition-all group z-20"
+              >
+                <ArrowRight className="rotate-180 group-hover:-translate-x-1 transition-transform" size={24} />
+              </button>
+              <button 
+                onClick={nextCertificate}
+                className="w-14 h-14 rounded-full border border-line bg-black/50 backdrop-blur flex items-center justify-center hover:bg-white hover:text-black transition-all group z-20"
+              >
+                <ArrowRight className="group-hover:translate-x-1 transition-transform" size={24} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Counter */}
-        <div className="mt-12 flex items-center gap-4 font-mono text-xs text-secondary uppercase tracking-widest">
-          <span className="text-white">{String(currentIndex + 1).padStart(2, '0')}</span>
-          <div className="w-12 h-[1px] bg-line" />
-          <span>{String(certificates.length).padStart(2, '0')}</span>
-        </div>
+        {certificates.length > 1 && (
+          <div className="mt-12 flex items-center gap-4 font-mono text-xs text-secondary uppercase tracking-widest">
+            <span className="text-white">{String(currentIndex + 1).padStart(2, '0')}</span>
+            <div className="w-12 h-[1px] bg-line" />
+            <span>{String(certificates.length).padStart(2, '0')}</span>
+          </div>
+        )}
       </div>
     </section>
   );
