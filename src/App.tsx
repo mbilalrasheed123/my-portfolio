@@ -15,6 +15,7 @@ import Contact from "./components/Contact";
 import Chatbot from "./components/Chatbot";
 import Certificates from "./components/Certificates";
 import Testimonials from "./components/Testimonials";
+import VisitorCounter from "./components/VisitorCounter";
 
 // Lazy load large/library-heavy graphic heros
 const ParticleHero = lazy(() => import("./components/ui/particle-effect-for-hero"));
@@ -202,6 +203,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
           <p className="text-secondary text-xs font-mono uppercase tracking-widest">
             © {new Date().getFullYear()} Precision Portfolio. All rights reserved.
           </p>
+          <VisitorCounter userId={userId} />
         </div>
       </footer>
     </div>

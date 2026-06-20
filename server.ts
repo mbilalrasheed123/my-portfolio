@@ -349,6 +349,31 @@ app.get("/api/cron/aggregate-analytics", async (req, res) => {
   }
 });
 
+/**
+ * Public Visitor Counter Endpoint
+ * Handles incrementing unique visits and retrieving the count via Admin SDK
+ * Bypasses restrictive client-side firestore.rules
+ */
+app.post("/api/visitors", async (req, res) => {
+  const { targetUserId, isNewVisit } = req.body;
+  if (!targetUserId) return res.status(400).json({ error: "Missing targetUserId" });
+  if (!adminDb) return res.status(503).json({ error: "Firebase Admin DB unavailable" });
+
+  try {
+    const docRef = adminDb.collection("portfolioStats").doc(`visits_${targetUserId}`);
+    
+    if (isNewVisit) {
+      await docRef.set({ count: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    }
+    
+    const snap = await docRef.get();
+    res.json({ count: snap.data()?.count || (isNewVisit ? 1 : 0) });
+  } catch (error: any) {
+    console.error("[Visitors API] Error updating/fetching count:", error);
+    res.status(500).json({ error: "Failed to fetch visitor count" });
+  }
+});
+
 async function sendMailHelper(to: string, subject: string, text: string, html?: string) {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
