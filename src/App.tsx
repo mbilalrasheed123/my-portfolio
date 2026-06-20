@@ -11,20 +11,18 @@ import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Chatbot from "./components/Chatbot";
 import VisitorCounter from "./components/VisitorCounter";
+import About from "./components/About";
+import Skills from "./components/Skills";
+import Projects from "./components/Projects";
+import Certificates from "./components/Certificates";
+import Testimonials from "./components/Testimonials";
+import Contact from "./components/Contact";
 
-// Lazy load below-the-fold content to optimize initial paint
-const About = lazy(() => import("./components/About"));
-const Skills = lazy(() => import("./components/Skills"));
-const Projects = lazy(() => import("./components/Projects"));
-const Certificates = lazy(() => import("./components/Certificates"));
-const Testimonials = lazy(() => import("./components/Testimonials"));
-const Contact = lazy(() => import("./components/Contact"));
-
-// Lazy load large/library-heavy graphic heros
-const ParticleHero = lazy(() => import("./components/ui/particle-effect-for-hero"));
-const AetherFlowHero = lazy(() => import("./components/ui/aether-flow-hero"));
-const SplineHero = lazy(() => import("./components/ui/spline-hero"));
-const BackgroundBoxesHero = lazy(() => import("./components/ui/background-boxes-hero"));
+// Restore standard imports for hero sections to remove lazy loading states
+import ParticleHero from "./components/ui/particle-effect-for-hero";
+import AetherFlowHero from "./components/ui/aether-flow-hero";
+import SplineHero from "./components/ui/spline-hero";
+import BackgroundBoxesHero from "./components/ui/background-boxes-hero";
 
 // Lazy load non-landing page elements or optional admin modules
 const Admin = lazy(() => import("./components/Admin"));
@@ -79,7 +77,7 @@ function getHeroStyle(settings: any, userId?: string) {
 
 function PortfolioContent({ userId }: { userId?: string }) {
   const { loading, error, settings } = useData();
-  const [isWindowLoaded, setIsWindowLoaded] = React.useState(document.readyState === "complete");
+  const [isAppLoading, setIsAppLoading] = React.useState(true);
 
   // Use a single initial state check based on the settings context
   const [activeHeroStyle, setActiveHeroStyle] = React.useState<string>(() => {
@@ -95,14 +93,14 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
   // Wait for the window 'load' event to ensure all styles, fonts, and assets are parsed
   React.useEffect(() => {
+    const handleLoad = () => {
+      // Fallback delay to let the browser's main thread paint the background
+      setTimeout(() => setIsAppLoading(false), 150);
+    };
+
     if (document.readyState === "complete") {
-      const timer = setTimeout(() => setIsWindowLoaded(true), 100);
-      return () => clearTimeout(timer);
+      handleLoad();
     } else {
-      const handleLoad = () => {
-        // Fallback delay to let the browser's main thread paint the background
-        setTimeout(() => setIsWindowLoaded(true), 100);
-      };
       window.addEventListener("load", handleLoad);
       return () => window.removeEventListener("load", handleLoad);
     }
@@ -119,7 +117,7 @@ function PortfolioContent({ userId }: { userId?: string }) {
 
   // Scroll Reveal Observer
   React.useEffect(() => {
-    if (loading || !activeHeroStyle || !isWindowLoaded) return;
+    if (loading || !activeHeroStyle || isAppLoading) return;
 
     // Use a small delay to make sure DOM is fully printed
     const timer = setTimeout(() => {
@@ -149,9 +147,9 @@ function PortfolioContent({ userId }: { userId?: string }) {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [loading, activeHeroStyle, settings, isWindowLoaded]);
+  }, [loading, activeHeroStyle, settings, isAppLoading]);
 
-  if (loading || !activeHeroStyle || !isWindowLoaded) {
+  if (loading || !activeHeroStyle || isAppLoading) {
     return <LoadingSpinner />;
   }
 
@@ -186,21 +184,13 @@ function PortfolioContent({ userId }: { userId?: string }) {
       <Navbar userId={userId} />
       <main>
         {isSplineHero ? (
-          <Suspense fallback={HeroFallback}>
-            <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
-          </Suspense>
+          <SplineHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : isAetherHero ? (
-          <Suspense fallback={HeroFallback}>
-            <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
-          </Suspense>
+          <AetherFlowHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : isParticleHero ? (
-          <Suspense fallback={HeroFallback}>
-            <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
-          </Suspense>
+          <ParticleHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : isBoxesHero ? (
-          <Suspense fallback={HeroFallback}>
-            <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
-          </Suspense>
+          <BackgroundBoxesHero title={settings.name} subtitle={settings.subtitle} type={settings.title} />
         ) : (
           <Hero 
             userId={userId} 
@@ -209,14 +199,12 @@ function PortfolioContent({ userId }: { userId?: string }) {
             subtitle={settings?.subtitle} 
           />
         )}
-        <Suspense fallback={<div className="h-24"></div>}>
-          <About userId={userId} />
-          <Skills userId={userId} />
-          <Projects userId={userId} />
-          <Certificates userId={userId} />
-          <Testimonials />
-          <Contact userId={userId} />
-        </Suspense>
+        <About userId={userId} />
+        <Skills userId={userId} />
+        <Projects userId={userId} />
+        <Certificates userId={userId} />
+        <Testimonials />
+        <Contact userId={userId} />
       </main>
       <Chatbot userId={userId} />
       <footer className="py-12 border-t border-line text-center">
