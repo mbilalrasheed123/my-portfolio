@@ -592,6 +592,8 @@ ${replyText}
     const autoReplyStatus = sent ? "sent" : "logged";
     logStep(`Updating Firestore contactMessages document with ID ${queryId} status: ${autoReplyStatus}...`);
     await adminDb.collection("contactMessages").doc(queryId).update({
+      status: "replied",
+      repliedAt: admin.firestore.FieldValue.serverTimestamp(),
       autoReplyText: replyText,
       aiReplyText: replyText,
       autoRepliedAt: admin.firestore.FieldValue.serverTimestamp(),

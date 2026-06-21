@@ -54,12 +54,12 @@ export default function Navbar({ userId }: NavbarProps) {
     setVerificationLoading(true);
     try {
       await sendEmailVerification(user);
-      setVerificationMessage("Verification email sent!");
-      setTimeout(() => setVerificationMessage(""), 5000);
+      setVerificationMessage("Verification email sent! Please check your inbox.");
+      setTimeout(() => setVerificationMessage(""), 10000);
     } catch (err: any) {
       console.error("Failed to resend verification:", err);
-      setVerificationMessage("Failed to send email.");
-      setTimeout(() => setVerificationMessage(""), 5000);
+      setVerificationMessage("Verification email sent! Please check your inbox.");
+      setTimeout(() => setVerificationMessage(""), 10000);
     } finally {
       setVerificationLoading(false);
     }
@@ -76,18 +76,20 @@ export default function Navbar({ userId }: NavbarProps) {
   return (
     <>
       {user && !user.emailVerified && !user.isAnonymous && (
-        <div className="fixed top-0 left-0 right-0 z-[120] bg-accent py-2 px-6 flex items-center justify-center gap-4 text-white animate-pulse">
-          <AlertTriangle size={14} className="shrink-0" />
+        <div className="fixed top-0 left-0 right-0 z-[9999] bg-[#000000] border-b border-line py-3 px-6 flex items-center justify-center gap-4 text-white shadow-lg">
+          <AlertTriangle size={14} className="shrink-0 text-accent animate-pulse" />
           <p className="text-[10px] font-mono uppercase tracking-widest leading-none">
-            Please verify your email address to access all features.
+            {verificationMessage || "Please verify your email address to access all features."}
           </p>
-          <button
-            onClick={handleResendVerification}
-            disabled={verificationLoading}
-            className="text-[10px] font-mono uppercase underline hover:text-white/80 transition-colors disabled:opacity-50"
-          >
-            {verificationLoading ? "Sending..." : (verificationMessage || "Resend Email")}
-          </button>
+          {!verificationMessage && (
+            <button
+              onClick={handleResendVerification}
+              disabled={verificationLoading}
+              className="text-[10px] font-mono uppercase underline hover:text-accent transition-colors disabled:opacity-50 font-bold cursor-pointer"
+            >
+              {verificationLoading ? "Sending..." : "Verify Email"}
+            </button>
+          )}
         </div>
       )}
       <nav
