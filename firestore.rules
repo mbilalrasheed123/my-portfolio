@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ---------------------------------------------------------
-    // 1. GLOBAL HELPERS
+    // 1. GLOBAL HELPERS & AUTHENTICATION
     // ---------------------------------------------------------
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
@@ -17,136 +17,114 @@ service cloud.firestore {
     function existing() { return resource.data; }
 
     // ---------------------------------------------------------
-    // 2. SAFETY NET
+    // 2. DEFAULT SAFETY NET
     // ---------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;
     }
 
     // ---------------------------------------------------------
-    // 3. COLLECTIONS
+    // 3. ADMIN-ONLY RESOURCE ACCESS
     // ---------------------------------------------------------
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
 
-    // Public Collections (Read-Only for public, Write for Owner/Admin)
+    match /apiKeys/{keyId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------
+    // 4. PORTFOLIO DATA COLLECTIONS (Public Read, Admin Write)
+    // ---------------------------------------------------------
     match /projects/{projectId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
     
     match /certificates/{certId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
 
     match /skills/{skillId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
 
     match /experience/{expId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
     }
 
     match /testimonials/{testId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
-    }
-
-    function isValidSetting(data) {
-      return data.keys().hasAll(['updatedAt']) &&
-             (!data.keys().hasAny(['name']) || data.name is string) &&
-             (!data.keys().hasAny(['title']) || data.title is string) &&
-             (!data.keys().hasAny(['aboutText']) || data.aboutText is string) &&
-             (!data.keys().hasAny(['aboutImage']) || data.aboutImage is string);
+      allow create, update, delete: if isAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && settingId == request.auth.uid && isValidSetting(incoming()));
+      allow create, update, delete: if isAdmin();
     }
 
-    // User Profiles
-    match /users/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow create: if isSignedIn() && isOwner(userId) &&
-        incoming().keys().hasAll(['uid', 'email']) &&
-        incoming().uid == request.auth.uid;
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin()) &&
-        incoming().uid == existing().uid; // UID is immutable
-      // List users: Only Admin
-      allow list: if isAdmin();
-    }
-
-    // Chat Sessions
-    match /chatSessions/{sessionId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if true;
-      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-    }
-
-    // Leads
-    match /leads/{leadId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if true;
-      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow delete: if isAdmin();
-      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-    }
-
-    // Knowledge Base
     match /knowledgeBase/{entryId} {
-      allow read: if true; 
-      allow create: if isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid);
-      allow update, delete: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || !existing().keys().hasAny(['userId'])));
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
     }
 
-    // Contact Messages (Queries)
-    match /contactMessages/{messageId} {
-      allow create: if 
-        incoming().keys().hasAll(['userName', 'userEmail', 'message', 'subject', 'status']) &&
-        (incoming().get('userUid', null) == null || isValidId(incoming().userUid));
+    // ---------------------------------------------------------
+    // 5. USER PROFILES & CHAT INFRASTRUCTURE
+    // ---------------------------------------------------------
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
 
-      allow list: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
-      allow get: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
-      allow update: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid); // Sender/Recipient can update (e.g. status or reply)
+    match /chatSessions/{sessionId} {
+      allow create: if true;
+      allow read, update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow delete: if isAdmin();
     }
 
-    // Analytics (Public write, Admin read)
+    match /chatMessages/{messageId} {
+      allow create: if true;
+      allow read, update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /leads/{leadId} {
+      allow create: if true;
+      allow read, update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------
+    // 6. CONTACT MESSAGES (Queries)
+    // ---------------------------------------------------------
+    match /contactMessages/{messageId} {
+      allow create: if true;
+      allow list, get: if isAdmin() || (isSignedIn() && resource.data.userUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------
+    // 7. COUNTER & STATS PROTECTION
+    // ---------------------------------------------------------
+    match /portfolioStats/{statId} {
+      allow read, write: if true;
+    }
+
+    match /dailyStats/{date} {
+      allow read, write: if isAdmin();
+    }
+
     match /analytics/{eventId} {
       allow write: if true;
       allow read: if isAdmin();
     }
 
-    match /chatMessages/{messageId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
-    }
-
     match /sessions/{sessionId} {
       allow write: if true;
       allow read: if isAdmin();
-    }
-
-    match /dailyStats/{date} {
-      allow write: if false; // Only server/cloud functions (via Admin SDK)
-      allow read: if isAdmin();
-    }
-
-    // API Key Rotation Management
-    match /apiKeys/{keyId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
-    match /portfolioStats/{statId} {
-      allow read, write: if true;
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Github, ExternalLink, ArrowUpRight, Filter, X, Search, ArrowUpDown } from "lucide-react";
+import { Github, ExternalLink, ArrowUpRight, Filter, X, Search, ArrowUpDown, Download } from "lucide-react";
 
 interface Project {
   id: string;
@@ -15,6 +15,7 @@ interface Project {
   order: number;
   createdAt?: any;
   updatedAt?: any;
+  downloadUrl?: string;
 }
 
 interface ProjectGridProps {
@@ -328,15 +329,50 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
                       </div>
 
                       <div className="mt-auto flex items-center justify-between pt-6 border-t border-white/5">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewProject(project);
-                          }}
-                          className="text-[9px] font-mono uppercase tracking-[0.2em] text-white hover:text-[#00ffa3] transition-colors flex items-center gap-1.5"
-                        >
-                          View Project <ExternalLink size={10} />
-                        </button>
+                        <div className="flex items-center gap-4">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewProject(project);
+                            }}
+                            className="text-[9px] font-mono uppercase tracking-[0.2em] text-white hover:text-[#00ffa3] transition-colors flex items-center gap-1.5"
+                          >
+                            View Project <ExternalLink size={10} />
+                          </button>
+
+                          {project.downloadUrl && (
+                            <button 
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const filename = project.downloadUrl?.split('/').pop() || `${project.title.replace(/\s+/g, '_')}_asset`;
+                                try {
+                                  const response = await fetch(project.downloadUrl!);
+                                  const blob = await response.blob();
+                                  const blobUrl = window.URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = blobUrl;
+                                  a.download = filename;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(blobUrl);
+                                } catch (error) {
+                                  const a = document.createElement("a");
+                                  a.href = project.downloadUrl!;
+                                  a.download = filename;
+                                  a.target = "_blank";
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                }
+                              }}
+                              className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#00ffa3] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
+                              title="Download Project Asset"
+                            >
+                              Download <Download size={10} />
+                            </button>
+                          )}
+                        </div>
                         
                         {project.githubUrl && (
                           <a 

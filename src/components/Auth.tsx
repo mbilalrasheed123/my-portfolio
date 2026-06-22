@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { LogIn, UserPlus, Mail, Lock, User, CheckCircle } from "lucide-react";
 import { api } from "../lib/api";
@@ -20,7 +20,7 @@ interface AuthProps {
 }
 
 export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
-  const [isLogin, setIsLogin] = useState(true);
+  const isLogin = true;
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,10 +30,42 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
   const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [failedAttempts, setFailedAttempts] = useState<number>(() => {
+    const saved = localStorage.getItem("login_failed_attempts");
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [cooldownUntil, setCooldownUntil] = useState<number>(() => {
+    const saved = localStorage.getItem("login_cooldown_until");
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  const isCooldownActive = cooldownUntil > Date.now();
+
+  useEffect(() => {
+    if (cooldownUntil > Date.now()) {
+      const interval = setInterval(() => {
+        const remaining = cooldownUntil - Date.now();
+        if (remaining <= 0) {
+          setCooldownUntil(0);
+          setFailedAttempts(0);
+          localStorage.removeItem("login_failed_attempts");
+          localStorage.removeItem("login_cooldown_until");
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [cooldownUntil]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
+
+    if (cooldownUntil > Date.now()) {
+      setError("Too many failed attempts. Please try again later.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -41,9 +73,15 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         await sendPasswordResetEmail(auth, email);
         setMessage("Password reset email sent! Please check your inbox.");
         setIsForgotPassword(false);
-      } else if (isLogin) {
+      } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+
+        // Reset variables upon success
+        setFailedAttempts(0);
+        setCooldownUntil(0);
+        localStorage.removeItem("login_failed_attempts");
+        localStorage.removeItem("login_cooldown_until");
 
         // Save profile if name provided
         if (name) {
@@ -54,34 +92,32 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
 
         if (!user.emailVerified) {
           setError("Your email is not verified. Please check your inbox for the verification link.");
-          // Optionally resend or allow login but with limited access
         }
 
         setSuccess(true);
         setTimeout(() => {
           onSuccess?.(user);
         }, 1500);
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        if (name) {
-          await updateProfile(user, { displayName: name });
-        }
-
-        // Send verification email
-        await sendEmailVerification(user);
-        
-        await api.saveUser(user);
-        
-        setMessage("Verification email sent! Please verify your email to access all features.");
-        setSuccess(true);
-        setTimeout(() => {
-          onSuccess?.(user);
-        }, 2000);
       }
     } catch (err: any) {
       console.error("Auth error:", err);
+
+      // Lock down brute-force logins
+      if (!isForgotPassword) {
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
+        localStorage.setItem("login_failed_attempts", nextAttempts.toString());
+
+        if (nextAttempts >= 5) {
+          const limitTime = Date.now() + 15 * 60 * 1000;
+          setCooldownUntil(limitTime);
+          localStorage.setItem("login_cooldown_until", limitTime.toString());
+          setError("Too many failed attempts. Please try again later.");
+          setLoading(false);
+          return;
+        }
+      }
+
       let msg = err.message || "Authentication failed. Please try again.";
       if (err.code === "auth/invalid-credential") {
         msg = "Invalid credentials. Please check your email and password.";
@@ -250,10 +286,10 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isCooldownActive}
               className="w-full py-4 bg-white text-black font-display uppercase tracking-widest text-sm rounded-xl hover:bg-accent hover:text-white transition-all disabled:opacity-50"
             >
-              {loading ? "Processing..." : (isForgotPassword ? "Send Reset Link" : (isLogin ? "Sign In" : "Create Account"))}
+              {loading ? "Processing..." : (isForgotPassword ? "Send Reset Link" : "Sign In")}
             </button>
 
             <div className="relative my-6">
@@ -268,7 +304,7 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              disabled={loading}
+              disabled={loading || isCooldownActive}
               className="w-full py-3 bg-white/5 border border-line text-white font-display uppercase tracking-widest text-xs rounded-xl hover:bg-white hover:text-black transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -292,18 +328,6 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               Google
             </button>
           </form>
-
-          {!loginOnly && (
-            <p className="mt-8 text-center text-xs text-secondary font-mono uppercase">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="ml-2 text-white hover:text-accent transition-colors"
-              >
-                {isLogin ? "Sign Up" : "Sign In"}
-              </button>
-            </p>
-          )}
         </>
       )}
     </div>

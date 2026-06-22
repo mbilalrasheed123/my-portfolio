@@ -4,8 +4,9 @@
  */
 
 import React, { Suspense, lazy } from "react";
-import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { auth } from "./firebase";
 // Pre-load components that should appear immediately
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
@@ -251,6 +252,14 @@ function AdminRoute() {
         <Admin />
       </div>
     );
+  }
+
+  // Strict Whitelist Check
+  if (user && user.email !== "muhammadbilalrasheed78@gmail.com") {
+    auth.signOut();
+    localStorage.clear();
+    sessionStorage.clear();
+    return <Navigate to="/" replace />;
   }
 
   // The Super Admin edits the "global" site data. 

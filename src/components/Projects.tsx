@@ -18,6 +18,7 @@ interface Project {
   showInIframe: boolean;
   featured: boolean;
   order: number;
+  downloadUrl?: string;
 }
 
 interface ProjectProps {

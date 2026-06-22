@@ -17,6 +17,7 @@ interface Project {
   showOpenInNewTab: boolean;
   featured: boolean;
   order: number;
+  downloadUrl?: string;
 }
 
 interface ProjectManagerProps {
@@ -95,7 +96,8 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
       showInIframe: true,
       showOpenInNewTab: true,
       featured: false,
-      order: projects.length
+      order: projects.length,
+      downloadUrl: ""
     });
     setIsEditing("new");
   };
@@ -407,6 +409,41 @@ export default function AdminProjectManager({ userId }: ProjectManagerProps) {
                       <li>• Recommended ratio: 16:10</li>
                       <li>• Formats: JPG, PNG, WEBP</li>
                     </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <label className="font-mono text-[10px] uppercase text-[#00ffa3]">Upload Project Asset File (.zip, .pdf, etc.)</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="space-y-2">
+                    <FileUpload 
+                      folder="project_assets"
+                      resourceType="raw"
+                      accept=".zip,.pdf,.rar,.tar,.gz,.doc,.docx"
+                      onUpload={(urls) => setFormData({ ...formData, downloadUrl: urls[0] })}
+                      label="Upload Asset File"
+                    />
+                    <ul className="text-[7px] font-mono text-secondary/60 uppercase space-y-1">
+                      <li>• Supported types: .zip, .pdf, .rar, etc.</li>
+                      <li>• Clean, secure download</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="font-mono text-[8px] uppercase text-secondary">Or use direct Download URL</label>
+                    <input
+                      placeholder="https://example.com/asset.zip"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-[10px] outline-none focus:border-[#00ffa3]"
+                      value={formData.downloadUrl || ""}
+                      onChange={e => setFormData({ ...formData, downloadUrl: e.target.value })}
+                    />
+                    {formData.downloadUrl && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-[8px] font-mono text-[#00ffa3] uppercase tracking-tight truncate max-w-full block">
+                          ✓ Saved: {formData.downloadUrl}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

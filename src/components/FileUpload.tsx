@@ -9,6 +9,7 @@ interface FileUploadProps {
   accept?: string;
   label?: string;
   className?: string;
+  resourceType?: "image" | "raw" | "auto" | "video";
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({ 
@@ -17,7 +18,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   multiple = false,
   accept = "image/*",
   label,
-  className = ""
+  className = "",
+  resourceType = "image"
 }) => {
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
@@ -56,7 +58,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         formData.append("upload_preset", uploadPreset);
         formData.append("folder", folder);
 
-        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
         
         const response = await fetch(uploadUrl, {
           method: "POST",
