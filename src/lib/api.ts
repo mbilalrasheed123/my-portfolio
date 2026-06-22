@@ -23,6 +23,54 @@ import {
 } from "../firebase";
 import imageCompression from "browser-image-compression";
 
+/**
+ * Sanitizes user-provided string input against script injection / XSS attacks.
+ */
+export function sanitizeString(val: string): string {
+  if (!val) return val;
+  return val
+    // Remove <script>...</script> block tags completely
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    // Remove onX event handlers (e.g. onclick, onload, onerror, etc.)
+    .replace(/\bon[a-z]+\s*=\s*(['"])(.*?)\1/gi, "")
+    .replace(/\bon[a-z]+\s*=\s*([^\s>]+)/gi, "")
+    // Remove javascript:, vbscript:, and data: schemes that execute scripting
+    .replace(/(javascript|vbscript|data):/gi, "")
+    // Strip other dangerous HTML tags like iframe, embed, object, link, style
+    .replace(/<\/?(iframe|embed|object|link|style|meta|html|body|applet)[^>]*>/gi, "")
+    // Escape generic < and > characters to avoid raw HTML injection and protect rendering
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Recursively sanitizes any primitive strings inside an object or array.
+ * Keeps special objects like Dates and Firestore FieldValues untampered.
+ */
+export function sanitizeData<T>(data: T): T {
+  if (typeof data === "string") {
+    return sanitizeString(data) as any;
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeData(item)) as any;
+  }
+  if (data !== null && typeof data === "object") {
+    if (
+      data.constructor && 
+      data.constructor.name !== "Object" && 
+      data.constructor.name !== "Array"
+    ) {
+      return data;
+    }
+    const sanitized: any = {};
+    for (const key of Object.keys(data)) {
+      sanitized[key] = sanitizeData((data as any)[key]);
+    }
+    return sanitized;
+  }
+  return data;
+}
+
 // API utility with explicit fetch functions and graceful error handling
 export const api = {
   // Generic list fetcher with graceful fallback and optional ordering
@@ -146,8 +194,9 @@ export const api = {
 
   async saveProject(data: any, userId?: string) {
     try {
+      const sanitizedData = sanitizeData(data);
       const payload: any = {
-        ...data,
+        ...sanitizedData,
         updatedAt: serverTimestamp(),
       };
 
@@ -321,8 +370,10 @@ export const api = {
   async post(collectionName: string, data: any, userId?: string) {
     try {
       console.log(`Attempting to post to ${collectionName}:`, data);
+      const sensitiveCollections = ["projects", "certificates", "testimonials", "skills", "experience", "settings"];
+      const clientData = sensitiveCollections.includes(collectionName) ? sanitizeData(data) : data;
       const payload: any = {
-        ...data,
+        ...clientData,
         updatedAt: serverTimestamp(),
       };
       
@@ -350,7 +401,9 @@ export const api = {
   async put(collectionName: string, id: string, data: any) {
     try {
       const docRef = doc(db, collectionName, id);
-      await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+      const sensitiveCollections = ["projects", "certificates", "testimonials", "skills", "experience", "settings"];
+      const clientData = sensitiveCollections.includes(collectionName) ? sanitizeData(data) : data;
+      await updateDoc(docRef, { ...clientData, updatedAt: serverTimestamp() });
       return { id };
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${id}`);
@@ -372,8 +425,9 @@ export const api = {
       const settingsId = userId || "global";
       const docRef = doc(db, "settings", settingsId);
       
+      const sanitizedData = sanitizeData(data);
       const payload: any = { 
-        ...data, 
+        ...sanitizedData, 
         updatedAt: serverTimestamp() 
       };
       
@@ -563,8 +617,9 @@ export const api = {
 
   async saveKnowledgeEntry(data: any, userId?: string) {
     try {
+      const sanitizedData = sanitizeData(data);
       const payload: any = { 
-        ...data, 
+        ...sanitizedData, 
         updatedAt: serverTimestamp() 
       };
 
