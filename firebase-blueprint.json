@@ -344,6 +344,92 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "role", "text"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "Email marketing campaign details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "content": { "type": "string" },
+        "templateId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "draft", "completed", "paused", "failed"] },
+        "sentCount": { "type": "number" },
+        "totalRecipients": { "type": "number" },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" },
+        "errorMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subject", "content", "status"]
+    },
+    "EmailTemplate": {
+      "title": "EmailTemplate",
+      "description": "Reusable email template design",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "subject": { "type": "string" },
+        "bodyHtml": { "type": "string" },
+        "bodyText": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "draft"] },
+        "createdBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "subject", "bodyHtml"]
+    },
+    "EmailLog": {
+      "title": "EmailLog",
+      "description": "Log entry tracking email transmission success or failure",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "campaignId": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["sent", "failed", "pending"] },
+        "errorMessage": { "type": "string" },
+        "smtpUsed": { "type": "string" },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["campaignId", "recipientEmail", "status"]
+    },
+    "EmailSetting": {
+      "title": "EmailSetting",
+      "description": "Email marketing system configuration and rate limiting",
+      "type": "object",
+      "properties": {
+        "dailyLimit": { "type": "number" },
+        "emailsSentToday": { "type": "number" },
+        "lastSentDate": { "type": "string" },
+        "batchSize": { "type": "number" },
+        "autoPause": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dailyLimit", "emailsSentToday"]
+    },
+    "CampaignRecipient": {
+      "title": "CampaignRecipient",
+      "description": "Recipient address queue mapped to a specific campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "campaignId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "sent", "failed"] },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "errorMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["campaignId", "email", "status"]
     }
   },
   "firestore": {
@@ -402,6 +488,26 @@
     "/testimonials/{testId}": {
       "schema": "Testimonial",
       "description": "Client endorsements listed on portfolio landing page"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "Campaign",
+      "description": "Email marketing campaigns list"
+    },
+    "/emailTemplates/{templateId}": {
+      "schema": "EmailTemplate",
+      "description": "Reusable template layouts for email campaigns"
+    },
+    "/emailLogs/{logId}": {
+      "schema": "EmailLog",
+      "description": "Trace log logs for send history & failure status"
+    },
+    "/emailSettings/{settingId}": {
+      "schema": "EmailSetting",
+      "description": "System throttling, bounds, limits, counters"
+    },
+    "/campaignRecipients/{recipientId}": {
+      "schema": "CampaignRecipient",
+      "description": "Recipients to process per campaign"
     }
   }
 }

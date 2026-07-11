@@ -3,6 +3,11 @@ import path from "path";
 import dotenv from "dotenv";
 import admin, { adminDb } from "./src/lib/firebase-admin.js";
 import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
+import { processEmailQueue } from "./src/lib/email-campaign-service.js";
+import campaignRouter from "./api/email/campaigns/route.js";
+import templateRouter from "./api/email/templates/route.js";
+import recipientRouter from "./api/email/recipients/route.js";
+import settingsRouter from "./api/email/settings/route.js";
 import { KeyRotationService } from "./src/lib/KeyRotationService.js";
 import { encryptKey } from "./src/lib/cryptoUtils.js";
 import { GoogleGenAI } from "@google/genai";
@@ -35,6 +40,12 @@ app.use(express.json());
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
+// Email Marketing API Routes
+app.use("/api/email/campaigns", campaignRouter);
+app.use("/api/email/templates", templateRouter);
+app.use("/api/email/recipients", recipientRouter);
+app.use("/api/email/settings", settingsRouter);
 
 /**
  * Helper to generate content with resilient retry, key rotation, and model fallback
@@ -346,6 +357,22 @@ app.get("/api/cron/aggregate-analytics", async (req, res) => {
     res.json({ success: true, message: "Aggregation completed" });
   } catch (error) {
     res.status(500).json({ error: "Aggregation failed" });
+  }
+});
+
+// Vercel-style Cron endpoint for email marketing campaigns dispatch
+app.get("/api/cron/send-emails", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const report = await processEmailQueue();
+    res.json({ success: true, report });
+  } catch (error: any) {
+    console.error("[Cron Send-Emails] Execution failed:", error);
+    res.status(500).json({ error: "Email processing queue failed", details: error?.message });
   }
 });
 

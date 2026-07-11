@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles, BookOpen, Activity, ArrowUpRight, Search, Columns, Layout } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, LogIn, LogOut, LayoutDashboard, Settings as SettingsIcon, FolderKanban, MessageSquare, Send, CheckCircle, Clock, Users, Award, Upload, Image as ImageIcon, ChevronLeft, ChevronRight, Bot, AlertCircle, ExternalLink, Menu, RotateCcw, Star, Sparkles, BookOpen, Activity, ArrowUpRight, Search, Columns, Layout, Mail } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import Auth from "./Auth";
-import { api } from "../lib/api";
+import { api, sanitizeData } from "../lib/api";
 import AdminProjectManager from "./AdminProjectManager";
 import { FileUpload } from "./FileUpload";
 import KeyManager from "./KeyManager";
@@ -12,10 +12,11 @@ const ADMIN_EMAIL = "muhammadbilalrasheed78@gmail.com";
 const DEFAULT_ADMIN_PASSWORD = "mypass";
 
 import ChatHistoryManager from "./ChatHistoryManager";
+import EmailMarketing from "./EmailMarketing";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials" | "emailMarketing">("dashboard");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("admin_theme");
     return (saved as any) || "dark";
@@ -458,10 +459,13 @@ export default function Admin() {
       // Remove legacy image field if it exists
       delete projectData.image;
 
+      // Sanitize project form data against XSS / script injections
+      const sanitizedData = sanitizeData(projectData);
+
       if (isEditing === "new") {
-        await api.post("projects", projectData, targetId);
+        await api.post("projects", sanitizedData, targetId);
       } else if (isEditing) {
-        await api.put("projects", isEditing, projectData);
+        await api.put("projects", isEditing, sanitizedData);
       }
       
       setIsEditing(null);
@@ -582,10 +586,13 @@ export default function Admin() {
         order: Number(formData.order) || 0
       };
 
+      // Sanitize certificate form data against XSS / script injections
+      const sanitizedData = sanitizeData(certData);
+
       if (isEditing === "new_cert") {
-        await api.post("certificates", certData, targetId);
+        await api.post("certificates", sanitizedData, targetId);
       } else if (isEditing) {
-        await api.put("certificates", isEditing, certData);
+        await api.put("certificates", isEditing, sanitizedData);
       }
 
       setIsEditing(null);
@@ -629,10 +636,13 @@ export default function Admin() {
       const cleanData = { ...testimonialData };
       delete cleanData.id;
 
+      // Sanitize testimonial form data against XSS / script injections
+      const sanitizedData = sanitizeData(cleanData);
+
       if (isEditing === "new_testimonial") {
-        await api.post("testimonials", cleanData, targetId);
+        await api.post("testimonials", sanitizedData, targetId);
       } else if (isEditing) {
-        await api.put("testimonials", isEditing, cleanData);
+        await api.put("testimonials", isEditing, sanitizedData);
       }
 
       setIsEditing(null);
@@ -1113,6 +1123,7 @@ export default function Admin() {
                 { id: "knowledgeBase", label: "Knowledge Base", icon: BookOpen },
                 { id: "testimonials", label: "Testimonials", icon: Star },
                 { id: "settings", label: "Settings", icon: SettingsIcon },
+                ...(isSuperAdmin ? [{ id: "emailMarketing", label: "Email Marketing", icon: Mail }] : []),
                 ...(isSuperAdmin ? [{ id: "apiKeys", label: "Rotation", icon: RotateCcw }] : [])
               ]
               .filter(item => item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
@@ -3390,6 +3401,10 @@ export default function Admin() {
 
         {activeTab === "apiKeys" && isSuperAdmin && (
           <KeyManager />
+        )}
+
+        {activeTab === "emailMarketing" && isSuperAdmin && (
+          <EmailMarketing />
         )}
         </div>
       </div>

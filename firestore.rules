@@ -126,5 +126,29 @@ service cloud.firestore {
       allow write: if true;
       allow read: if isAdmin();
     }
+
+    // ---------------------------------------------------------
+    // 8. EMAIL MARKETING COLLECTIONS
+    // ---------------------------------------------------------
+    match /campaigns/{campaignId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /emailTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /emailLogs/{logId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /emailSettings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /campaignRecipients/{recipientId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

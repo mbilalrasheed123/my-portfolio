@@ -27,6 +27,10 @@
   ],
   "crons": [
     {
+      "path": "/api/cron/send-emails",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/aggregate-analytics",
       "schedule": "0 1 * * *"
     },
