@@ -95,6 +95,37 @@ export default function CampaignsTab({ onEditCampaign, onCreateNew }: CampaignsT
     }
   };
 
+  const handleSendCampaignNow = async (id: string) => {
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    setError(null);
+    setSuccess(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/email/send-now", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ campaignId: id })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      
+      if (data.processed === 0) {
+        setError("No pending emails found for this campaign to send.");
+      } else {
+        setSuccess(`Sent ${data.successes} emails successfully for this campaign!`);
+      }
+      await fetchCampaigns();
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to send campaign emails: " + (err?.message || String(err)));
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case "active":
@@ -197,6 +228,18 @@ export default function CampaignsTab({ onEditCampaign, onCreateNew }: CampaignsT
                             : new Date(campaign.createdAt?.seconds * 1000).toLocaleDateString()
                         ) : "Recently"}
                       </span>
+                      {campaign.lastSentAt && (
+                        <>
+                          <span>•</span>
+                          <span className="text-emerald-400">
+                            Last Sent: {
+                              typeof campaign.lastSentAt === 'string'
+                                ? new Date(campaign.lastSentAt).toLocaleString()
+                                : new Date(campaign.lastSentAt?.seconds * 1000).toLocaleString()
+                            }
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -208,20 +251,52 @@ export default function CampaignsTab({ onEditCampaign, onCreateNew }: CampaignsT
                 </div>
 
                 {/* PROGRESS COUNTERS */}
-                <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl shrink-0">
-                  <div className="p-2 bg-white/5 border border-line rounded-xl text-accent">
-                    <Users size={14} />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
+                    <div className="p-2 bg-white/5 border border-line rounded-xl text-accent">
+                      <Users size={14} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Sent</span>
+                      <span className="text-xs font-sans text-white font-bold block mt-0.5">
+                        {campaign.sentCount} / {campaign.totalRecipients || 0}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Recipients Sent</span>
-                    <span className="text-xs font-sans text-white font-bold block mt-0.5">
-                      {campaign.sentCount} / {campaign.totalRecipients || 0}
-                    </span>
+
+                  <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
+                    <div className="p-2 bg-white/5 border border-line rounded-xl text-amber-400">
+                      <Clock size={14} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Pending</span>
+                      <span className="text-xs font-sans text-amber-400 font-bold block mt-0.5">
+                        {campaign.pendingCount ?? 0} emails
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* ACTIONS */}
-                <div className="flex items-center gap-2 shrink-0 w-full md:w-auto border-t border-line/30 pt-4 md:border-none md:pt-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto border-t border-line/30 pt-4 md:border-none md:pt-0">
+                  {/* SEND CAMPAIGN PENDING EMAILS NOW */}
+                  {(campaign.pendingCount ?? 0) > 0 && (
+                    <button
+                      onClick={() => handleSendCampaignNow(campaign.id)}
+                      disabled={isToggling}
+                      className="flex-1 md:flex-initial p-2 px-4 rounded-xl border border-accent hover:bg-accent hover:text-white text-accent font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                      title="Send this campaign's pending emails now"
+                    >
+                      {isToggling ? (
+                        <RefreshCw size={11} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Play size={11} /> Send Pending
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   {/* PLAY/PAUSE */}
                   {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "active" || campaign.status === "failed") && (
                     <button

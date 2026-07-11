@@ -50,24 +50,32 @@ export default function DashboardTab({ onNavigateToCampaigns }: DashboardTabProp
     setSuccessMsg(null);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/email/settings/trigger-queue", {
+      const res = await fetch("/api/email/send-now", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      const report = data.report;
       
-      setSuccessMsg(
-        `Queue processed! ${report.processed} emails sent (${report.successes} Succeeded, ${report.failures} Failed).`
-      );
+      const remaining = data.dailyLimit !== undefined ? (data.dailyLimit - data.emailsSentToday) : (stats.dailyLimit - (stats.emailsSentToday + data.successes));
+      
+      if (data.failures > 0) {
+        setSuccessMsg(
+          `Sent ${data.successes} emails successfully. ${data.failures} failed - check logs. ${remaining} remaining today.`
+        );
+      } else {
+        setSuccessMsg(
+          `Sent ${data.successes} emails successfully. ${remaining} remaining today.`
+        );
+      }
       // Refresh stats
       fetchStats();
     } catch (err: any) {
       console.error(err);
-      setError("Failed to process queue: " + (err?.message || String(err)));
+      setError("Failed to send emails: " + (err?.message || String(err)));
     } finally {
       setTriggering(false);
     }
@@ -83,6 +91,9 @@ export default function DashboardTab({ onNavigateToCampaigns }: DashboardTabProp
   }
 
   const quotaPercentage = Math.min(100, Math.round((stats.emailsSentToday / stats.dailyLimit) * 100)) || 0;
+  const remainingQuota = Math.max(0, stats.dailyLimit - stats.emailsSentToday);
+  const isLimitReached = stats.emailsSentToday >= stats.dailyLimit;
+  const isNoPending = stats.pendingCount === 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -163,10 +174,13 @@ export default function DashboardTab({ onNavigateToCampaigns }: DashboardTabProp
 
       {/* QUICK LAUNCH ENGINE AND ACTIONS */}
       <div className="glass p-6 rounded-3xl border border-line flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-1 text-center md:text-left">
-          <h4 className="text-xs font-sans font-semibold text-white">Manual Dispatch Engine Trigger</h4>
+        <div className="space-y-2 text-center md:text-left">
+          <h4 className="text-xs font-sans font-semibold text-white">Manual Dispatch Engine</h4>
+          <div className="text-xs font-semibold text-emerald-400 font-mono">
+            {remainingQuota} emails remaining today
+          </div>
           <p className="text-[9px] font-mono text-secondary uppercase leading-relaxed">
-            Forces a single execution pass of the email sender queue. Processes 5 pending emails instantly.
+            Sends up to 50 pending emails instantly from active campaign queues.
           </p>
         </div>
         
@@ -175,21 +189,25 @@ export default function DashboardTab({ onNavigateToCampaigns }: DashboardTabProp
             onClick={fetchStats}
             className="flex-1 md:flex-initial px-4 py-2 border border-line hover:border-white/20 text-white rounded-full font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer hover:bg-white/[0.02]"
           >
-            <RefreshCw size={10} className={loading ? "animate-spin" : ""} /> Refresh
+            <RefreshCw size={10} className={loading ? "animate-spin" : ""} /> Refresh Stats
           </button>
           
           <button
             onClick={handleTriggerQueue}
-            disabled={triggering || stats.pendingCount === 0}
+            disabled={triggering || isLimitReached || isNoPending}
             className="flex-1 md:flex-initial px-6 py-2 bg-accent text-white font-mono text-[9px] uppercase tracking-wider font-bold rounded-full hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {triggering ? (
               <>
-                <RefreshCw size={10} className="animate-spin" /> Triggering...
+                <RefreshCw size={10} className="animate-spin" /> Sending...
               </>
+            ) : isLimitReached ? (
+              "Limit Reached"
+            ) : isNoPending ? (
+              "No Pending Emails"
             ) : (
               <>
-                <Play size={10} /> Launch Run
+                <Play size={10} /> Send Pending Emails Now
               </>
             )}
           </button>

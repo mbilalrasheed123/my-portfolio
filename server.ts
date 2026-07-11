@@ -3,7 +3,8 @@ import path from "path";
 import dotenv from "dotenv";
 import admin, { adminDb } from "./src/lib/firebase-admin.js";
 import { aggregateDailyStats } from "./src/lib/analytics-aggregator.js";
-import { processEmailQueue } from "./src/lib/email-campaign-service.js";
+import { processEmailQueue, processManualEmailQueue } from "./src/lib/email-campaign-service.js";
+import { requireAdminAuth } from "./src/lib/email-auth.js";
 import campaignRouter from "./api/email/campaigns/route.js";
 import templateRouter from "./api/email/templates/route.js";
 import recipientRouter from "./api/email/recipients/route.js";
@@ -46,6 +47,18 @@ app.use("/api/email/campaigns", campaignRouter);
 app.use("/api/email/templates", templateRouter);
 app.use("/api/email/recipients", recipientRouter);
 app.use("/api/email/settings", settingsRouter);
+
+// POST /api/email/send-now
+app.post("/api/email/send-now", requireAdminAuth, async (req, res) => {
+  try {
+    const { campaignId } = req.body;
+    const report = await processManualEmailQueue(50, campaignId);
+    res.json({ success: true, ...report });
+  } catch (error: any) {
+    console.error("[Email API] /api/email/send-now manual send failed:", error);
+    res.status(500).json({ error: "Failed to process email queue manually", details: error?.message });
+  }
+});
 
 /**
  * Helper to generate content with resilient retry, key rotation, and model fallback

@@ -21,7 +21,21 @@ router.get("/", async (req, res) => {
       .orderBy("createdAt", "desc")
       .get();
     
-    const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const campaigns = await Promise.all(snapshot.docs.map(async doc => {
+      const campaignId = doc.id;
+      const data = doc.data() || {};
+      
+      const pendingSnap = await adminDb.collection("campaignRecipients")
+        .where("campaignId", "==", campaignId)
+        .where("status", "==", "pending")
+        .get();
+        
+      return {
+        id: campaignId,
+        ...data,
+        pendingCount: pendingSnap.size
+      };
+    }));
     res.json(campaigns);
   } catch (error: any) {
     console.error("[Campaigns API] Error fetching campaigns:", error);

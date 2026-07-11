@@ -407,3 +407,250 @@ export async function processEmailQueue(): Promise<{
     notes: resultNotes
   };
 }
+
+/**
+ * Processes up to 50 pending emails manually.
+ * This is designed for manual queue triggers from the Admin Panel.
+ * Runs concurrent dispatches so it completes in under 10 seconds.
+ */
+export async function processManualEmailQueue(maxEmails: number = 50, campaignIdFilter?: string): Promise<{
+  processed: number;
+  successes: number;
+  failures: number;
+  limitReached: boolean;
+  notes: string;
+}> {
+  if (!adminDb) {
+    return { processed: 0, successes: 0, failures: 0, limitReached: false, notes: "No database connection" };
+  }
+
+  console.log(`[EmailCampaignService] Starting manual queue processing (max: ${maxEmails}, campaign filter: ${campaignIdFilter || "none"})...`);
+
+  // 1. Fetch current settings & check limits
+  let settings = await getEmailSettings();
+  const todayStr = getTodayDateString();
+
+  if (settings.lastSentDate !== todayStr) {
+    console.log(`[EmailCampaignService] Day changed. Resetting emailsSentToday count.`);
+    settings.emailsSentToday = 0;
+    settings.lastSentDate = todayStr;
+    await adminDb.collection("emailSettings").doc("global").set(settings);
+  }
+
+  const remainingQuota = Math.max(0, settings.dailyLimit - settings.emailsSentToday);
+  if (remainingQuota <= 0) {
+    return { processed: 0, successes: 0, failures: 0, limitReached: true, notes: "Daily limit reached" };
+  }
+
+  const toSendCount = Math.min(maxEmails, remainingQuota);
+  if (toSendCount <= 0) {
+    return { processed: 0, successes: 0, failures: 0, limitReached: true, notes: "Daily limit reached" };
+  }
+
+  // 2. Query campaigns
+  let campaignDocs: any[] = [];
+  if (campaignIdFilter) {
+    const campaignDoc = await adminDb.collection("campaigns").doc(campaignIdFilter).get();
+    if (campaignDoc.exists) {
+      campaignDocs = [campaignDoc];
+    }
+  } else {
+    const activeCampaignsSnap = await adminDb.collection("campaigns")
+      .where("status", "==", "active")
+      .limit(3)
+      .get();
+    campaignDocs = activeCampaignsSnap.docs;
+  }
+
+  if (campaignDocs.length === 0) {
+    return { processed: 0, successes: 0, failures: 0, limitReached: false, notes: "No campaigns to process" };
+  }
+
+  // 3. Collect jobs up to toSendCount
+  const pendingJobs: {
+    recipientId: string;
+    recipient: CampaignRecipient;
+    campaign: Campaign;
+    campaignId: string;
+    template: EmailTemplate | null;
+  }[] = [];
+
+  for (const campaignDoc of campaignDocs) {
+    if (pendingJobs.length >= toSendCount) break;
+
+    const campaignId = campaignDoc.id;
+    const campaign = campaignDoc.data() as Campaign;
+
+    // Validate campaign (only validate if campaign is active and we are NOT targeting a specific campaign)
+    if (!campaignIdFilter && campaign.status === "active") {
+      const validation = await validateAndNormalizeCampaign(campaignId);
+      if (!validation.valid) {
+        console.warn(`[EmailCampaignService] Campaign ${campaignId} failed validation. Pausing campaign.`);
+        await adminDb.collection("campaigns").doc(campaignId).update({
+          status: "failed",
+          errorMessage: validation.error,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        continue;
+      }
+    }
+
+    // Fetch template details if templateId exists
+    let template: EmailTemplate | null = null;
+    if (campaign.templateId) {
+      const templateDoc = await adminDb.collection("emailTemplates").doc(campaign.templateId).get();
+      if (templateDoc.exists) {
+        template = templateDoc.data() as EmailTemplate;
+      }
+    }
+
+    const limitForThisCampaign = toSendCount - pendingJobs.length;
+    const pendingRecipientsSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", campaignId)
+      .where("status", "==", "pending")
+      .limit(limitForThisCampaign)
+      .get();
+
+    for (const recDoc of pendingRecipientsSnap.docs) {
+      pendingJobs.push({
+        recipientId: recDoc.id,
+        recipient: recDoc.data() as CampaignRecipient,
+        campaign,
+        campaignId,
+        template
+      });
+    }
+  }
+
+  if (pendingJobs.length === 0) {
+    return { processed: 0, successes: 0, failures: 0, limitReached: false, notes: "No pending emails found to process." };
+  }
+
+  let successes = 0;
+  let failures = 0;
+
+  // 4. Process all jobs concurrently to ensure we finish in under 10 seconds
+  const jobPromises = pendingJobs.map(async (job) => {
+    const { recipientId, recipient, campaign, campaignId, template } = job;
+
+    // Render final content
+    let finalHtml = campaign.content;
+    let finalSubject = campaign.subject;
+
+    if (template) {
+      finalHtml = template.bodyHtml.replace("{{content}}", campaign.content);
+      if (!campaign.subject) {
+        finalSubject = template.subject;
+      }
+    }
+
+    // Replace placeholders
+    const recName = recipient.name || "Subscriber";
+    finalHtml = finalHtml.replace(/\{\{name\}\}/gi, recName).replace(/\{\{email\}\}/gi, recipient.email);
+    finalSubject = finalSubject.replace(/\{\{name\}\}/gi, recName).replace(/\{\{email\}\}/gi, recipient.email);
+
+    // Perform mail send
+    const sendResult = await sendMailViaSMTP(recipient.email, finalSubject, finalHtml);
+    const logId = adminDb.collection("emailLogs").doc().id;
+
+    if (sendResult.success) {
+      successes++;
+      // Update recipient
+      await adminDb.collection("campaignRecipients").doc(recipientId).update({
+        status: "sent",
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Add email send log
+      await adminDb.collection("emailLogs").doc(logId).set({
+        id: logId,
+        campaignId,
+        recipientEmail: recipient.email,
+        status: "sent",
+        smtpUsed: sendResult.mode,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Increment campaign sent count
+      await adminDb.collection("campaigns").doc(campaignId).update({
+        sentCount: admin.firestore.FieldValue.increment(1),
+        lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      failures++;
+      // Update recipient
+      await adminDb.collection("campaignRecipients").doc(recipientId).update({
+        status: "failed",
+        errorMessage: sendResult.error || "Failed sending SMTP packet",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Add email fail log
+      await adminDb.collection("emailLogs").doc(logId).set({
+        id: logId,
+        campaignId,
+        recipientEmail: recipient.email,
+        status: "failed",
+        errorMessage: sendResult.error || "SMTP error",
+        smtpUsed: sendResult.mode,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  });
+
+  await Promise.all(jobPromises);
+
+  // 5. Update global sending stats
+  settings.emailsSentToday += successes;
+  await adminDb.collection("emailSettings").doc("global").set(settings);
+
+  // 6. Check campaign completion for each campaign processed
+  const campaignIdsToCheck = Array.from(new Set(pendingJobs.map(j => j.campaignId)));
+  for (const cid of campaignIdsToCheck) {
+    const pendingCheck = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", cid)
+      .where("status", "==", "pending")
+      .limit(1)
+      .get();
+
+    if (pendingCheck.empty) {
+      console.log(`[EmailCampaignService] Campaign ${cid} completed! All recipients processed.`);
+      await adminDb.collection("campaigns").doc(cid).update({
+        status: "completed",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }
+
+  // 7. Auto-pause if daily limit was hit
+  const limitReached = settings.emailsSentToday >= settings.dailyLimit;
+  if (limitReached) {
+    console.warn("[EmailCampaignService] Daily quota reached manually. Pausing remaining active campaigns.");
+    const activeSnaps = await adminDb.collection("campaigns")
+      .where("status", "==", "active")
+      .get();
+
+    for (const actDoc of activeSnaps.docs) {
+      await adminDb.collection("campaigns").doc(actDoc.id).update({
+        status: "paused",
+        errorMessage: "Auto-paused: Daily sending quota reached.",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }
+
+  const resultNotes = `Manual run: Sent ${successes} successfully, ${failures} failed. Remaining today: ${settings.dailyLimit - settings.emailsSentToday}`;
+  console.log(`[EmailCampaignService] ${resultNotes}`);
+
+  return {
+    processed: pendingJobs.length,
+    successes,
+    failures,
+    limitReached,
+    notes: resultNotes
+  };
+}

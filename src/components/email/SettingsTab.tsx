@@ -194,6 +194,23 @@ export default function SettingsTab() {
                 <div className="w-9 h-5 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent" />
               </label>
             </div>
+
+            <div className="flex items-center justify-between p-4 bg-white/[0.02] border border-line rounded-2xl opacity-60">
+              <div className="space-y-0.5">
+                <span className="text-xs font-sans font-bold text-white block">Automatic Dispatch (Cron)</span>
+                <span className="text-[8px] font-mono text-amber-500 uppercase block font-semibold">Disabled (Manual Only - Future Enhancement)</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-not-allowed">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={false}
+                  disabled={true}
+                  readOnly
+                />
+                <div className="w-9 h-5 bg-white/5 rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white/40 after:rounded-full after:h-4 after:w-4 after:transition-all" />
+              </label>
+            </div>
           </div>
 
           <button
