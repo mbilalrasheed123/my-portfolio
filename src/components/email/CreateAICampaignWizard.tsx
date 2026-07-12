@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, FileText, AlertCircle, Trash2, HelpCircle, Sparkles, Wand2 } from "lucide-react";
+import { auth } from "../../firebase";
 import ModelSelector from "./ModelSelector";
 import ImageStrategySelector from "./ImageStrategySelector";
 import ManualLeadEntry from "./ManualLeadEntry";
@@ -383,10 +384,15 @@ export default function CreateAICampaignWizard({ onBack, onSuccess }: CreateAICa
 
     setLoading(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
+
       // 1. Create AI Campaign
       const createResp = await fetch("/api/email/ai-campaigns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           title,
           description,
@@ -406,7 +412,10 @@ export default function CreateAICampaignWizard({ onBack, onSuccess }: CreateAICa
       // 2. Upload CSV content
       const uploadResp = await fetch(`/api/email/ai-campaigns/${campaignId}/upload-leads`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ csvContent })
       });
 
