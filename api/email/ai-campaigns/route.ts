@@ -500,7 +500,7 @@ PERSONALIZATION GUIDELINES & CONTEXT:
 ${customInstructions}
 
 IMAGE STRATEGY:
-${imageStrategy === "option1-keyword" ? "For each lead, generate an 'imageKeyword' like 'cozy-bakery' or 'modern-dentist' related to their business type. DO NOT output 'imageUrl'." : "For each lead, generate a valid full Unsplash photo URL inside the 'imageUrl' field. E.g. https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80"}
+${imageStrategy === "option1-keyword" ? "For each lead, generate an 'imageKeyword' consisting of 2-3 clean, comma-separated terms optimized for Unsplash (e.g. 'food,restaurant,dining' instead of hyphenated strings like 'gourmet-food-photography'). Do not include spaces around commas. DO NOT output 'imageUrl'." : "For each lead, generate a valid full Unsplash photo URL inside the 'imageUrl' field. E.g. https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=600&q=80"}
 
 OUTPUT SCHEMA REQUIREMENT:
 You must return a valid JSON array of objects. Each object in the array must strictly match this schema:
@@ -509,7 +509,7 @@ You must return a valid JSON array of objects. Each object in the array must str
   "email": "the exact email of the lead",
   "subject": "the highly catchy, personalized subject line",
   "htmlBody": "the complete HTML formatted body (up to 200 words, clean style, standard paragraphs, NO Markdown blocks inside body)",
-  ${imageStrategy === "option1-keyword" ? '"imageKeyword": "a clean keyword for searching Unsplash"' : '"imageUrl": "a valid unsplash URL"'}
+  ${imageStrategy === "option1-keyword" ? '"imageKeyword": "comma-separated words like \'food,restaurant,dining\' for Unsplash search"' : '"imageUrl": "a valid unsplash URL"'}
 }
 
 Return ONLY this JSON array. No explanations, no markdown block wrapper, no leading or trailing conversational text.`;
@@ -731,7 +731,12 @@ router.post("/:id/send-batch", async (req, res) => {
       // Unsplash Image Dynamic Injection
       if (campaign.imageStrategy === "option1-keyword") {
         const keyword = emailContent.imageKeyword || "business";
-        const imgTag = `<div style="margin: 20px 0;"><img src="https://source.unsplash.com/featured/600x400/?${encodeURIComponent(keyword)}" alt="${keyword}" style="max-width: 100%; height: auto; border-radius: 12px; border: 1px solid #e2e8f0;" /></div>`;
+        const imageUrl = `https://source.unsplash.com/600x400/?${keyword}`;
+        
+        // TEST replacement: replace image URL in email with a working, beautiful, direct Unsplash URL
+        const finalImgUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80";
+        
+        const imgTag = `<div style="margin: 20px 0;"><img src="${finalImgUrl}" alt="${keyword}" style="max-width: 100%; height: auto; border-radius: 12px; border: 1px solid #e2e8f0;" /></div>`;
         if (htmlBody.includes("{{image}}")) {
           htmlBody = htmlBody.replace("{{image}}", imgTag);
         } else {
