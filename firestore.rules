@@ -150,5 +150,24 @@ service cloud.firestore {
     match /campaignRecipients/{recipientId} {
       allow read, write: if isAdmin();
     }
+
+    // ---------------------------------------------------------
+    // 9. AI CAMPAIGN COLLECTIONS (Admin-Only Access)
+    // ---------------------------------------------------------
+    match /aiCampaigns/{campaignId} {
+      allow read, write: if isAdmin();
+      
+      match /leads/{leadId} {
+        allow read, write: if isAdmin();
+      }
+      
+      match /logs/{logId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /aiCampaignSettings/{settingId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

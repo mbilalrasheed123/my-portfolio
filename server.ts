@@ -9,6 +9,7 @@ import campaignRouter from "./api/email/campaigns/route.js";
 import templateRouter from "./api/email/templates/route.js";
 import recipientRouter from "./api/email/recipients/route.js";
 import settingsRouter from "./api/email/settings/route.js";
+import aiCampaignRouter from "./api/email/ai-campaigns/route.js";
 import { KeyRotationService } from "./src/lib/KeyRotationService.js";
 import { encryptKey } from "./src/lib/cryptoUtils.js";
 import { GoogleGenAI } from "@google/genai";
@@ -47,6 +48,7 @@ app.use("/api/email/campaigns", campaignRouter);
 app.use("/api/email/templates", templateRouter);
 app.use("/api/email/recipients", recipientRouter);
 app.use("/api/email/settings", settingsRouter);
+app.use("/api/email/ai-campaigns", aiCampaignRouter);
 
 // POST /api/email/send-now
 app.post("/api/email/send-now", requireAdminAuth, async (req, res) => {

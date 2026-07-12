@@ -13,10 +13,11 @@ const DEFAULT_ADMIN_PASSWORD = "mypass";
 
 import ChatHistoryManager from "./ChatHistoryManager";
 import EmailMarketing from "./EmailMarketing";
+import AICampaignsTab from "./email/AICampaignsTab";
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials" | "emailMarketing">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings" | "queries" | "users" | "certificates" | "leads" | "chatHistory" | "about" | "knowledgeBase" | "apiKeys" | "testimonials" | "emailMarketing" | "aiCampaigns">("dashboard");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     const saved = localStorage.getItem("admin_theme");
     return (saved as any) || "dark";
@@ -1124,6 +1125,7 @@ export default function Admin() {
                 { id: "testimonials", label: "Testimonials", icon: Star },
                 { id: "settings", label: "Settings", icon: SettingsIcon },
                 ...(isSuperAdmin ? [{ id: "emailMarketing", label: "Email Marketing", icon: Mail }] : []),
+                ...(isSuperAdmin ? [{ id: "aiCampaigns", label: "AI Campaigns", icon: Sparkles }] : []),
                 ...(isSuperAdmin ? [{ id: "apiKeys", label: "Rotation", icon: RotateCcw }] : [])
               ]
               .filter(item => item.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
@@ -3405,6 +3407,10 @@ export default function Admin() {
 
         {activeTab === "emailMarketing" && isSuperAdmin && (
           <EmailMarketing />
+        )}
+
+        {activeTab === "aiCampaigns" && isSuperAdmin && (
+          <AICampaignsTab />
         )}
         </div>
       </div>

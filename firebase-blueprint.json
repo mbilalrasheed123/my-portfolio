@@ -430,6 +430,107 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["campaignId", "email", "status"]
+    },
+    "AICampaign": {
+      "title": "AICampaign",
+      "description": "AI-powered personalized email campaign details",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "active", "paused", "completed"] },
+        "totalLeads": { "type": "number" },
+        "sentCount": { "type": "number" },
+        "failedCount": { "type": "number" },
+        "remainingCount": { "type": "number" },
+        "lastProcessedLeadId": { "type": "string" },
+        "geminiModel": { "type": "string", "enum": ["flash", "flash-lite", "2.5-flash", "2.5-pro"] },
+        "imageStrategy": { "type": "string", "enum": ["option1-keyword", "option2-unsplash-dynamic"] },
+        "imageKeywordTemplate": { "type": "string" },
+        "instructions": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "totalBatches": { "type": "number" },
+            "batchesProcessed": { "type": "number" },
+            "estimatedTimeRemaining": { "type": "string" }
+          }
+        }
+      },
+      "required": ["title", "status", "geminiModel", "imageStrategy", "instructions"]
+    },
+    "AICampaignLead": {
+      "title": "AICampaignLead",
+      "description": "Lead for an AI personalized campaign",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "businessType": { "type": "string" },
+        "businessName": { "type": "string" },
+        "city": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "generated", "sent", "failed"] },
+        "generatedEmail": {
+          "type": "object",
+          "properties": {
+            "subject": { "type": "string" },
+            "htmlBody": { "type": "string" },
+            "selectedImageUrl": { "type": "string" }
+          }
+        },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "errorMessage": { "type": "string" },
+        "retryCount": { "type": "number" },
+        "batchNumber": { "type": "number" }
+      },
+      "required": ["email", "name", "status"]
+    },
+    "AICampaignLog": {
+      "title": "AICampaignLog",
+      "description": "Granular execution trace for AI campaign dispatches",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "batchNumber": { "type": "number" },
+        "status": { "type": "string", "enum": ["sent", "failed"] },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "errorMessage": { "type": "string" },
+        "emailContent": {
+          "type": "object",
+          "properties": {
+            "subject": { "type": "string" },
+            "body": { "type": "string" },
+            "imageUrl": { "type": "string" }
+          }
+        },
+        "geminiRequestId": { "type": "string" }
+      },
+      "required": ["leadId", "email", "status"]
+    },
+    "AICampaignSettings": {
+      "title": "AICampaignSettings",
+      "description": "Singleton configuration for AI campaigns and RPM limiting",
+      "type": "object",
+      "properties": {
+        "modelConfigs": {
+          "type": "object",
+          "properties": {
+            "flash": { "type": "object", "properties": { "rpm": { "type": "number" }, "rpd": { "type": "number" } } },
+            "flash-lite": { "type": "object", "properties": { "rpm": { "type": "number" }, "rpd": { "type": "number" } } },
+            "2.5-flash": { "type": "object", "properties": { "rpm": { "type": "number" }, "rpd": { "type": "number" } } },
+            "2.5-pro": { "type": "object", "properties": { "rpm": { "type": "number" }, "rpd": { "type": "number" } } }
+          }
+        },
+        "lastGeminiRequestTime": { "type": "string", "format": "date-time" },
+        "requestCountThisMinute": { "type": "number" },
+        "imageStrategy": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -508,6 +609,22 @@
     "/campaignRecipients/{recipientId}": {
       "schema": "CampaignRecipient",
       "description": "Recipients to process per campaign"
+    },
+    "/aiCampaigns/{campaignId}": {
+      "schema": "AICampaign",
+      "description": "AI personalization campaign details"
+    },
+    "/aiCampaigns/{campaignId}/leads/{leadId}": {
+      "schema": "AICampaignLead",
+      "description": "Target lead list and generation state for an AI campaign"
+    },
+    "/aiCampaigns/{campaignId}/logs/{logId}": {
+      "schema": "AICampaignLog",
+      "description": "Execution and dispatch log traces for AI campaign leads"
+    },
+    "/aiCampaignSettings/{settingId}": {
+      "schema": "AICampaignSettings",
+      "description": "Singleton or model configurations for AI campaign rate limits"
     }
   }
 }
