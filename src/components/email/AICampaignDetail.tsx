@@ -3,6 +3,7 @@ import {
   ArrowLeft, RefreshCw, Send, Play, Pause, AlertTriangle, 
   CheckCircle, Clock, Sparkles, AlertCircle, FileText, Ban, Trash2, Cpu, Image as ImageIcon 
 } from "lucide-react";
+import { auth } from "../../firebase";
 import CampaignProgress from "./CampaignProgress";
 import RateLimitStatus from "./RateLimitStatus";
 import AIEmailLogs from "./AIEmailLogs";
@@ -39,11 +40,20 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     imageStrategy: "option1-keyword"
   });
 
+  const getAuthHeaders = async (additionalHeaders: Record<string, string> = {}) => {
+    const token = await auth.currentUser?.getIdToken();
+    return {
+      "Authorization": `Bearer ${token}`,
+      ...additionalHeaders
+    };
+  };
+
   const fetchStatusAndCampaign = async () => {
     if (!campaignId) return;
     try {
+      const headers = await getAuthHeaders();
       // Fetch details
-      const confResp = await fetch(`/api/email/ai-campaigns/${campaignId}/status`);
+      const confResp = await fetch(`/api/email/ai-campaigns/${campaignId}/status`, { headers });
       const metrics = await confResp.json();
       if (confResp.ok) {
         setStatusMetrics(metrics);
@@ -51,7 +61,7 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
       }
 
       // Fetch config
-      const docResp = await fetch(`/api/email/ai-campaigns/${campaignId}/config`);
+      const docResp = await fetch(`/api/email/ai-campaigns/${campaignId}/config`, { headers });
       const config = await docResp.json();
       if (docResp.ok) {
         setCampaign(config);
@@ -78,8 +88,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     setDispatchStatus("Initiating background copy generator...");
 
     try {
+      const headers = await getAuthHeaders();
       const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/generate-all`, {
-        method: "POST"
+        method: "POST",
+        headers
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -106,8 +118,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     setDispatchStatus("Sending emails... Delivering to recipients...");
 
     try {
+      const headers = await getAuthHeaders();
       const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/send-batch`, {
-        method: "POST"
+        method: "POST",
+        headers
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -146,7 +160,8 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
       }
 
       // Check if paused during active sending loop
-      const checkStatus = await fetch(`/api/email/ai-campaigns/${campaignId}/status`);
+      const headers = await getAuthHeaders();
+      const checkStatus = await fetch(`/api/email/ai-campaigns/${campaignId}/status`, { headers });
       const latestMetrics = await checkStatus.json();
       if (latestMetrics.campaignStatus === "paused") {
         setIsAutoSending(false);
@@ -171,8 +186,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     setSuccessMsg(null);
     setIsAutoSending(false);
     try {
+      const headers = await getAuthHeaders();
       const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/pause`, {
-        method: "POST"
+        method: "POST",
+        headers
       });
       const data = await resp.json();
       if (resp.ok) {
@@ -190,8 +207,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     setError(null);
     setSuccessMsg(null);
     try {
+      const headers = await getAuthHeaders();
       const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/resume`, {
-        method: "POST"
+        method: "POST",
+        headers
       });
       if (resp.ok) {
         setSuccessMsg("Campaign status active. Dispatch resumed.");
@@ -207,8 +226,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     setError(null);
     setSuccessMsg(null);
     try {
+      const headers = await getAuthHeaders();
       const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/retry-failed`, {
-        method: "POST"
+        method: "POST",
+        headers
       });
       const data = await resp.json();
       if (resp.ok) {
