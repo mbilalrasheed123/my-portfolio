@@ -73,6 +73,31 @@ export async function getEmailSettings(): Promise<EmailSettings> {
   return docSnap.data() as EmailSettings;
 }
 
+let cachedTransporter: nodemailer.Transporter | null = null;
+let cachedTransporterKey = "";
+
+function getPooledTransporter(host: string, port: number, user: string, pass: string): nodemailer.Transporter {
+  const key = `${host}:${port}:${user}:${pass}`;
+  if (cachedTransporter && cachedTransporterKey === key) {
+    return cachedTransporter;
+  }
+  
+  cachedTransporter = nodemailer.createTransport({
+    pool: true,
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    maxConnections: 5,
+    maxMessages: 100,
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+  cachedTransporterKey = key;
+  return cachedTransporter;
+}
+
 /**
  * Core function to send an individual email using Nodemailer SMTP.
  */
@@ -85,18 +110,7 @@ async function sendMailViaSMTP(to: string, subject: string, html: string, text?:
   if (smtpUser && smtpPass) {
     try {
       const port = parseInt(smtpPort);
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: port,
-        secure: port === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
+      const transporter = getPooledTransporter(smtpHost, port, smtpUser, smtpPass);
 
       await transporter.sendMail({
         from: `"Portfolio Notification" <${smtpUser}>`,
@@ -301,6 +315,9 @@ export async function processEmailQueue(): Promise<{
       // Perform mail send
       console.log(`[EmailCampaignService] Dispatching campaign email to ${recipient.email}...`);
       const sendResult = await sendMailViaSMTP(recipient.email, finalSubject, finalHtml);
+
+      // Introduce a 2-second delay between sending each email to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const logId = adminDb.collection("emailLogs").doc().id;
 

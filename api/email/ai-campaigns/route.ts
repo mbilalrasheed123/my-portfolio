@@ -26,6 +26,30 @@ function getModelRpm(modelKey: string): number {
   return MODEL_LIMITS[modelKey]?.rpm || 10;
 }
 
+let cachedTransporter: any = null;
+let cachedTransporterKey = "";
+
+async function getPooledTransporter(host: string, port: number, user: string, pass: string): Promise<any> {
+  const key = `${host}:${port}:${user}:${pass}`;
+  if (cachedTransporter && cachedTransporterKey === key) {
+    return cachedTransporter;
+  }
+  
+  const nodemailer = await import("nodemailer");
+  cachedTransporter = nodemailer.createTransport({
+    pool: true,
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    maxConnections: 5,
+    maxMessages: 100,
+    tls: { rejectUnauthorized: false }
+  });
+  cachedTransporterKey = key;
+  return cachedTransporter;
+}
+
 /**
  * Helper to delay execution
  */
@@ -707,14 +731,7 @@ router.post("/:id/send-batch", async (req, res) => {
     const canSend = smtpUser && smtpPass;
 
     if (canSend) {
-      const nodemailer = await import("nodemailer");
-      transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-        tls: { rejectUnauthorized: false }
-      });
+      transporter = await getPooledTransporter(smtpHost, smtpPort, smtpUser, smtpPass);
     } else {
       console.warn("[SMTP AI dispatcher] No SMTP credentials. Simulating delivery logs.");
     }
@@ -764,6 +781,8 @@ router.post("/:id/send-batch", async (req, res) => {
             html: htmlBody
           });
           success = true;
+          // Introduce 2-second delay to avoid Google rate limit/spam block
+          await delay(2000);
         } catch (err: any) {
           errorMsg = err?.message || String(err);
           console.error(`[SMTP Dispatch Error] Failed to send email to ${email}:`, err);
@@ -772,6 +791,8 @@ router.post("/:id/send-batch", async (req, res) => {
         // Safe logger simulation
         success = true;
         errorMsg = "Logged (Simulated - Missing SMTP Credentials)";
+        // Add minimal simulated delay to make it realistic
+        await delay(500);
       }
 
       // Update Database via Transaction to ensure reliability
