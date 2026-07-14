@@ -29,11 +29,23 @@ router.get("/", async (req, res) => {
         .where("campaignId", "==", campaignId)
         .where("status", "==", "pending")
         .get();
+
+      const failedSnap = await adminDb.collection("campaignRecipients")
+        .where("campaignId", "==", campaignId)
+        .where("status", "==", "failed")
+        .get();
+
+      const sentSnap = await adminDb.collection("campaignRecipients")
+        .where("campaignId", "==", campaignId)
+        .where("status", "==", "sent")
+        .get();
         
       return {
         id: campaignId,
         ...data,
-        pendingCount: pendingSnap.size
+        pendingCount: pendingSnap.size,
+        failedCount: failedSnap.size,
+        sentCount: sentSnap.size
       };
     }));
     res.json(campaigns);
@@ -56,7 +68,31 @@ router.get("/:id", async (req, res) => {
     if (!docSnap.exists) {
       return res.status(404).json({ error: "Campaign not found" });
     }
-    res.json({ id: docSnap.id, ...docSnap.data() });
+    const campaignId = docSnap.id;
+    const data = docSnap.data() || {};
+
+    const pendingSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", campaignId)
+      .where("status", "==", "pending")
+      .get();
+
+    const failedSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", campaignId)
+      .where("status", "==", "failed")
+      .get();
+
+    const sentSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", campaignId)
+      .where("status", "==", "sent")
+      .get();
+
+    res.json({
+      id: campaignId,
+      ...data,
+      pendingCount: pendingSnap.size,
+      failedCount: failedSnap.size,
+      sentCount: sentSnap.size
+    });
   } catch (error: any) {
     console.error("[Campaigns API] Error fetching campaign details:", error);
     res.status(500).json({ error: "Failed to fetch campaign details", details: error?.message });
@@ -240,6 +276,221 @@ router.post("/:id/toggle", async (req, res) => {
   } catch (error: any) {
     console.error("[Campaigns API] Error toggling campaign:", error);
     res.status(500).json({ error: "Failed to toggle campaign status", details: error?.message });
+  }
+});
+
+/**
+ * GET /api/email/campaigns/:id/failed-recipients
+ * Purpose: Fetch all recipients in 'failed' status for a specific campaign
+ */
+router.get("/:id/failed-recipients", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const recSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", id)
+      .where("status", "==", "failed")
+      .get();
+    const failedRecipients = recSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, failedRecipients });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch failed recipients", details: error?.message });
+  }
+});
+
+/**
+ * POST /api/email/campaigns/:id/retry-recipient/:recId
+ * Purpose: Reset a single failed recipient to 'pending' status
+ */
+router.post("/:id/retry-recipient/:recId", async (req, res) => {
+  const { id, recId } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const campaignRef = adminDb.collection("campaigns").doc(id);
+    const recRef = adminDb.collection("campaignRecipients").doc(recId);
+    const recSnap = await recRef.get();
+    if (!recSnap.exists) return res.status(404).json({ error: "Recipient not found" });
+
+    const recipient = recSnap.data();
+    if (recipient?.status !== "failed") {
+      return res.status(400).json({ error: "Only failed recipients can be retried." });
+    }
+
+    await recRef.update({
+      status: "pending",
+      errorMessage: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const campaignSnap = await campaignRef.get();
+    const campaign = campaignSnap.data() || {};
+    const updatedStatus = campaign.status === "completed" ? "active" : campaign.status;
+
+    await campaignRef.update({
+      status: updatedStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, message: "Recipient reset to 'pending' state. Ready for sending." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to retry recipient", details: error?.message });
+  }
+});
+
+/**
+ * POST /api/email/campaigns/:id/retry-failed
+ * Purpose: Reset ALL failed recipients back to 'pending' status
+ */
+router.post("/:id/retry-failed", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const campaignRef = adminDb.collection("campaigns").doc(id);
+    const campaignSnap = await campaignRef.get();
+    if (!campaignSnap.exists) return res.status(404).json({ error: "Campaign not found" });
+
+    const failedSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", id)
+      .where("status", "==", "failed")
+      .get();
+
+    if (failedSnap.empty) {
+      return res.status(400).json({ error: "No failed recipients found to retry." });
+    }
+
+    let batch = adminDb.batch();
+    let count = 0;
+    for (const doc of failedSnap.docs) {
+      batch.update(doc.ref, {
+        status: "pending",
+        errorMessage: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      count++;
+      if (count % 400 === 0) {
+        await batch.commit();
+        batch = adminDb.batch();
+      }
+    }
+    if (count % 400 !== 0) {
+      await batch.commit();
+    }
+
+    const campaign = campaignSnap.data() || {};
+    const updatedStatus = campaign.status === "completed" ? "active" : campaign.status;
+
+    await campaignRef.update({
+      status: updatedStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, message: `Successfully reset ${count} failed recipients to 'pending'.` });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to retry all failed recipients", details: error?.message });
+  }
+});
+
+/**
+ * POST /api/email/campaigns/:id/reactivate
+ * Purpose: Save current completed run to history and reset campaign to allow editing and restarting a run
+ */
+router.post("/:id/reactivate", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const campaignRef = adminDb.collection("campaigns").doc(id);
+    const campaignSnap = await campaignRef.get();
+    if (!campaignSnap.exists) return res.status(404).json({ error: "Campaign not found" });
+
+    const campaign = campaignSnap.data() || {};
+
+    const recipientsSnap = await adminDb.collection("campaignRecipients")
+      .where("campaignId", "==", id)
+      .get();
+    const recipientsData = recipientsSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    const runId = adminDb.collection("campaigns").doc().id;
+
+    // Create a history log entry
+    const historyRef = campaignRef.collection("history").doc(runId);
+    await historyRef.set({
+      runId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      title: campaign.title || "",
+      subject: campaign.subject || "",
+      content: campaign.content || "",
+      templateId: campaign.templateId || null,
+      totalRecipients: campaign.totalRecipients || 0,
+      sentCount: campaign.sentCount || 0,
+      recipients: recipientsData
+    });
+
+    // Reset current active campaign
+    await campaignRef.update({
+      status: "draft",
+      sentCount: 0,
+      errorMessage: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Reset all recipients back to pending
+    let batch = adminDb.batch();
+    let count = 0;
+    for (const doc of recipientsSnap.docs) {
+      batch.update(doc.ref, {
+        status: "pending",
+        errorMessage: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      count++;
+      if (count % 400 === 0) {
+        await batch.commit();
+        batch = adminDb.batch();
+      }
+    }
+    if (count % 400 !== 0) {
+      await batch.commit();
+    }
+
+    res.json({
+      success: true,
+      message: "Campaign reactivated successfully! Status is reset to draft. You can now edit the email message and subject."
+    });
+
+  } catch (error: any) {
+    console.error("[Reactivate Campaign API] Error:", error);
+    res.status(500).json({ error: "Failed to reactivate campaign", details: error?.message });
+  }
+});
+
+/**
+ * GET /api/email/campaigns/:id/history
+ * Purpose: Fetch all archived campaign run history entries
+ */
+router.get("/:id/history", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const historyRef = adminDb.collection("campaigns").doc(id).collection("history");
+    const historySnap = await historyRef.orderBy("timestamp", "desc").get();
+    const historyRuns = historySnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, historyRuns });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch campaign history", details: error?.message });
   }
 });
 

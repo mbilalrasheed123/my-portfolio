@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Play, Pause, Trash2, Edit, AlertCircle, RefreshCw, CheckCircle, Clock, Users, ArrowUpRight } from "lucide-react";
+import { Plus, Play, Pause, Trash2, Edit, AlertCircle, RefreshCw, CheckCircle, Clock, Users, ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { auth } from "../../firebase";
+import CampaignDetailOverview from "./CampaignDetailOverview";
 
 interface CampaignsTabProps {
   onEditCampaign: (campaign: any) => void;
@@ -9,6 +10,7 @@ interface CampaignsTabProps {
 
 export default function CampaignsTab({ onEditCampaign, onCreateNew }: CampaignsTabProps) {
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
@@ -200,153 +202,186 @@ export default function CampaignsTab({ onEditCampaign, onCreateNew }: CampaignsT
         ) : (
           campaigns.map((campaign) => {
             const isToggling = actionLoading[campaign.id] || false;
+            const isExpanded = expandedCampaignId === campaign.id;
             return (
               <div 
                 key={campaign.id} 
-                className="glass p-6 rounded-3xl border border-line flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:border-line hover:bg-white/[0.01] transition-all relative group overflow-hidden"
+                className="glass p-6 rounded-3xl border border-line flex flex-col gap-6 hover:border-line hover:bg-white/[0.01] transition-all relative group overflow-hidden"
               >
-                {/* CAMPAIGN METADATA */}
-                <div className="space-y-3 min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className={`px-2.5 py-0.5 border rounded-full text-[8px] font-mono uppercase tracking-widest font-bold ${getStatusBadgeClass(campaign.status)}`}>
-                      {campaign.status}
-                    </span>
-                    <h4 className="text-base font-sans font-semibold text-white truncate">{campaign.title}</h4>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-xs text-secondary font-medium font-sans block truncate">
-                      Subject: <span className="text-white font-semibold">{campaign.subject || "Not configured"}</span>
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] font-mono text-secondary uppercase">
-                      <span>Created By: {campaign.createdBy?.split("@")[0] || "admin"}</span>
-                      <span>•</span>
-                      <span>
-                        Created: {campaign.createdAt ? (
-                          typeof campaign.createdAt === 'string' 
-                            ? new Date(campaign.createdAt).toLocaleDateString() 
-                            : new Date(campaign.createdAt?.seconds * 1000).toLocaleDateString()
-                        ) : "Recently"}
+                {/* TOP MAIN ROW */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
+                  {/* CAMPAIGN METADATA */}
+                  <div className="space-y-3 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className={`px-2.5 py-0.5 border rounded-full text-[8px] font-mono uppercase tracking-widest font-bold ${getStatusBadgeClass(campaign.status)}`}>
+                        {campaign.status}
                       </span>
-                      {campaign.lastSentAt && (
-                        <>
-                          <span>•</span>
-                          <span className="text-emerald-400">
-                            Last Sent: {
-                              typeof campaign.lastSentAt === 'string'
-                                ? new Date(campaign.lastSentAt).toLocaleString()
-                                : new Date(campaign.lastSentAt?.seconds * 1000).toLocaleString()
-                            }
-                          </span>
-                        </>
-                      )}
+                      <h4 className="text-base font-sans font-semibold text-white truncate">{campaign.title}</h4>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-xs text-secondary font-medium font-sans block truncate">
+                        Subject: <span className="text-white font-semibold">{campaign.subject || "Not configured"}</span>
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] font-mono text-secondary uppercase">
+                        <span>Created By: {campaign.createdBy?.split("@")[0] || "admin"}</span>
+                        <span>•</span>
+                        <span>
+                          Created: {campaign.createdAt ? (
+                            typeof campaign.createdAt === 'string' 
+                              ? new Date(campaign.createdAt).toLocaleDateString() 
+                              : new Date(campaign.createdAt?.seconds * 1000).toLocaleDateString()
+                          ) : "Recently"}
+                        </span>
+                        {campaign.lastSentAt && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-400">
+                              Last Sent: {
+                                typeof campaign.lastSentAt === 'string'
+                                  ? new Date(campaign.lastSentAt).toLocaleString()
+                                  : new Date(campaign.lastSentAt?.seconds * 1000).toLocaleString()
+                              }
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {campaign.errorMessage && (
+                      <p className="p-2 bg-rose-500/5 border border-rose-500/10 text-[9px] font-mono text-rose-400 uppercase rounded-lg">
+                        Error: {campaign.errorMessage}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* PROGRESS COUNTERS */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
+                      <div className="p-2 bg-white/5 border border-line rounded-xl text-accent">
+                        <Users size={14} />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Sent</span>
+                        <span className="text-xs font-sans text-white font-bold block mt-0.5">
+                          {campaign.sentCount} / {campaign.totalRecipients || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
+                      <div className="p-2 bg-white/5 border border-line rounded-xl text-amber-400">
+                        <Clock size={14} />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Pending</span>
+                        <span className="text-xs font-sans text-amber-400 font-bold block mt-0.5">
+                          {campaign.pendingCount ?? 0} emails
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {campaign.errorMessage && (
-                    <p className="p-2 bg-rose-500/5 border border-rose-500/10 text-[9px] font-mono text-rose-400 uppercase rounded-lg">
-                      Error: {campaign.errorMessage}
-                    </p>
-                  )}
-                </div>
-
-                {/* PROGRESS COUNTERS */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
-                    <div className="p-2 bg-white/5 border border-line rounded-xl text-accent">
-                      <Users size={14} />
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Sent</span>
-                      <span className="text-xs font-sans text-white font-bold block mt-0.5">
-                        {campaign.sentCount} / {campaign.totalRecipients || 0}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 border border-line/50 p-3 bg-white/[0.01] rounded-2xl">
-                    <div className="p-2 bg-white/5 border border-line rounded-xl text-amber-400">
-                      <Clock size={14} />
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-mono uppercase text-secondary tracking-wider block">Pending</span>
-                      <span className="text-xs font-sans text-amber-400 font-bold block mt-0.5">
-                        {campaign.pendingCount ?? 0} emails
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ACTIONS */}
-                <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto border-t border-line/30 pt-4 md:border-none md:pt-0">
-                  {/* SEND CAMPAIGN PENDING EMAILS NOW */}
-                  {(campaign.pendingCount ?? 0) > 0 && (
+                  {/* ACTIONS */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto border-t border-line/30 pt-4 md:border-none md:pt-0">
+                    {/* EXPAND/COLLAPSE OVERVIEW */}
                     <button
-                      onClick={() => handleSendCampaignNow(campaign.id)}
-                      disabled={isToggling}
-                      className="flex-1 md:flex-initial p-2 px-4 rounded-xl border border-accent hover:bg-accent hover:text-white text-accent font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
-                      title="Send this campaign's pending emails now"
-                    >
-                      {isToggling ? (
-                        <RefreshCw size={11} className="animate-spin" />
-                      ) : (
-                        <>
-                          <Play size={11} /> Send Pending
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {/* PLAY/PAUSE */}
-                  {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "active" || campaign.status === "failed") && (
-                    <button
-                      onClick={() => handleToggleStatus(campaign.id, campaign.status)}
-                      disabled={isToggling}
-                      className={`flex-1 md:flex-initial p-2 px-4 rounded-xl border font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        campaign.status === "active"
-                          ? "border-amber-500/20 hover:border-amber-500/40 text-amber-400 bg-amber-500/5"
-                          : "border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 bg-emerald-500/5"
+                      onClick={() => setExpandedCampaignId(isExpanded ? null : campaign.id)}
+                      className={`p-2 px-3 border rounded-xl transition-all cursor-pointer flex items-center gap-1 font-mono text-[9px] uppercase ${
+                        isExpanded
+                          ? "bg-accent/20 border-accent text-white"
+                          : "border-line hover:border-accent text-white hover:text-accent"
                       }`}
-                      title={campaign.status === "active" ? "Pause Campaign" : "Activate Campaign"}
+                      title="View Campaign Overview & Failed Recipient Retry"
                     >
-                      {isToggling ? (
-                        <RefreshCw size={11} className="animate-spin" />
-                      ) : campaign.status === "active" ? (
+                      {isExpanded ? (
                         <>
-                          <Pause size={11} /> Pause
+                          <ChevronUp size={11} /> Hide Overview
                         </>
                       ) : (
                         <>
-                          <Play size={11} /> Activate
+                          <ChevronDown size={11} /> View Overview
                         </>
                       )}
                     </button>
-                  )}
 
-                  {/* EDIT */}
-                  {(campaign.status === "draft" || campaign.status === "paused") && (
-                    <button
-                      onClick={() => onEditCampaign(campaign)}
-                      disabled={isToggling}
-                      className="p-2 px-3 border border-line hover:border-accent text-white hover:text-accent rounded-xl transition-all cursor-pointer flex items-center gap-1 font-mono text-[9px] uppercase"
-                      title="Edit Campaign"
-                    >
-                      <Edit size={11} /> Edit
-                    </button>
-                  )}
+                    {/* SEND CAMPAIGN PENDING EMAILS NOW */}
+                    {(campaign.pendingCount ?? 0) > 0 && (
+                      <button
+                        onClick={() => handleSendCampaignNow(campaign.id)}
+                        disabled={isToggling}
+                        className="p-2 px-4 rounded-xl border border-accent hover:bg-accent hover:text-white text-accent font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                        title="Send this campaign's pending emails now"
+                      >
+                        {isToggling ? (
+                          <RefreshCw size={11} className="animate-spin" />
+                        ) : (
+                          <>
+                            <Play size={11} /> Send Pending
+                          </>
+                        )}
+                      </button>
+                    )}
 
-                  {/* DELETE */}
-                  {campaign.status === "draft" && (
-                    <button
-                      onClick={() => handleDeleteCampaign(campaign.id)}
-                      disabled={isToggling}
-                      className="p-2 border border-line hover:border-rose-500 text-secondary hover:text-rose-400 rounded-xl transition-all cursor-pointer"
-                      title="Delete Campaign"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  )}
+                    {/* PLAY/PAUSE */}
+                    {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "active" || campaign.status === "failed") && (
+                      <button
+                        onClick={() => handleToggleStatus(campaign.id, campaign.status)}
+                        disabled={isToggling}
+                        className={`p-2 px-4 rounded-xl border font-mono text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          campaign.status === "active"
+                            ? "border-amber-500/20 hover:border-amber-500/40 text-amber-400 bg-amber-500/5"
+                            : "border-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 bg-emerald-500/5"
+                        }`}
+                        title={campaign.status === "active" ? "Pause Campaign" : "Activate Campaign"}
+                      >
+                        {isToggling ? (
+                          <RefreshCw size={11} className="animate-spin" />
+                        ) : campaign.status === "active" ? (
+                          <>
+                            <Pause size={11} /> Pause
+                          </>
+                        ) : (
+                          <>
+                            <Play size={11} /> Activate
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {/* EDIT */}
+                    {(campaign.status === "draft" || campaign.status === "paused") && (
+                      <button
+                        onClick={() => onEditCampaign(campaign)}
+                        disabled={isToggling}
+                        className="p-2 px-3 border border-line hover:border-accent text-white hover:text-accent rounded-xl transition-all cursor-pointer flex items-center gap-1 font-mono text-[9px] uppercase"
+                        title="Edit Campaign"
+                      >
+                        <Edit size={11} /> Edit
+                      </button>
+                    )}
+
+                    {/* DELETE */}
+                    {campaign.status === "draft" && (
+                      <button
+                        onClick={() => handleDeleteCampaign(campaign.id)}
+                        disabled={isToggling}
+                        className="p-2 border border-line hover:border-rose-500 text-secondary hover:text-rose-400 rounded-xl transition-all cursor-pointer"
+                        title="Delete Campaign"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* EXPANDABLE CAMPAIGN LEVEL OVERVIEW */}
+                {isExpanded && (
+                  <CampaignDetailOverview 
+                    campaign={campaign} 
+                    onCampaignUpdated={fetchCampaigns} 
+                  />
+                )}
               </div>
             );
           })
