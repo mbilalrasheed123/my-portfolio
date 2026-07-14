@@ -1061,4 +1061,195 @@ router.post("/:id/retry-failed", async (req, res) => {
   }
 });
 
+/**
+ * 11. GET /api/email/ai-campaigns/:id/failed-leads
+ * Purpose: Fetch all leads in 'failed' status for a specific campaign
+ */
+router.get("/:id/failed-leads", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const leadsRef = adminDb.collection("aiCampaigns").doc(id).collection("leads");
+    const failedSnap = await leadsRef.where("status", "==", "failed").get();
+    const failedLeads = failedSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, failedLeads });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch failed leads", details: error?.message });
+  }
+});
+
+/**
+ * 12. POST /api/email/ai-campaigns/:id/retry-lead/:leadId
+ * Purpose: Recycle a single failed lead back to 'generated' copy state
+ */
+router.post("/:id/retry-lead/:leadId", async (req, res) => {
+  const { id, leadId } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const campaignRef = adminDb.collection("aiCampaigns").doc(id);
+    const leadRef = campaignRef.collection("leads").doc(leadId);
+    const leadSnap = await leadRef.get();
+    if (!leadSnap.exists) return res.status(404).json({ error: "Lead not found" });
+
+    const lead = leadSnap.data();
+    if (lead?.status !== "failed") {
+      return res.status(400).json({ error: "Only failed leads can be retried." });
+    }
+
+    await leadRef.update({
+      status: "generated",
+      errorMessage: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const campaignSnap = await campaignRef.get();
+    const campaign = campaignSnap.data() || {};
+    const updatedFailed = Math.max(0, (campaign.failedCount || 0) - 1);
+    const updatedRemaining = (campaign.remainingCount || 0) + 1;
+
+    await campaignRef.update({
+      failedCount: updatedFailed,
+      remainingCount: updatedRemaining,
+      status: "ready-to-send",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, message: "Lead recycled to 'generated' copy state. Ready for dispatch." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to retry lead", details: error?.message });
+  }
+});
+
+/**
+ * 13. POST /api/email/ai-campaigns/:id/reactivate
+ * Purpose: Save current completed campaign run to history, and reset to draft with pending leads to allow editing instructions and starting a fresh run
+ */
+router.post("/:id/reactivate", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const campaignRef = adminDb.collection("aiCampaigns").doc(id);
+    const campaignSnap = await campaignRef.get();
+    if (!campaignSnap.exists) return res.status(404).json({ error: "Campaign not found" });
+
+    const campaign = campaignSnap.data() || {};
+
+    const leadsRef = campaignRef.collection("leads");
+    const leadsSnap = await leadsRef.get();
+    const leadsData = leadsSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    const logsRef = campaignRef.collection("logs");
+    const logsSnap = await logsRef.get();
+    const logsData = logsSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    const runId = adminDb.collection("aiCampaigns").doc().id;
+
+    // Create a history log entry
+    const historyRef = campaignRef.collection("history").doc(runId);
+    await historyRef.set({
+      runId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      title: campaign.title || "Sales Campaign Run",
+      instructions: campaign.instructions || "",
+      geminiModel: campaign.geminiModel || "flash-lite",
+      imageStrategy: campaign.imageStrategy || "option1-keyword",
+      totalLeads: campaign.totalLeads || 0,
+      sentCount: campaign.sentCount || 0,
+      failedCount: campaign.failedCount || 0,
+      leads: leadsData,
+      logs: logsData
+    });
+
+    // Reset current active campaign
+    await campaignRef.update({
+      status: "draft",
+      sentCount: 0,
+      failedCount: 0,
+      remainingCount: campaign.totalLeads || 0,
+      errorMessage: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Reset all leads back to pending
+    let batch = adminDb.batch();
+    let count = 0;
+    for (const doc of leadsSnap.docs) {
+      batch.set(doc.ref, {
+        email: doc.data().email,
+        name: doc.data().name,
+        businessType: doc.data().businessType || "",
+        businessName: doc.data().businessName || "",
+        city: doc.data().city || "",
+        status: "pending",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      count++;
+      if (count % 400 === 0) {
+        await batch.commit();
+        batch = adminDb.batch();
+      }
+    }
+    if (count % 400 !== 0) {
+      await batch.commit();
+    }
+
+    // Clean up current active logs
+    let logBatch = adminDb.batch();
+    let logCount = 0;
+    for (const doc of logsSnap.docs) {
+      logBatch.delete(doc.ref);
+      logCount++;
+      if (logCount % 400 === 0) {
+        await logBatch.commit();
+        logBatch = adminDb.batch();
+      }
+    }
+    if (logCount % 400 !== 0) {
+      await logBatch.commit();
+    }
+
+    res.json({
+      success: true,
+      message: "Campaign reactivated successfully! Status is reset to draft. You can now edit the custom instructions."
+    });
+
+  } catch (error: any) {
+    console.error("[Reactivate AI Campaign API] Error:", error);
+    res.status(500).json({ error: "Failed to reactivate campaign", details: error?.message });
+  }
+});
+
+/**
+ * 14. GET /api/email/ai-campaigns/:id/history
+ * Purpose: Fetch all archived campaign run history entries
+ */
+router.get("/:id/history", async (req, res) => {
+  const { id } = req.params;
+  if (!adminDb) return res.status(503).json({ error: "Database not available" });
+
+  try {
+    const historyRef = adminDb.collection("aiCampaigns").doc(id).collection("history");
+    const historySnap = await historyRef.orderBy("timestamp", "desc").get();
+    const historyRuns = historySnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, historyRuns });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch campaign history", details: error?.message });
+  }
+});
+
 export default router;

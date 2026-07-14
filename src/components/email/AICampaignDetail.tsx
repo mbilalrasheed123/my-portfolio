@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   ArrowLeft, RefreshCw, Send, Play, Pause, AlertTriangle, 
-  CheckCircle, Clock, Sparkles, AlertCircle, FileText, Ban, Trash2, Cpu, Image as ImageIcon 
+  CheckCircle, Clock, Sparkles, AlertCircle, FileText, Ban, Trash2, Cpu, Image as ImageIcon, X
 } from "lucide-react";
 import { auth } from "../../firebase";
 import CampaignProgress from "./CampaignProgress";
@@ -26,6 +26,16 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
   const [cooldownTime, setCooldownTime] = useState<number>(0);
   const [isAutoSending, setIsAutoSending] = useState(false);
 
+  // New features state
+  const [failedLeads, setFailedLeads] = useState<any[]>([]);
+  const [historyRuns, setHistoryRuns] = useState<any[]>([]);
+  const [tempInstructions, setTempInstructions] = useState<string>("");
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [isSavingInstructions, setIsSavingInstructions] = useState(false);
+  const [retryingLeads, setRetryingLeads] = useState<Record<string, boolean>>({});
+  const [selectedHistoryRun, setSelectedHistoryRun] = useState<any | null>(null);
+  const [instructionsInitialized, setInstructionsInitialized] = useState(false);
+
   // Status metrics
   const [statusMetrics, setStatusMetrics] = useState<any>({
     campaignStatus: "draft",
@@ -48,6 +58,32 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
     };
   };
 
+  const fetchFailedLeads = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/failed-leads`, { headers });
+      const data = await resp.json();
+      if (resp.ok) {
+        setFailedLeads(data.failedLeads || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch failed leads:", err);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/history`, { headers });
+      const data = await resp.json();
+      if (resp.ok) {
+        setHistoryRuns(data.historyRuns || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch campaign history:", err);
+    }
+  };
+
   const fetchStatusAndCampaign = async () => {
     if (!campaignId) return;
     try {
@@ -58,6 +94,11 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
       if (confResp.ok) {
         setStatusMetrics(metrics);
         setIsGenerating(metrics.campaignStatus === "generating");
+        if (metrics.failedCount > 0) {
+          fetchFailedLeads();
+        } else {
+          setFailedLeads([]);
+        }
       }
 
       // Fetch config
@@ -65,6 +106,10 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
       const config = await docResp.json();
       if (docResp.ok) {
         setCampaign(config);
+        if (!instructionsInitialized) {
+          setTempInstructions(config.instructions || "");
+          setInstructionsInitialized(true);
+        }
       }
     } catch (err) {
       console.error("Failed to poll status metrics:", err);
@@ -75,10 +120,92 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
 
   useEffect(() => {
     fetchStatusAndCampaign();
+    fetchHistory();
     // Poll stats every 4 seconds to get background copy generation updates
     const interval = setInterval(fetchStatusAndCampaign, 4000);
     return () => clearInterval(interval);
   }, [campaignId]);
+
+  // Handle Save updated instructions/prompt when in draft state
+  const handleSaveInstructions = async () => {
+    setError(null);
+    setSuccessMsg(null);
+    setIsSavingInstructions(true);
+    try {
+      const headers = await getAuthHeaders({ "Content-Type": "application/json" });
+      const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/update-config`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          instructions: tempInstructions
+        })
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || "Failed to update instructions.");
+      }
+      setSuccessMsg("Instructions updated successfully! You can now generate copies with the new message prompt.");
+      fetchStatusAndCampaign();
+    } catch (err: any) {
+      setError(err?.message || "Failed to save instructions.");
+    } finally {
+      setIsSavingInstructions(false);
+    }
+  };
+
+  // Handle retry single lead send
+  const handleRetrySingleLead = async (leadId: string) => {
+    setError(null);
+    setSuccessMsg(null);
+    setRetryingLeads(prev => ({ ...prev, [leadId]: true }));
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/retry-lead/${leadId}`, {
+        method: "POST",
+        headers
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || "Failed to retry lead.");
+      }
+      setSuccessMsg(`Lead reset to ready copy state successfully.`);
+      fetchStatusAndCampaign();
+    } catch (err: any) {
+      setError(err?.message || "Failed to retry lead.");
+    } finally {
+      setRetryingLeads(prev => ({ ...prev, [leadId]: false }));
+    }
+  };
+
+  // Handle reactivate completed campaign
+  const handleReactivate = async () => {
+    if (!window.confirm("Are you sure you want to reactivate this campaign? This will archive your current campaign statistics and leads to the run history, reset active counts and leads to pending, and set status back to draft so you can customize your message and start a new run.")) {
+      return;
+    }
+
+    setError(null);
+    setSuccessMsg(null);
+    setIsReactivating(true);
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`/api/email/ai-campaigns/${campaignId}/reactivate`, {
+        method: "POST",
+        headers
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || "Failed to reactivate campaign.");
+      }
+      setSuccessMsg(data.message || "Campaign reactivated successfully! Status is reset to draft. You can now edit instructions.");
+      setInstructionsInitialized(false); // force re-sync with new instructions
+      fetchStatusAndCampaign();
+      fetchHistory();
+    } catch (err: any) {
+      setError(err?.message || "Failed to reactivate campaign.");
+    } finally {
+      setIsReactivating(false);
+    }
+  };
 
   // Handle Generate All Copies upfront
   const handleGenerateAll = async () => {
@@ -312,6 +439,16 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
               <Play size={12} /> Resume Campaign
             </button>
           )}
+
+          {statusMetrics.campaignStatus === "completed" && (
+            <button
+              onClick={handleReactivate}
+              disabled={isReactivating}
+              className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-mono text-[9px] uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer font-bold disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isReactivating ? "animate-spin" : ""} /> Reactivate Campaign
+            </button>
+          )}
         </div>
       </div>
 
@@ -342,6 +479,32 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
             generatedCount={statusMetrics.generatedCount}
             status={statusMetrics.campaignStatus}
           />
+
+          {/* EDIT MESSAGE PROMPT (Only in draft mode) */}
+          {statusMetrics.campaignStatus === "draft" && (
+            <div className="bg-[#111317] border border-white/[0.06] rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-sans font-bold text-white uppercase tracking-wider">Customize Campaign Message Prompt</h4>
+                <button
+                  disabled={isSavingInstructions}
+                  onClick={handleSaveInstructions}
+                  className="px-4 py-2 bg-[#2563eb] hover:bg-blue-600 disabled:opacity-50 text-white font-mono text-[9px] uppercase tracking-widest font-bold rounded-xl transition-all cursor-pointer shadow-[0_4px_12px_rgba(37,99,235,0.25)]"
+                >
+                  {isSavingInstructions ? "Saving..." : "Save Message Prompt"}
+                </button>
+              </div>
+              <p className="text-[10px] text-secondary">
+                Customize the copy generation instructions used by the AI model. This message prompt guides how Gemini structures and personalizes your outbound emails.
+              </p>
+              <textarea
+                value={tempInstructions}
+                onChange={(e) => setTempInstructions(e.target.value)}
+                placeholder="Enter custom instructions or message content to guide the copy generation..."
+                rows={5}
+                className="w-full bg-[#0a0b0d] border border-white/[0.08] focus:border-[#2563eb]/30 rounded-xl p-4 font-sans text-xs text-white outline-none placeholder:text-secondary"
+              />
+            </div>
+          )}
 
           {/* ACTION SHELF: GENERATE & AUTOMATE */}
           <div className="bg-[#111317] border border-white/[0.06] rounded-2xl p-6 shadow-xl space-y-6">
@@ -448,6 +611,48 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
               </div>
             )}
           </div>
+
+          {/* FAILED EMAIL DELIVERIES SUMMARY & INDIVIDUAL RETRY */}
+          {failedLeads.length > 0 && (
+            <div className="bg-[#111317] border border-white/[0.06] rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
+                <div>
+                  <h4 className="text-sm font-sans font-bold text-white uppercase tracking-wider">Failed Email Deliveries</h4>
+                  <p className="text-[10px] text-secondary mt-0.5">Review failed email deliveries and retry them individually or altogether.</p>
+                </div>
+                <button
+                  onClick={handleRetryFailed}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-mono text-[9px] uppercase tracking-widest font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Retry All Failed
+                </button>
+              </div>
+              <div className="divide-y divide-white/[0.04] max-h-80 overflow-y-auto pr-1">
+                {failedLeads.map((lead) => (
+                  <div key={lead.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+                    <div className="space-y-0.5">
+                      <div className="text-white font-bold">{lead.name} <span className="text-secondary font-normal font-mono text-[10px]">({lead.email})</span></div>
+                      <div className="text-red-400 text-[10px] italic flex items-center gap-1.5">
+                        <AlertCircle size={10} />
+                        <span>Error: {lead.errorMessage || "SMTP transmission failed"}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRetrySingleLead(lead.id)}
+                      disabled={retryingLeads[lead.id]}
+                      className="shrink-0 px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-mono text-[9px] uppercase tracking-widest font-bold transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {retryingLeads[lead.id] ? (
+                        <div className="w-3 h-3 border-2 border-t-transparent border-red-400 rounded-full animate-spin" />
+                      ) : (
+                        "Retry Lead"
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* SIDE BAR DETAILS & LIVE RPM */}
@@ -488,20 +693,61 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
 
             {/* Campaign Summary Display Requirement */}
             {statusMetrics.campaignStatus === "completed" && (
-              <div className="pt-4 border-t border-white/[0.06] space-y-2 bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/10">
-                <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-bold">Campaign Summary</p>
-                <ul className="text-[10px] font-mono text-secondary space-y-1">
-                  <li>├─ Total leads: {statusMetrics.totalLeads}</li>
-                  <li>├─ Successfully sent: {statusMetrics.sentCount}</li>
-                  <li>├─ Failed: {statusMetrics.failedCount}</li>
-                  <li>├─ Remaining: 0</li>
-                  <li>├─ Model used: {modelLabel}</li>
-                  <li>├─ Image strategy: {statusMetrics.imageStrategy === "option1-keyword" ? "Keyword-based" : "Direct URL"}</li>
-                  <li>└─ Status: ✅ Completed</li>
-                </ul>
+              <div className="pt-4 border-t border-white/[0.06] space-y-4 bg-[#10b981]/5 p-4 rounded-xl border border-[#10b981]/10">
+                <div>
+                  <p className="text-[10px] font-mono text-[#10b981] uppercase tracking-widest font-bold">Campaign Summary</p>
+                  <ul className="text-[10px] font-mono text-secondary space-y-1 mt-1">
+                    <li>├─ Total leads: {statusMetrics.totalLeads}</li>
+                    <li>├─ Successfully sent: {statusMetrics.sentCount}</li>
+                    <li>├─ Failed: {statusMetrics.failedCount}</li>
+                    <li>├─ Remaining: 0</li>
+                    <li>├─ Model used: {modelLabel}</li>
+                    <li>├─ Image strategy: {statusMetrics.imageStrategy === "option1-keyword" ? "Keyword-based" : "Direct URL"}</li>
+                    <li>└─ Status: ✅ Completed</li>
+                  </ul>
+                </div>
+                <button
+                  disabled={isReactivating}
+                  onClick={handleReactivate}
+                  className="w-full py-2 bg-[#10b981] hover:bg-emerald-600 disabled:opacity-50 text-white font-mono text-[9px] uppercase tracking-widest font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(16,185,129,0.25)]"
+                >
+                  <RefreshCw size={12} className={isReactivating ? "animate-spin" : ""} /> Reactivate & Run Again
+                </button>
               </div>
             )}
           </div>
+
+          {/* CAMPAIGN RUN HISTORY */}
+          {historyRuns.length > 0 && (
+            <div className="bg-[#111317] border border-white/[0.06] rounded-2xl p-6 shadow-xl space-y-4">
+              <h4 className="text-xs font-mono uppercase tracking-widest text-[#94a3b8] font-bold">Run History ({historyRuns.length})</h4>
+              <p className="text-[10px] text-secondary leading-normal">
+                Review past iterations, delivery outcomes, and custom prompts used.
+              </p>
+              <div className="divide-y divide-white/[0.04] space-y-3 max-h-72 overflow-y-auto pr-1">
+                {historyRuns.map((run, idx) => (
+                  <div key={run.id} className="pt-3 first:pt-0 space-y-2">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-mono text-white font-bold">Run #{historyRuns.length - idx}</span>
+                      <span className="font-mono text-secondary">
+                        {run.timestamp ? new Date(run.timestamp.seconds * 1000).toLocaleDateString() : "Recent"}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-secondary space-y-1 bg-white/[0.01] border border-white/[0.04] p-2.5 rounded-lg font-mono">
+                      <div>Sent: <span className="text-emerald-400 font-bold">{run.sentCount}</span> | Failed: <span className="text-red-400 font-bold">{run.failedCount}</span></div>
+                      <div className="truncate text-[9px] text-[#94a3b8] italic">Prompt: "{run.instructions}"</div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedHistoryRun(run)}
+                      className="w-full text-center py-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 font-mono text-[8px] uppercase tracking-widest rounded-lg transition-all cursor-pointer"
+                    >
+                      View Archived Run
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -510,6 +756,106 @@ export default function AICampaignDetail({ campaignId, onBack }: AICampaignDetai
         <h3 className="text-lg font-display uppercase tracking-tight text-white mb-6">Delivery Logs & Metrics Audit</h3>
         <AIEmailLogs campaignId={campaignId} />
       </div>
+
+      {/* HISTORY RUN DETAIL MODAL */}
+      {selectedHistoryRun && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0e1014] border border-white/[0.08] w-full max-w-4xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-white/[0.06] flex items-center justify-between">
+              <div>
+                <span className="font-mono text-[10px] uppercase tracking-widest font-bold text-[#2563eb]">Archived Campaign Run Data</span>
+                <h3 className="text-lg font-display uppercase tracking-tight text-white font-bold mt-1">
+                  {selectedHistoryRun.title} - Run Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedHistoryRun(null)}
+                className="p-1.5 bg-white/5 border border-white/10 hover:border-white/20 text-secondary hover:text-white rounded-lg transition-all cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* SUMMARY METRICS */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
+                  <span className="text-[8px] font-mono text-secondary uppercase">Run Date</span>
+                  <p className="text-xs font-sans font-bold text-white mt-1">
+                    {selectedHistoryRun.timestamp ? new Date(selectedHistoryRun.timestamp.seconds * 1000).toLocaleString() : "Recent"}
+                  </p>
+                </div>
+                <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
+                  <span className="text-[8px] font-mono text-secondary uppercase">Total Leads</span>
+                  <p className="text-xs font-sans font-bold text-white mt-1">{selectedHistoryRun.totalLeads}</p>
+                </div>
+                <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
+                  <span className="text-[8px] font-mono text-emerald-400 uppercase font-bold">Sent successfully</span>
+                  <p className="text-xs font-sans font-bold text-emerald-400 mt-1">{selectedHistoryRun.sentCount}</p>
+                </div>
+                <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
+                  <span className="text-[8px] font-mono text-red-400 uppercase font-bold">Failed deliveries</span>
+                  <p className="text-xs font-sans font-bold text-red-400 mt-1">{selectedHistoryRun.failedCount}</p>
+                </div>
+              </div>
+
+              {/* PROMPT USED */}
+              <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl space-y-1">
+                <span className="text-[8px] font-mono text-secondary uppercase font-bold">Custom Instructions/Message Prompt Used</span>
+                <p className="text-xs font-sans text-white mt-1 whitespace-pre-wrap italic">
+                  "{selectedHistoryRun.instructions || "No custom instructions defined"}"
+                </p>
+              </div>
+
+              {/* ARCHIVED LEADS & LOGS */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-sans font-bold text-white uppercase tracking-wider">Archived Deliveries</h4>
+                <div className="bg-[#111317] border border-white/[0.06] rounded-xl overflow-hidden max-h-80 overflow-y-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/[0.04] bg-white/[0.02] text-[9px] font-mono uppercase text-secondary">
+                        <th className="p-3">Recipient</th>
+                        <th className="p-3">Subject</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Sent At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.04] text-xs font-sans">
+                      {selectedHistoryRun.leads?.map((lead: any) => (
+                        <tr key={lead.id} className="hover:bg-white/[0.01]">
+                          <td className="p-3">
+                            <div className="text-white font-bold">{lead.name}</div>
+                            <div className="text-[10px] text-secondary font-mono">{lead.email}</div>
+                          </td>
+                          <td className="p-3 max-w-xs truncate text-[#94a3b8]">
+                            {lead.status === "failed" ? (
+                              <span className="text-red-400 italic">Error: {lead.errorMessage}</span>
+                            ) : (
+                              "Personalized offer"
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-mono uppercase font-bold ${
+                              lead.status === "sent" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                              lead.status === "failed" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                              "bg-white/10 text-secondary"
+                            }`}>
+                              {lead.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-[10px] text-secondary font-mono">
+                            {lead.sentAt ? new Date(lead.sentAt.seconds ? lead.sentAt.seconds * 1000 : lead.sentAt).toLocaleString() : "N/A"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
