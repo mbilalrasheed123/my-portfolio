@@ -342,29 +342,16 @@ export default function ProjectGrid({ projects, onViewProject }: ProjectGridProp
 
                           {project.downloadUrl && (
                             <button 
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 const filename = project.downloadUrl?.split('/').pop() || `${project.title.replace(/\s+/g, '_')}_asset`;
-                                try {
-                                  const response = await fetch(project.downloadUrl!);
-                                  const blob = await response.blob();
-                                  const blobUrl = window.URL.createObjectURL(blob);
-                                  const a = document.createElement("a");
-                                  a.href = blobUrl;
-                                  a.download = filename;
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                  window.URL.revokeObjectURL(blobUrl);
-                                } catch (error) {
-                                  const a = document.createElement("a");
-                                  a.href = project.downloadUrl!;
-                                  a.download = filename;
-                                  a.target = "_blank";
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                }
+                                const downloadUrl = `/api/download?url=${encodeURIComponent(project.downloadUrl!)}&filename=${encodeURIComponent(filename)}`;
+                                const a = document.createElement("a");
+                                a.href = downloadUrl;
+                                a.download = filename;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
                               }}
                               className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#00ffa3] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
                               title="Download Project Asset"

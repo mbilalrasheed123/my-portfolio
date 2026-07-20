@@ -147,29 +147,16 @@ export default function FeaturedProjects({ projects, onViewProject }: FeaturedPr
                   
                   {current.downloadUrl && (
                     <button 
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
                         const filename = current.downloadUrl?.split('/').pop() || `${current.title.replace(/\s+/g, '_')}_asset`;
-                        try {
-                          const response = await fetch(current.downloadUrl!);
-                          const blob = await response.blob();
-                          const blobUrl = window.URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = blobUrl;
-                          a.download = filename;
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                          window.URL.revokeObjectURL(blobUrl);
-                        } catch (error) {
-                          const a = document.createElement("a");
-                          a.href = current.downloadUrl!;
-                          a.download = filename;
-                          a.target = "_blank";
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                        }
+                        const downloadUrl = `/api/download?url=${encodeURIComponent(current.downloadUrl!)}&filename=${encodeURIComponent(filename)}`;
+                        const a = document.createElement("a");
+                        a.href = downloadUrl;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
                       }}
                       className="group border border-white/20 hover:border-[#00ffa3] text-white hover:text-black hover:bg-[#00ffa3] px-8 py-4 rounded-full text-xs font-mono uppercase tracking-widest font-bold flex items-center gap-3 transition-all cursor-pointer"
                       title="Download Project Asset"

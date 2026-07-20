@@ -43,6 +43,35 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Proxy route to secure and handle file downloads under any cross-origin/iframe constraints
+app.get("/api/download", async (req, res) => {
+  const { url, filename } = req.query;
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "Missing url parameter" });
+  }
+
+  try {
+    console.log(`[Download API] Proxying file download from URL: ${url}`);
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) {
+      return res.status(fileRes.status).json({ error: `Failed to fetch file: ${fileRes.statusText}` });
+    }
+
+    const contentType = fileRes.headers.get("content-type") || "application/octet-stream";
+    const downloadName = typeof filename === "string" ? filename : (url.split("/").pop() || "download");
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(downloadName)}"`);
+
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
+  } catch (error: any) {
+    console.error("[Download API] Error proxying download:", error);
+    res.status(500).json({ error: "Failed to download file", details: error?.message });
+  }
+});
+
 // Email Marketing API Routes
 app.use("/api/email/campaigns", campaignRouter);
 app.use("/api/email/templates", templateRouter);
@@ -79,7 +108,7 @@ async function generateContentWithFallback(params: {
   keyNameUsed: string;
   modelUsed: string;
 }> {
-  const modelsToTry = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash"];
   let currentKey = params.initialKey;
   let currentKeyId = params.initialKeyId;
   let currentKeyName = params.initialKeyName;
