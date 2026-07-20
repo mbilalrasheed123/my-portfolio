@@ -20,7 +20,7 @@ interface AuthProps {
 }
 
 export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
-  const isLogin = true;
+  const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,8 +74,19 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
         setMessage("Password reset email sent! Please check your inbox.");
         setIsForgotPassword(false);
       } else {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        let user;
+        if (isLogin) {
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          user = userCredential.user;
+        } else {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          user = userCredential.user;
+          try {
+            await sendEmailVerification(user);
+          } catch (veErr) {
+            console.error("Verification email sending failed:", veErr);
+          }
+        }
 
         // Reset variables upon success
         setFailedAttempts(0);
@@ -289,7 +300,7 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               disabled={loading || isCooldownActive}
               className="w-full py-4 bg-white text-black font-display uppercase tracking-widest text-sm rounded-xl hover:bg-accent hover:text-white transition-all disabled:opacity-50"
             >
-              {loading ? "Processing..." : (isForgotPassword ? "Send Reset Link" : "Sign In")}
+              {loading ? "Processing..." : (isForgotPassword ? "Send Reset Link" : (isLogin ? "Sign In" : "Register"))}
             </button>
 
             <div className="relative my-6">
@@ -328,6 +339,22 @@ export default function Auth({ onSuccess, loginOnly = false }: AuthProps) {
               Google
             </button>
           </form>
+
+          {!loginOnly && !isForgotPassword && (
+            <div className="text-center mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError("");
+                  setMessage("");
+                }}
+                className="text-xs font-mono text-secondary hover:text-white uppercase tracking-wider transition-colors"
+              >
+                {isLogin ? "Don't have an account? Register" : "Already have an account? Sign In"}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
